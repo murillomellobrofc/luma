@@ -1,0 +1,366 @@
+<svg viewBox="0 0 1280 1800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="menuBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0.97"/>
+      <stop offset="100%" stop-color="#0F0A07" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="dividerLine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBF6EE" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FBF6EE" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FBF6EE" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <linearGradient id="scrollFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#1F1611" stop-opacity="0.97"/>
+    </linearGradient>
+    <filter id="menuShadow">
+      <feGaussianBlur stdDeviation="12"/>
+      <feOffset dx="0" dy="6" result="offsetblur"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1800" fill="#FBF6EE"/>
+
+  <!-- Header -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">All Apps View — Spec</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Layout 2 colunas Win7 + scroll vertical + breadcrumb pra voltar pros favoritos</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ================ -->
+  <!-- 1. TRANSIÇÃO     -->
+  <!-- ================ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — TRANSIÇÃO ENTRE OS 2 MODOS</text>
+
+  <g transform="translate(60, 180)">
+    <!-- Menu favoritos (modo padrão) -->
+    <g>
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72" font-weight="700">MODO FAVORITOS (padrão)</text>
+      <g transform="translate(0, 15)">
+        <rect x="0" y="0" width="540" height="380" fill="url(#menuBg)" rx="10"/>
+        <rect x="0" y="0" width="540" height="1" fill="#E89B3D" opacity="0.25" rx="10 10 0 0"/>
+        <text x="20" y="35" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">FAVORITOS</text>
+        <text x="280" y="35" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">LUGARES</text>
+        <text x="20" y="60" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">8 apps + 7 pastas</text>
+        <text x="20" y="80" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">— layout descomplicado —</text>
+        <rect x="20" y="320" width="500" height="36" fill="#2A1F1A" rx="6"/>
+        <g transform="translate(28, 332)" stroke="#E89B3D" stroke-width="1.5" fill="none">
+          <line x1="0" y1="3" x2="12" y2="3" stroke-linecap="round"/>
+          <line x1="0" y1="7" x2="12" y2="7" stroke-linecap="round"/>
+          <line x1="0" y1="11" x2="12" y2="11" stroke-linecap="round"/>
+        </g>
+        <text x="60" y="343" font-family="system-ui, sans-serif" font-size="13" fill="#E89B3D" font-weight="500">Todos os apps</text>
+        <text x="510" y="343" font-family="monospace" font-size="14" fill="#E89B3D" text-anchor="end">→</text>
+      </g>
+    </g>
+
+    <!-- Arrow -->
+    <g transform="translate(560, 200)" fill="none" stroke="#E89B3D" stroke-width="2" stroke-linecap="round">
+      <line x1="0" y1="0" x2="40" y2="0"/>
+      <polyline points="30,-7 40,0 30,7"/>
+      <text x="20" y="-12" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" text-anchor="middle" font-weight="700" stroke="none">click</text>
+      <text x="20" y="20" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" text-anchor="middle" stroke="none">150ms slide</text>
+    </g>
+
+    <!-- Menu all apps -->
+    <g transform="translate(620, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-weight="700">MODO TODOS OS APPS (expandido)</text>
+      <g transform="translate(0, 15)">
+        <rect x="0" y="0" width="540" height="380" fill="url(#menuBg)" rx="10"/>
+        <rect x="0" y="0" width="540" height="1" fill="#E89B3D" opacity="0.25" rx="10 10 0 0"/>
+        <!-- Breadcrumb back -->
+        <g transform="translate(20, 25)">
+          <text x="0" y="14" font-family="monospace" font-size="14" fill="#E89B3D">←</text>
+          <text x="20" y="14" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-weight="500">Voltar aos favoritos</text>
+        </g>
+        <text x="20" y="68" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">A — D</text>
+        <text x="280" y="68" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">E — Z</text>
+        <text x="20" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">~40 apps reais do sistema</text>
+        <text x="20" y="120" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">— scroll vertical infinito —</text>
+        <text x="20" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Apps agrupados por:</text>
+        <text x="35" y="190" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE">• Inicial do nome</text>
+        <text x="35" y="208" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE">• Ou categoria (.desktop Categories)</text>
+        <text x="35" y="226" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE">• Ou ordem alfabética simples</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================ -->
+  <!-- 2. ALL APPS DETAIL -->
+  <!-- ================ -->
+  <text x="60" y="640" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — TELA "TODOS OS APPS" EM DETALHE</text>
+
+  <g transform="translate(60, 660)" filter="url(#menuShadow)">
+    <rect x="0" y="0" width="560" height="700" fill="url(#menuBg)" rx="10"/>
+    <rect x="0" y="0" width="560" height="1" fill="#E89B3D" opacity="0.25" rx="10 10 0 0"/>
+
+    <!-- Profile bar (igual menu padrão pra continuidade) -->
+    <g transform="translate(20, 20)">
+      <circle cx="20" cy="20" r="20" fill="url(#logoBeam)"/>
+      <text x="20" y="26" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE" text-anchor="middle">M</text>
+      <text x="56" y="20" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE">Murillo</text>
+      <text x="56" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">murillo@fedora</text>
+    </g>
+
+    <!-- Breadcrumb back to favorites -->
+    <g transform="translate(20, 75)">
+      <rect x="0" y="0" width="520" height="34" fill="#2A1F1A" rx="6"/>
+      <text x="12" y="22" font-family="monospace" font-size="14" fill="#E89B3D">←</text>
+      <text x="32" y="22" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-weight="500">Voltar aos favoritos</text>
+      <text x="510" y="22" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="end">Esc</text>
+    </g>
+
+    <!-- Search bar -->
+    <g transform="translate(20, 124)">
+      <rect x="0" y="0" width="520" height="40" fill="#2A1F1A" rx="8"/>
+      <g transform="translate(12, 12)" fill="none" stroke="#A89D92" stroke-width="1.5">
+        <circle cx="7" cy="7" r="5.5"/>
+        <line x1="11" y1="11" x2="15" y2="15" stroke-linecap="round"/>
+      </g>
+      <text x="40" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92">Buscar entre todos os apps...</text>
+      <g transform="translate(480, 11)">
+        <rect x="0" y="0" width="28" height="18" fill="#1F1611" rx="3"/>
+        <text x="14" y="13" font-family="monospace" font-size="9" fill="#8B7D72" text-anchor="middle">⌘ K</text>
+      </g>
+    </g>
+
+    <!-- Counter -->
+    <text x="20" y="190" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="1">42 APPS INSTALADOS</text>
+
+    <!-- TWO COLUMNS (alphabetical split) -->
+    <!-- Column A-M -->
+    <g transform="translate(20, 210)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">A — M</text>
+
+      <!-- App rows -->
+      <g transform="translate(0, 16)">
+        <g transform="translate(0, 0)">
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Arquivos</text>
+        </g>
+        <g transform="translate(0, 36)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Brave Browser</text>
+        </g>
+        <!-- HOVER state -->
+        <g transform="translate(0, 72)">
+          <rect x="0" y="0" width="245" height="36" fill="#3D2520" rx="6"/>
+          <rect x="0" y="6" width="3" height="24" fill="#E89B3D" rx="0"/>
+          <rect x="8" y="8" width="20" height="20" fill="#F5D5A8" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Calculadora</text>
+        </g>
+        <g transform="translate(0, 108)">
+          <rect x="8" y="8" width="20" height="20" fill="#1F1611" rx="4"/>
+          <rect x="10" y="10" width="16" height="16" fill="#E89B3D" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Claude Code</text>
+          <circle cx="230" cy="18" r="3" fill="#E89B3D"/>
+        </g>
+        <g transform="translate(0, 144)">
+          <rect x="8" y="8" width="20" height="20" fill="#9F4A35" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Discord</text>
+        </g>
+        <g transform="translate(0, 180)">
+          <rect x="8" y="8" width="20" height="20" fill="#FBF6EE" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Editor</text>
+        </g>
+        <g transform="translate(0, 216)">
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Fotos</text>
+        </g>
+        <g transform="translate(0, 252)">
+          <rect x="8" y="8" width="20" height="20" fill="#E89B3D" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">GIMP</text>
+        </g>
+        <g transform="translate(0, 288)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Godot</text>
+        </g>
+        <g transform="translate(0, 324)">
+          <rect x="8" y="8" width="20" height="20" fill="#F5D5A8" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.85">Inkscape</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Divider -->
+    <rect x="285" y="210" width="1" height="380" fill="url(#dividerLine)"/>
+
+    <!-- Column N-Z -->
+    <g transform="translate(305, 210)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" letter-spacing="2">N — Z</text>
+
+      <g transform="translate(0, 16)">
+        <g transform="translate(0, 0)">
+          <rect x="8" y="8" width="20" height="20" fill="#1F1611" rx="4"/>
+          <rect x="10" y="10" width="16" height="16" fill="#F5D5A8" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Luma Terminal</text>
+          <circle cx="230" cy="18" r="3" fill="#E89B3D"/>
+        </g>
+        <g transform="translate(0, 36)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Navegador</text>
+        </g>
+        <g transform="translate(0, 72)">
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">OBS Studio</text>
+        </g>
+        <g transform="translate(0, 108)">
+          <rect x="8" y="8" width="20" height="20" fill="#E89B3D" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Player</text>
+        </g>
+        <g transform="translate(0, 144)">
+          <rect x="8" y="8" width="20" height="20" fill="#9F4A35" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">RedM</text>
+        </g>
+        <g transform="translate(0, 180)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Steam</text>
+        </g>
+        <g transform="translate(0, 216)">
+          <rect x="8" y="8" width="20" height="20" fill="#1F1611" rx="4"/>
+          <rect x="10" y="10" width="16" height="16" fill="#FBF6EE" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Telegram</text>
+        </g>
+        <g transform="translate(0, 252)">
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Thunderbird</text>
+        </g>
+        <g transform="translate(0, 288)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">VS Code</text>
+        </g>
+        <g transform="translate(0, 324)">
+          <rect x="8" y="8" width="20" height="20" fill="#F5D5A8" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.85">Wireshark</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Scroll fade indicator (bottom) -->
+    <rect x="0" y="590" width="560" height="40" fill="url(#scrollFade)" rx="0"/>
+
+    <!-- Scrollbar -->
+    <rect x="552" y="220" width="3" height="370" fill="#FBF6EE" opacity="0.08" rx="1.5"/>
+    <rect x="552" y="220" width="3" height="120" fill="#E89B3D" opacity="0.5" rx="1.5"/>
+
+    <!-- Sessão bar (igual menu padrão) -->
+    <g transform="translate(20, 640)">
+      <rect x="0" y="0" width="520" height="44" fill="#0F0A07" rx="8"/>
+      <g transform="translate(10, 6)">
+        <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <rect x="2" y="6" width="12" height="9" rx="1"/>
+          <path d="M 4 6 V 4 a 4 4 0 0 1 8 0 V 6"/>
+        </g>
+      </g>
+      <g transform="translate(50, 6)">
+        <path transform="translate(8, 8)" d="M 12 2 a 8 8 0 1 0 4 11 a 6 6 0 0 1 -4 -11" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(90, 6)">
+        <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 14 4 a 6 6 0 1 0 2 4" stroke-linecap="round"/>
+          <path d="M 14 1 L 14 5 L 10 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(130, 6)">
+        <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 8 2 V 8" stroke-linecap="round"/>
+          <path d="M 3 5 a 7 7 0 1 0 10 0" stroke-linecap="round"/>
+        </g>
+      </g>
+      <text x="510" y="28" font-family="Fraunces, Georgia, serif" font-size="13" font-style="italic" fill="#A89D92" text-anchor="end">Bom dia, Murillo ☀</text>
+    </g>
+  </g>
+
+  <!-- ================ -->
+  <!-- 3. NOTAS / SPECS -->
+  <!-- ================ -->
+  <text x="660" y="700" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — DETALHES</text>
+
+  <g transform="translate(660, 720)">
+    <rect width="560" height="640" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">O que muda do modo "Favoritos"</text>
+    <text x="30" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Sub-headers "FAVORITOS / LUGARES" viram "A — M / N — Z"</text>
+    <text x="30" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Mostra TODOS os .desktop files do sistema</text>
+    <text x="30" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ordem: alfabética (A-M esquerda, N-Z direita)</text>
+    <text x="30" y="122" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Scroll vertical com fade no fundo</text>
+    <text x="30" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Breadcrumb âmbar em cima pra voltar</text>
+    <text x="30" y="162" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Counter "42 apps instalados" pra info</text>
+
+    <text x="30" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">O que continua IGUAL ao modo "Favoritos"</text>
+    <text x="30" y="227" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Profile bar no topo (Murillo + avatar)</text>
+    <text x="30" y="247" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Search bar (mesma posição, mesmo Super+K)</text>
+    <text x="30" y="267" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Sessão bar embaixo (lock/sleep/restart/power)</text>
+    <text x="30" y="287" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Background gradient Coffee → Black</text>
+    <text x="30" y="307" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Linha âmbar topo</text>
+    <text x="30" y="327" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Estilo das rows (hover/focus com indicador âmbar)</text>
+    <text x="30" y="347" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Bolinhas de recém-usado</text>
+
+    <text x="30" y="385" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Detalhes do scrollbar</text>
+    <text x="30" y="412" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Largura: 3px (fininho)</text>
+    <text x="30" y="432" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Track: Cream @ 0.08 (quase invisível)</text>
+    <text x="30" y="452" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Thumb: Amber @ 0.5</text>
+    <text x="30" y="472" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Hover no scroll: thumb @ 0.8</text>
+
+    <text x="30" y="510" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Animação de transição</text>
+    <text x="30" y="537" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• 150ms ease-out</text>
+    <text x="30" y="557" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Slide horizontal (favoritos sai pra esquerda,</text>
+    <text x="30" y="577" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">  all apps entra pela direita)</text>
+    <text x="30" y="597" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Voltar: invertido</text>
+    <text x="30" y="617" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Esc também volta (atalho de teclado)</text>
+  </g>
+
+  <!-- ================ -->
+  <!-- 4. INTERAÇÕES   -->
+  <!-- ================ -->
+  <text x="60" y="1400" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — INTERAÇÕES DE TECLADO E MOUSE</text>
+
+  <g transform="translate(60, 1420)">
+    <rect width="1160" height="360" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Atalhos de teclado</text>
+    <text x="30" y="68" font-family="monospace" font-size="12" fill="#D97757">Esc</text>
+    <text x="120" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Volta pro modo "Favoritos"</text>
+    <text x="30" y="92" font-family="monospace" font-size="12" fill="#D97757">↑ ↓</text>
+    <text x="120" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Navega entre apps na coluna atual</text>
+    <text x="30" y="116" font-family="monospace" font-size="12" fill="#D97757">← →</text>
+    <text x="120" y="116" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Troca entre coluna esquerda e direita</text>
+    <text x="30" y="140" font-family="monospace" font-size="12" fill="#D97757">↵ Enter</text>
+    <text x="120" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Abre o app focado</text>
+    <text x="30" y="164" font-family="monospace" font-size="12" fill="#D97757">Super+K</text>
+    <text x="120" y="164" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Foco vai pra search bar</text>
+    <text x="30" y="188" font-family="monospace" font-size="12" fill="#D97757">PgUp/PgDn</text>
+    <text x="120" y="188" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Scroll rápido na lista</text>
+
+    <text x="30" y="228" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Mouse</text>
+    <text x="30" y="258" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Click no breadcrumb "← Voltar aos favoritos": volta pro modo padrão</text>
+    <text x="30" y="278" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Click num app: abre</text>
+    <text x="30" y="298" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Right-click num app: menu de contexto (Adicionar aos favoritos, Pin na taskbar, Propriedades)</text>
+    <text x="30" y="318" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Scroll wheel: rola a lista</text>
+    <text x="30" y="338" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Drag thumb da scrollbar: scroll preciso</text>
+
+    <text x="600" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Right-click menu de contexto</text>
+    <text x="600" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Aparece quando clica com botão direito num app.</text>
+    <text x="600" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Opções:</text>
+    <text x="615" y="105" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">★ Adicionar aos favoritos (se não estiver)</text>
+    <text x="615" y="125" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">★ Remover dos favoritos (se estiver)</text>
+    <text x="615" y="145" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">📌 Fixar na taskbar</text>
+    <text x="615" y="165" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">ℹ️  Propriedades / Sobre</text>
+    <text x="615" y="185" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">🗑️  Desinstalar (se .desktop permitir)</text>
+
+    <text x="600" y="225" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Filtro em tempo real</text>
+    <text x="600" y="252" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Quando digita na search:</text>
+    <text x="600" y="272" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Lista filtra apenas matches (fuzzy)</text>
+    <text x="600" y="292" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Headers "A-M / N-Z" somem temporariamente</text>
+    <text x="600" y="312" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Counter atualiza: "Mostrando 5 de 42 apps"</text>
+    <text x="600" y="332" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Enter abre o primeiro filtrado</text>
+  </g>
+</svg>

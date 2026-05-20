@@ -1,0 +1,468 @@
+<svg viewBox="0 0 1280 2200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="50%" stop-color="#7A3A2C"/>
+      <stop offset="100%" stop-color="#E89B3D"/>
+    </linearGradient>
+    <linearGradient id="bgBlur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#0F0A07" stop-opacity="0.94"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="iconShadow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.35"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="5"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- App icon symbols -->
+    <symbol id="appFiles" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#D97757" rx="18"/>
+      <path d="M 16 26 a 4 4 0 0 1 4 -4 h 14 l 4 6 h 26 a 4 4 0 0 1 4 4 v 22 a 4 4 0 0 1 -4 4 h -44 a 4 4 0 0 1 -4 -4 Z" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appBrowser" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#6B8E7F" rx="18"/>
+      <circle cx="40" cy="40" r="22" fill="none" stroke="#FBF6EE" stroke-width="3"/>
+      <path d="M 18 40 L 62 40 M 40 18 Q 28 40 40 62 Q 52 40 40 18" stroke="#FBF6EE" stroke-width="2" fill="none"/>
+    </symbol>
+    <symbol id="appTerminal" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#1F1611" rx="18"/>
+      <path d="M 20 28 L 32 40 L 20 52" stroke="#E89B3D" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="38" y="48" width="22" height="3" fill="#FBF6EE" rx="1.5"/>
+    </symbol>
+    <symbol id="appText" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#FBF6EE" rx="18"/>
+      <rect x="22" y="22" width="36" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="32" width="36" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="42" width="28" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="52" width="22" height="3" fill="#E89B3D" rx="1.5"/>
+    </symbol>
+    <symbol id="appCalc" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#9F4A35" rx="18"/>
+      <rect x="22" y="22" width="36" height="12" fill="#FBF6EE" opacity="0.25" rx="2"/>
+      <g fill="#FBF6EE">
+        <rect x="22" y="40" width="6" height="6" rx="1"/>
+        <rect x="32" y="40" width="6" height="6" rx="1"/>
+        <rect x="42" y="40" width="6" height="6" rx="1"/>
+        <rect x="52" y="40" width="6" height="6" rx="1"/>
+        <rect x="22" y="50" width="6" height="6" rx="1"/>
+        <rect x="32" y="50" width="6" height="6" rx="1"/>
+        <rect x="42" y="50" width="6" height="6" rx="1"/>
+        <rect x="52" y="50" width="6" height="6" rx="1"/>
+      </g>
+    </symbol>
+    <symbol id="appPlayer" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#E89B3D" rx="18"/>
+      <path d="M 30 24 L 30 56 L 56 40 Z" fill="#1F1611"/>
+    </symbol>
+    <symbol id="appPhotos" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#D97757" rx="18"/>
+      <rect x="16" y="22" width="48" height="36" fill="#1F1611" rx="3"/>
+      <circle cx="40" cy="40" r="9" fill="#F5D5A8"/>
+      <path d="M 16 50 L 26 42 L 36 48 L 50 36 L 64 44 L 64 58 L 16 58 Z" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appSettings" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#6B8E7F" rx="18"/>
+      <g transform="translate(20, 26)">
+        <rect x="0" y="4" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="10" cy="5" r="4" fill="#FBF6EE"/>
+        <rect x="0" y="14" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="28" cy="15" r="4" fill="#E89B3D"/>
+        <rect x="0" y="24" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="16" cy="25" r="4" fill="#FBF6EE"/>
+      </g>
+    </symbol>
+    <symbol id="appCode" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#2A1F1A" rx="18"/>
+      <path d="M 22 32 L 14 40 L 22 48 M 58 32 L 66 40 L 58 48 M 46 26 L 34 54" stroke="#E89B3D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="appPlus" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-dasharray="4 4" rx="18" opacity="0.3"/>
+      <line x1="30" y1="40" x2="50" y2="40" stroke="#FBF6EE" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <line x1="40" y1="30" x2="40" y2="50" stroke="#FBF6EE" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+    </symbol>
+    <symbol id="appDiscord" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#5865F2" rx="14"/>
+      <circle cx="32" cy="40" r="4" fill="#FBF6EE"/>
+      <circle cx="48" cy="40" r="4" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appSpotify" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#1F1611" rx="14"/>
+      <circle cx="40" cy="40" r="22" fill="#6B8E7F"/>
+      <path d="M 28 36 Q 40 30 52 36 M 28 42 Q 40 38 52 44 M 28 48 Q 40 44 52 50" stroke="#1F1611" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+
+  <rect width="1280" height="2200" fill="#FBF6EE"/>
+
+  <!-- HEADER -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Menu — Fullscreen Híbrido</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Launchpad fullscreen + Spotlight search + acessibilidade PCD + sessão visível</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ============ -->
+  <!-- 1. ESTADO BASE -->
+  <!-- ============ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — FULLSCREEN OPEN (apertou Super)</text>
+
+  <g transform="translate(60, 180)">
+    <!-- Wallpaper de fundo borrado -->
+    <rect width="1160" height="800" fill="url(#bgSky)" rx="12"/>
+    <rect width="1160" height="800" fill="url(#bgBlur)" rx="12"/>
+
+    <!-- Linha âmbar top -->
+    <rect width="1160" height="2" fill="#E89B3D" opacity="0.6"/>
+
+    <!-- Avatar + Greeting canto sup direito -->
+    <g transform="translate(960, 40)">
+      <circle cx="22" cy="22" r="22" fill="url(#logoBeam)"/>
+      <text x="22" y="29" font-family="Fraunces, Georgia, serif" font-size="20" font-weight="600" fill="#FBF6EE" text-anchor="middle">M</text>
+      <text x="58" y="20" font-family="Fraunces, Georgia, serif" font-size="16" font-weight="600" fill="#FBF6EE">Murillo</text>
+      <text x="58" y="38" font-family="Fraunces, Georgia, serif" font-size="13" font-style="italic" fill="#A89D92">Bom dia ☀</text>
+    </g>
+
+    <!-- SEARCH BAR GIGANTE centralizada -->
+    <g transform="translate(330, 130)">
+      <rect width="500" height="64" fill="#3D2520" rx="32" stroke="#E89B3D" stroke-width="2.5"/>
+      <g transform="translate(24, 22)" fill="none" stroke="#E89B3D" stroke-width="2.5">
+        <circle cx="10" cy="10" r="9"/>
+        <line x1="17" y1="17" x2="24" y2="24" stroke-linecap="round"/>
+      </g>
+      <text x="72" y="40" font-family="system-ui, sans-serif" font-size="18" fill="#A89D92" opacity="0.6">Buscar apps...</text>
+      <rect x="72" y="26" width="2" height="20" fill="#E89B3D"/>
+      <g transform="translate(430, 22)">
+        <rect width="48" height="22" fill="#1F1611" rx="4"/>
+        <text x="24" y="15" font-family="monospace" font-size="11" fill="#E89B3D" text-anchor="middle">⌘ K</text>
+      </g>
+    </g>
+
+    <!-- FAVORITOS row label -->
+    <text x="580" y="240" font-family="system-ui, sans-serif" font-size="11" letter-spacing="3" fill="#A89D92" text-anchor="middle">★  FAVORITOS  ★</text>
+
+    <!-- Grid FAVORITOS (5×2 ícones GIGANTES 80px) -->
+    <g transform="translate(290, 260)" filter="url(#iconShadow)">
+      <!-- Row 1 -->
+      <g transform="translate(0, 0)">
+        <use href="#appFiles" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Arquivos</text>
+      </g>
+      <g transform="translate(140, 0)">
+        <use href="#appBrowser" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Navegador</text>
+      </g>
+      <!-- SELECTED com glow -->
+      <g transform="translate(280, 0)">
+        <circle cx="40" cy="40" r="52" fill="none" stroke="#E89B3D" stroke-width="2" filter="url(#amberGlow)" opacity="0.7"/>
+        <use href="#appTerminal" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" text-anchor="middle" font-weight="700">Terminal</text>
+      </g>
+      <g transform="translate(420, 0)">
+        <use href="#appText" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Editor</text>
+      </g>
+      <g transform="translate(560, 0)">
+        <use href="#appCalc" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Calc</text>
+      </g>
+
+      <!-- Row 2 -->
+      <g transform="translate(0, 140)">
+        <use href="#appPlayer" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Player</text>
+      </g>
+      <g transform="translate(140, 140)">
+        <use href="#appPhotos" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Fotos</text>
+      </g>
+      <g transform="translate(280, 140)">
+        <use href="#appSettings" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Ajustes</text>
+      </g>
+      <g transform="translate(420, 140)">
+        <use href="#appCode" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Código</text>
+      </g>
+      <g transform="translate(560, 140)">
+        <use href="#appDiscord" width="80" height="80"/>
+        <text x="40" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Discord</text>
+      </g>
+    </g>
+
+    <!-- Divider -->
+    <line x1="200" y1="600" x2="960" y2="600" stroke="#FBF6EE" stroke-opacity="0.1"/>
+
+    <!-- TODOS APPS label clicável -->
+    <g transform="translate(580, 630)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="3" fill="#E89B3D" text-anchor="middle">TODOS OS APPS  →</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">clique ou pressione Tab</text>
+    </g>
+
+    <!-- SESSÃO BAR canto inferior + saudação -->
+    <g transform="translate(40, 720)">
+      <rect width="1080" height="60" fill="#0F0A07" opacity="0.7" rx="12"/>
+
+      <!-- 4 botões sessão GRANDES -->
+      <g transform="translate(20, 10)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <rect x="2" y="6" width="12" height="10" rx="1"/>
+          <path d="M 4 6 V 4 a 4 4 0 0 1 8 0 V 6"/>
+        </g>
+      </g>
+
+      <g transform="translate(76, 10)">
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 12 2 a 8 8 0 1 0 4 11 a 6 6 0 0 1 -4 -11" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <g transform="translate(132, 10)">
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 14 4 a 6 6 0 1 0 2 4" stroke-linecap="round"/>
+          <path d="M 14 1 L 14 5 L 10 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+
+      <g transform="translate(188, 10)">
+        <rect width="44" height="44" fill="#D97757" rx="8"/>
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5">
+          <path d="M 8 2 V 8" stroke-linecap="round"/>
+          <path d="M 3 5 a 7 7 0 1 0 10 0" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- Atalhos no centro -->
+      <text x="540" y="35" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">↑ ↓ navegar · ↵ abrir · Esc fechar · Tab ver todos</text>
+
+      <!-- Lugares à direita -->
+      <g transform="translate(900, 18)">
+        <g transform="translate(0, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+          <path d="M 0 4 a 2 2 0 0 1 2 -2 h 6 l 2 2 h 10 a 2 2 0 0 1 2 2 v 10 a 2 2 0 0 1 -2 2 h -18 a 2 2 0 0 1 -2 -2 Z" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(40, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+          <path d="M 8 0 v 14 M 4 10 l 4 4 l 4 -4" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="0" y1="18" x2="16" y2="18"/>
+        </g>
+        <g transform="translate(80, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+          <rect x="0" y="0" width="18" height="14" rx="1"/>
+          <line x1="0" y1="5" x2="18" y2="5"/>
+        </g>
+        <g transform="translate(120, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+          <circle cx="6" cy="6" r="5"/>
+          <line x1="10" y1="10" x2="15" y2="15" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 2. MODO TODOS APPS -->
+  <!-- ============ -->
+  <text x="60" y="1040" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — MODO TODOS OS APPS (Tab ou click "Todos os apps")</text>
+
+  <g transform="translate(60, 1060)">
+    <rect width="1160" height="640" fill="url(#bgSky)" rx="12"/>
+    <rect width="1160" height="640" fill="url(#bgBlur)" rx="12"/>
+    <rect width="1160" height="2" fill="#E89B3D" opacity="0.6"/>
+
+    <!-- Search permanece -->
+    <g transform="translate(330, 30)">
+      <rect width="500" height="56" fill="#3D2520" rx="28" stroke="#E89B3D" stroke-width="2"/>
+      <g transform="translate(22, 18)" fill="none" stroke="#E89B3D" stroke-width="2">
+        <circle cx="10" cy="10" r="8"/>
+        <line x1="16" y1="16" x2="22" y2="22" stroke-linecap="round"/>
+      </g>
+      <text x="64" y="34" font-family="system-ui, sans-serif" font-size="16" fill="#A89D92" opacity="0.6">Buscar apps...</text>
+    </g>
+
+    <!-- Breadcrumb voltar -->
+    <g transform="translate(40, 50)">
+      <text x="0" y="16" font-family="monospace" font-size="14" fill="#E89B3D">←</text>
+      <text x="20" y="16" font-family="system-ui, sans-serif" font-size="13" fill="#E89B3D">Favoritos</text>
+    </g>
+
+    <!-- TODOS label -->
+    <text x="580" y="120" font-family="system-ui, sans-serif" font-size="11" letter-spacing="3" fill="#A89D92" text-anchor="middle">42 APPS · A — Z</text>
+
+    <!-- Grid 8 colunas × 4 linhas (32 apps por página) -->
+    <g transform="translate(120, 150)" filter="url(#iconShadow)">
+      <!-- Row 1 -->
+      <g transform="translate(0, 0)">
+        <use href="#appFiles" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Arquivos</text>
+      </g>
+      <g transform="translate(115, 0)">
+        <use href="#appBrowser" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Brave</text>
+      </g>
+      <g transform="translate(230, 0)">
+        <use href="#appCalc" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Calc</text>
+      </g>
+      <g transform="translate(345, 0)">
+        <use href="#appCode" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">VS Code</text>
+      </g>
+      <g transform="translate(460, 0)">
+        <use href="#appDiscord" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Discord</text>
+      </g>
+      <g transform="translate(575, 0)">
+        <use href="#appText" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Editor</text>
+      </g>
+      <g transform="translate(690, 0)">
+        <use href="#appPhotos" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Fotos</text>
+      </g>
+      <g transform="translate(805, 0)">
+        <use href="#appPlayer" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">GIMP</text>
+      </g>
+
+      <!-- Row 2 -->
+      <g transform="translate(0, 110)">
+        <use href="#appTerminal" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Godot</text>
+      </g>
+      <g transform="translate(115, 110)">
+        <use href="#appBrowser" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Inkscape</text>
+      </g>
+      <g transform="translate(230, 110)">
+        <use href="#appText" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Kate</text>
+      </g>
+      <g transform="translate(345, 110)">
+        <use href="#appCode" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Kitty</text>
+      </g>
+      <g transform="translate(460, 110)">
+        <use href="#appPlayer" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">OBS</text>
+      </g>
+      <g transform="translate(575, 110)">
+        <use href="#appFiles" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Files2</text>
+      </g>
+      <g transform="translate(690, 110)">
+        <use href="#appSettings" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Ajustes</text>
+      </g>
+      <g transform="translate(805, 110)">
+        <use href="#appSpotify" width="60" height="60"/>
+        <text x="30" y="78" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Spotify</text>
+      </g>
+
+      <!-- Row 3 - faded -->
+      <g transform="translate(0, 220)" opacity="0.6">
+        <use href="#appCalc" width="60" height="60"/>
+      </g>
+      <g transform="translate(115, 220)" opacity="0.6">
+        <use href="#appDiscord" width="60" height="60"/>
+      </g>
+      <g transform="translate(230, 220)" opacity="0.6">
+        <use href="#appPhotos" width="60" height="60"/>
+      </g>
+      <g transform="translate(345, 220)" opacity="0.6">
+        <use href="#appPlayer" width="60" height="60"/>
+      </g>
+    </g>
+
+    <!-- Page dots -->
+    <g transform="translate(560, 520)">
+      <circle cx="0" cy="0" r="5" fill="#E89B3D"/>
+      <circle cx="20" cy="0" r="5" fill="#FBF6EE" opacity="0.25"/>
+      <circle cx="40" cy="0" r="5" fill="#FBF6EE" opacity="0.25"/>
+      <text x="20" y="22" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">Página 1 de 3</text>
+    </g>
+
+    <!-- Sessão bar embaixo -->
+    <g transform="translate(40, 560)">
+      <rect width="1080" height="60" fill="#0F0A07" opacity="0.7" rx="12"/>
+      <g transform="translate(20, 10)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <rect x="2" y="6" width="12" height="10" rx="1"/>
+          <path d="M 4 6 V 4 a 4 4 0 0 1 8 0 V 6"/>
+        </g>
+      </g>
+      <g transform="translate(76, 10)">
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 12 2 a 8 8 0 1 0 4 11 a 6 6 0 0 1 -4 -11" stroke-linecap="round"/>
+        </g>
+      </g>
+      <g transform="translate(132, 10)">
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 14 4 a 6 6 0 1 0 2 4" stroke-linecap="round"/>
+          <path d="M 14 1 L 14 5 L 10 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(188, 10)">
+        <rect width="44" height="44" fill="#D97757" rx="8"/>
+        <g transform="translate(15, 15)" fill="none" stroke="#FBF6EE" stroke-width="1.5">
+          <path d="M 8 2 V 8" stroke-linecap="round"/>
+          <path d="M 3 5 a 7 7 0 1 0 10 0" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 3. ANATOMIA -->
+  <!-- ============ -->
+  <text x="60" y="1760" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — ANATOMIA E COMPORTAMENTO</text>
+
+  <g transform="translate(60, 1780)">
+    <rect width="1160" height="400" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">A fórmula final</text>
+
+    <text x="30" y="80" font-family="system-ui, sans-serif" font-size="12" fill="#D97757" font-weight="700">DO LAUNCHPAD:</text>
+    <text x="30" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Fullscreen modal (não floating)</text>
+    <text x="30" y="120" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Wallpaper visível borrado por trás</text>
+    <text x="30" y="138" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Paginação no modo "Todos"</text>
+
+    <text x="30" y="170" font-family="system-ui, sans-serif" font-size="12" fill="#6B8E7F" font-weight="700">DO SPOTLIGHT/HÍBRIDO:</text>
+    <text x="30" y="192" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Search bar GIGANTE (64px alt, 500px larg) centralizada</text>
+    <text x="30" y="210" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Foco automático na search ao abrir (digita sem clicar)</text>
+    <text x="30" y="228" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Favoritos: 5×2 grid grande no centro (10 apps essenciais)</text>
+
+    <text x="30" y="260" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-weight="700">DA ACESSIBILIDADE PCD:</text>
+    <text x="30" y="282" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ícones 80px favoritos · 60px "todos os apps"</text>
+    <text x="30" y="300" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Sessão bar SEMPRE visível embaixo (lock/sleep/restart/power)</text>
+    <text x="30" y="318" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Atalhos visíveis no rodapé como guia</text>
+    <text x="30" y="336" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Mini-lugares à direita da sessão (acesso rápido a pastas)</text>
+
+    <text x="30" y="368" font-family="system-ui, sans-serif" font-size="12" fill="#9F4A35" font-weight="700">CONTINUIDADE DO LUMA:</text>
+    <text x="30" y="386" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Linha âmbar topo · Golden Hour · saudação dinâmica · avatar</text>
+
+    <text x="640" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Fluxos típicos</text>
+
+    <text x="640" y="80" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">1) Sei o nome do app (90% dos casos):</text>
+    <text x="640" y="100" font-family="monospace" font-size="11" fill="#4A3933">Super → digita "term" → Enter</text>
+    <text x="640" y="118" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">≈ 3 segundos · zero mouse</text>
+
+    <text x="640" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">2) Quero ver favoritos (9% dos casos):</text>
+    <text x="640" y="168" font-family="monospace" font-size="11" fill="#4A3933">Super → click no ícone grande</text>
+    <text x="640" y="186" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Target 80×80 = fácil pra qualquer um</text>
+
+    <text x="640" y="216" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">3) Quero explorar tudo (1% dos casos):</text>
+    <text x="640" y="236" font-family="monospace" font-size="11" fill="#4A3933">Super → Tab → grid completo paginado</text>
+    <text x="640" y="254" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">8×4 = 32 apps visíveis · setas pra mais</text>
+
+    <text x="640" y="294" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">4) Trancar/desligar PC (raro):</text>
+    <text x="640" y="314" font-family="monospace" font-size="11" fill="#4A3933">Super → click no botão sessão embaixo</text>
+    <text x="640" y="332" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Sempre visíveis, sem precisar navegar</text>
+  </g>
+</svg>

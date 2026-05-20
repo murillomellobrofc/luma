@@ -1,0 +1,378 @@
+<svg viewBox="0 0 1280 2400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgBlur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#0F0A07" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="50%" stop-color="#7A3A2C"/>
+      <stop offset="100%" stop-color="#E89B3D"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="iconShadow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.3"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="4"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Reusable app icon symbols -->
+    <symbol id="appBrave" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#D97757" rx="18"/>
+      <path d="M 40 22 L 25 30 L 25 48 L 40 58 L 55 48 L 55 30 Z" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appFiles" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#F5D5A8" rx="18"/>
+      <path d="M 16 28 a 4 4 0 0 1 4 -4 h 14 l 4 6 h 26 a 4 4 0 0 1 4 4 v 22 a 4 4 0 0 1 -4 4 h -44 a 4 4 0 0 1 -4 -4 Z" fill="#1F1611"/>
+    </symbol>
+    <symbol id="appTerminal" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#1F1611" rx="18"/>
+      <path d="M 20 28 L 32 40 L 20 52" stroke="#E89B3D" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="38" y="48" width="20" height="3" fill="#FBF6EE" rx="1.5"/>
+    </symbol>
+    <symbol id="appText" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#FBF6EE" rx="18"/>
+      <rect x="22" y="22" width="36" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="32" width="36" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="42" width="28" height="3" fill="#1F1611" rx="1.5"/>
+      <rect x="22" y="52" width="22" height="3" fill="#E89B3D" rx="1.5"/>
+    </symbol>
+    <symbol id="appCalc" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#9F4A35" rx="18"/>
+      <rect x="22" y="22" width="36" height="14" fill="#FBF6EE" opacity="0.2" rx="2"/>
+      <text x="40" y="32" font-family="monospace" font-size="9" fill="#FBF6EE" text-anchor="middle">42</text>
+      <g fill="#FBF6EE">
+        <rect x="22" y="42" width="6" height="6" rx="1"/>
+        <rect x="32" y="42" width="6" height="6" rx="1"/>
+        <rect x="42" y="42" width="6" height="6" rx="1"/>
+        <rect x="52" y="42" width="6" height="6" rx="1"/>
+        <rect x="22" y="52" width="6" height="6" rx="1"/>
+        <rect x="32" y="52" width="6" height="6" rx="1"/>
+        <rect x="42" y="52" width="6" height="6" rx="1"/>
+        <rect x="52" y="52" width="6" height="6" rx="1"/>
+      </g>
+    </symbol>
+    <symbol id="appPlayer" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#E89B3D" rx="18"/>
+      <path d="M 30 24 L 30 56 L 56 40 Z" fill="#1F1611"/>
+    </symbol>
+    <symbol id="appPhotos" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#D97757" rx="18"/>
+      <rect x="16" y="22" width="48" height="36" fill="#1F1611" rx="3"/>
+      <circle cx="40" cy="40" r="9" fill="#F5D5A8"/>
+      <path d="M 16 50 L 26 42 L 36 48 L 50 36 L 64 44 L 64 58 L 16 58 Z" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appSettings" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#6B8E7F" rx="18"/>
+      <g transform="translate(20, 26)">
+        <rect x="0" y="4" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="10" cy="5" r="4" fill="#FBF6EE"/>
+        <rect x="0" y="14" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="28" cy="15" r="4" fill="#E89B3D"/>
+        <rect x="0" y="24" width="40" height="2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="16" cy="25" r="4" fill="#FBF6EE"/>
+      </g>
+    </symbol>
+    <symbol id="appDiscord" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#5865F2" rx="18"/>
+      <circle cx="32" cy="40" r="5" fill="#FBF6EE"/>
+      <circle cx="48" cy="40" r="5" fill="#FBF6EE"/>
+    </symbol>
+    <symbol id="appSpotify" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#1F1611" rx="18"/>
+      <circle cx="40" cy="40" r="22" fill="#6B8E7F"/>
+      <path d="M 28 36 Q 40 30 52 36 M 28 42 Q 40 38 52 44 M 28 48 Q 40 44 52 50" stroke="#1F1611" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="appCode" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#2A1F1A" rx="18"/>
+      <path d="M 22 32 L 14 40 L 22 48 M 58 32 L 66 40 L 58 48 M 46 26 L 34 54" stroke="#E89B3D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="appMail" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#F5D5A8" rx="18"/>
+      <rect x="16" y="24" width="48" height="32" fill="#1F1611" rx="3"/>
+      <path d="M 16 28 L 40 44 L 64 28" stroke="#F5D5A8" stroke-width="2" fill="none" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="appGimp" viewBox="0 0 80 80">
+      <rect width="80" height="80" fill="#FBF6EE" rx="18"/>
+      <circle cx="40" cy="40" r="20" fill="#E89B3D"/>
+      <circle cx="32" cy="34" r="4" fill="#FBF6EE"/>
+      <circle cx="48" cy="34" r="4" fill="#FBF6EE"/>
+    </symbol>
+  </defs>
+
+  <rect width="1280" height="2400" fill="#FBF6EE"/>
+
+  <!-- HEADER -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Launchpad</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Grid de apps fullscreen estilo iPad / macOS Launchpad · Golden Hour</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ================ -->
+  <!-- 1. CONCEITO -->
+  <!-- ================ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — CONCEITO</text>
+
+  <g transform="translate(60, 180)">
+    <rect width="1160" height="120" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Tela cheia · Grid 8×5 (40 apps por página) · Wallpaper visível com blur por trás · Paginação</text>
+    <text x="30" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Super abre fullscreen com fade 200ms + blur do wallpaper</text>
+    <text x="30" y="86" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Search bar centralizada no topo, foco automático</text>
+    <text x="30" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Drag pra reorganizar · scroll lateral pra trocar página · Esc fecha</text>
+  </g>
+
+  <!-- ================ -->
+  <!-- 2. TELA CHEIA -->
+  <!-- ================ -->
+  <text x="60" y="340" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — VISTA FULLSCREEN (apertou Super)</text>
+
+  <g transform="translate(60, 360)" filter="url(#iconShadow)">
+    <!-- Wallpaper background -->
+    <rect width="1160" height="720" fill="url(#bgSky)" rx="12"/>
+    <!-- Blur overlay -->
+    <rect width="1160" height="720" fill="url(#bgBlur)" rx="12"/>
+
+    <!-- Search bar centered top -->
+    <g transform="translate(380, 50)">
+      <rect width="400" height="48" fill="#2A1F1A" rx="24" stroke="#E89B3D" stroke-width="1.5"/>
+      <g transform="translate(20, 16)" fill="none" stroke="#E89B3D" stroke-width="1.5">
+        <circle cx="8" cy="8" r="6"/>
+        <line x1="12" y1="12" x2="17" y2="17" stroke-linecap="round"/>
+      </g>
+      <text x="56" y="30" font-family="system-ui, sans-serif" font-size="14" fill="#A89D92" opacity="0.7">Buscar apps...</text>
+      <g transform="translate(355, 16)">
+        <rect width="32" height="18" fill="#1F1611" rx="3"/>
+        <text x="16" y="13" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">esc</text>
+      </g>
+    </g>
+
+    <!-- Username (canto sup direito) -->
+    <g transform="translate(1040, 56)">
+      <text x="0" y="20" font-family="Fraunces, Georgia, serif" font-size="14" font-style="italic" fill="#FBF6EE" opacity="0.85" text-anchor="end">Olá, Murillo</text>
+    </g>
+
+    <!-- GRID 8x4 -->
+    <g transform="translate(80, 140)">
+      <!-- Row 1 -->
+      <g transform="translate(0, 0)">
+        <use href="#appBrave" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Brave</text>
+      </g>
+      <g transform="translate(130, 0)">
+        <use href="#appFiles" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Arquivos</text>
+      </g>
+      <g transform="translate(260, 0)">
+        <use href="#appTerminal" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Terminal</text>
+      </g>
+      <g transform="translate(390, 0)">
+        <!-- Selected app shows glow ring -->
+        <circle cx="40" cy="40" r="48" fill="none" stroke="#E89B3D" stroke-width="2" filter="url(#amberGlow)" opacity="0.6"/>
+        <use href="#appText" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#E89B3D" text-anchor="middle" font-weight="700">Editor</text>
+      </g>
+      <g transform="translate(520, 0)">
+        <use href="#appCalc" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Calculadora</text>
+      </g>
+      <g transform="translate(650, 0)">
+        <use href="#appPlayer" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Player</text>
+      </g>
+      <g transform="translate(780, 0)">
+        <use href="#appPhotos" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Fotos</text>
+      </g>
+      <g transform="translate(910, 0)">
+        <use href="#appSettings" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Ajustes</text>
+      </g>
+
+      <!-- Row 2 -->
+      <g transform="translate(0, 130)">
+        <use href="#appDiscord" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Discord</text>
+      </g>
+      <g transform="translate(130, 130)">
+        <use href="#appSpotify" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Spotify</text>
+      </g>
+      <g transform="translate(260, 130)">
+        <use href="#appCode" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">VS Code</text>
+      </g>
+      <g transform="translate(390, 130)">
+        <use href="#appMail" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Email</text>
+      </g>
+      <g transform="translate(520, 130)">
+        <use href="#appGimp" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">GIMP</text>
+      </g>
+      <g transform="translate(650, 130)">
+        <use href="#appBrave" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Firefox</text>
+      </g>
+      <g transform="translate(780, 130)">
+        <use href="#appCalc" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Steam</text>
+      </g>
+      <g transform="translate(910, 130)">
+        <use href="#appPhotos" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">OBS</text>
+      </g>
+
+      <!-- Row 3 - faded shows scrollable more -->
+      <g transform="translate(0, 260)" opacity="0.6">
+        <use href="#appPlayer" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">VLC</text>
+      </g>
+      <g transform="translate(130, 260)" opacity="0.6">
+        <use href="#appCode" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Godot</text>
+      </g>
+      <g transform="translate(260, 260)" opacity="0.6">
+        <use href="#appFiles" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Inkscape</text>
+      </g>
+      <g transform="translate(390, 260)" opacity="0.6">
+        <use href="#appText" width="80" height="80"/>
+        <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">Kate</text>
+      </g>
+    </g>
+
+    <!-- Page indicator dots -->
+    <g transform="translate(580, 650)">
+      <circle cx="0" cy="0" r="4" fill="#E89B3D"/>
+      <circle cx="20" cy="0" r="4" fill="#FBF6EE" opacity="0.25"/>
+      <circle cx="40" cy="0" r="4" fill="#FBF6EE" opacity="0.25"/>
+    </g>
+    <text x="600" y="690" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">página 1 de 3</text>
+  </g>
+
+  <!-- ================ -->
+  <!-- 3. COM SEARCH ATIVA -->
+  <!-- ================ -->
+  <text x="60" y="1120" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — COM SEARCH ATIVA ("term")</text>
+
+  <g transform="translate(60, 1140)" filter="url(#iconShadow)">
+    <rect width="1160" height="480" fill="url(#bgSky)" rx="12"/>
+    <rect width="1160" height="480" fill="url(#bgBlur)" rx="12"/>
+
+    <!-- Search bar com texto -->
+    <g transform="translate(380, 50)">
+      <rect width="400" height="48" fill="#3D2520" rx="24" stroke="#E89B3D" stroke-width="2"/>
+      <g transform="translate(20, 16)" fill="none" stroke="#E89B3D" stroke-width="1.5">
+        <circle cx="8" cy="8" r="6"/>
+        <line x1="12" y1="12" x2="17" y2="17" stroke-linecap="round"/>
+      </g>
+      <text x="56" y="30" font-family="system-ui, sans-serif" font-size="14" fill="#FBF6EE">term</text>
+      <rect x="92" y="20" width="2" height="14" fill="#E89B3D"/>
+    </g>
+
+    <!-- Resultados centralizados maiores -->
+    <text x="580" y="148" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle" letter-spacing="2">3 RESULTADOS</text>
+
+    <g transform="translate(380, 170)">
+      <!-- Result 1 SELECTED -->
+      <g transform="translate(0, 0)">
+        <circle cx="40" cy="40" r="48" fill="none" stroke="#E89B3D" stroke-width="2" filter="url(#amberGlow)" opacity="0.6"/>
+        <use href="#appTerminal" width="80" height="80"/>
+        <text x="40" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" text-anchor="middle" font-weight="700">
+          <tspan fill="#E89B3D" font-weight="700">Term</tspan><tspan fill="#FBF6EE">inal</tspan>
+        </text>
+      </g>
+
+      <g transform="translate(140, 0)">
+        <use href="#appTerminal" width="80" height="80"/>
+        <text x="40" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">
+          <tspan fill="#E89B3D" font-weight="700">Term</tspan><tspan>inator</tspan>
+        </text>
+      </g>
+
+      <g transform="translate(280, 0)">
+        <use href="#appCode" width="80" height="80"/>
+        <text x="40" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">
+          <tspan>Ki</tspan><tspan fill="#E89B3D" font-weight="700">tt</tspan><tspan>y</tspan>
+        </text>
+      </g>
+    </g>
+
+    <text x="580" y="380" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">↑↓ navegar · ↵ abrir · Esc fechar</text>
+  </g>
+
+  <!-- ================ -->
+  <!-- 4. ATALHOS -->
+  <!-- ================ -->
+  <text x="60" y="1660" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — ATALHOS E COMPORTAMENTO</text>
+
+  <g transform="translate(60, 1680)">
+    <rect width="1160" height="380" fill="#1F1611" rx="8"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Teclado</text>
+    <text x="30" y="68" font-family="monospace" font-size="12" fill="#E89B3D">Super</text>
+    <text x="160" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Abre Launchpad fullscreen (fade 200ms)</text>
+    <text x="30" y="92" font-family="monospace" font-size="12" fill="#E89B3D">qualquer letra</text>
+    <text x="160" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Foca search automaticamente e digita</text>
+    <text x="30" y="116" font-family="monospace" font-size="12" fill="#E89B3D">setas ↑↓←→</text>
+    <text x="160" y="116" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Navega no grid</text>
+    <text x="30" y="140" font-family="monospace" font-size="12" fill="#E89B3D">Page Down/Up</text>
+    <text x="160" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Próxima/anterior página</text>
+    <text x="30" y="164" font-family="monospace" font-size="12" fill="#E89B3D">Enter</text>
+    <text x="160" y="164" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Abre app selecionado</text>
+    <text x="30" y="188" font-family="monospace" font-size="12" fill="#E89B3D">Esc</text>
+    <text x="160" y="188" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Fecha Launchpad (volta pro desktop)</text>
+
+    <text x="600" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Mouse</text>
+    <text x="600" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Click no app: abre</text>
+    <text x="600" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Click vazio: fecha Launchpad</text>
+    <text x="600" y="116" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Scroll horizontal: troca página</text>
+    <text x="600" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Drag app: reorganiza (futuro)</text>
+    <text x="600" y="164" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Right-click: menu (Pin, Remover, Props)</text>
+
+    <text x="30" y="240" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Visual</text>
+    <text x="30" y="268" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Ícone 80×80px com border-radius 18px (squircle iOS-style)</text>
+    <text x="30" y="288" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Grid 8 colunas × 4 linhas = 32 apps por página visíveis (40 com scroll)</text>
+    <text x="30" y="308" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Gap entre ícones: 50px horizontal, 30px vertical</text>
+    <text x="30" y="328" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Wallpaper FICA visível com overlay Coffee @ 0.85 + blur 20px</text>
+    <text x="30" y="348" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Selected: glow âmbar @ 0.6 com blur 4px ao redor do ícone</text>
+  </g>
+
+  <!-- ================ -->
+  <!-- 5. DIFERENÇAS DO ANTERIOR -->
+  <!-- ================ -->
+  <text x="60" y="2100" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — O QUE MUDA DO MENU ATUAL</text>
+
+  <g transform="translate(60, 2120)">
+    <rect width="1160" height="260" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#D97757" font-weight="700">REMOVE do menu atual:</text>
+    <text x="30" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Layout 2 colunas (Favoritos + Lugares)</text>
+    <text x="30" y="86" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Profile bar com avatar grande</text>
+    <text x="30" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Sessão bar embaixo (lock/sleep/restart/power)</text>
+    <text x="30" y="122" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Botão "Todos os apps" (não precisa, JÁ é tudo)</text>
+    <text x="30" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Saudação dinâmica embaixo</text>
+
+    <text x="600" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#6B8E7F" font-weight="700">MANTÉM:</text>
+    <text x="600" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Search bar funcional (centralizada agora)</text>
+    <text x="600" y="86" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Filtro em tempo real + highlight do match</text>
+    <text x="600" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Apertar Super abre, Esc fecha</text>
+    <text x="600" y="122" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Identidade Golden Hour (cores, fontes, tudo)</text>
+
+    <text x="30" y="180" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">QUESTÃO IMPORTANTE:</text>
+    <text x="30" y="205" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Sem profile bar / sessão bar embaixo: lock/sleep/restart/power vão pra ONDE?</text>
+    <text x="30" y="225" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Opções: 1) Outro menu via Super+L  2) Botão no canto sup direito  3) Atalho de teclado puro</text>
+  </g>
+</svg>

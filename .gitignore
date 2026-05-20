@@ -1,0 +1,10 @@
+/target
+/vendor/smithay/target
+.DS_Store
+*.swp
+*~
+*.log
+*-CORROMPIDO
+*-backup
+.vscode/
+.idea/

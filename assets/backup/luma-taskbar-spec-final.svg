@@ -1,0 +1,445 @@
+<svg viewBox="0 0 1280 2100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="50%" stop-color="#5C2E26"/>
+      <stop offset="85%" stop-color="#B85D43"/>
+      <stop offset="100%" stop-color="#D97757"/>
+    </linearGradient>
+    <linearGradient id="taskbarBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0.94"/>
+      <stop offset="100%" stop-color="#0F0A07" stop-opacity="0.97"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="orbGlow">
+      <feGaussianBlur stdDeviation="2"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="2100" fill="#FBF6EE"/>
+
+  <!-- Header -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Taskbar — Spec Final</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Window controls originais + Show Desktop Win7-style + refinamento completo</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- =================== -->
+  <!-- 1. WINDOW CONTROLS  -->
+  <!-- =================== -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — WINDOW CONTROLS "LUMA ORIGINAL" (não copia Mac)</text>
+
+  <g transform="translate(60, 180)">
+    <rect x="0" y="0" width="1160" height="320" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#1F1611">Conceito: ícones monocromáticos que ganham fundo de cor apenas no HOVER</text>
+    <text x="30" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">Default = só o ícone em Cream. No hover, aparece o squircle colorido por trás. Limpo, refinado, único do Luma.</text>
+
+    <!-- DEFAULT STATE -->
+    <g transform="translate(30, 90)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#8B7D72">DEFAULT (estado padrão)</text>
+      <!-- Window header mock -->
+      <rect x="0" y="15" width="340" height="48" fill="#2A1F1A" rx="8 8 0 0"/>
+      <text x="15" y="44" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Luma Files</text>
+
+      <!-- Minimize -->
+      <g transform="translate(250, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="none"/>
+        <rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/>
+      </g>
+      <!-- Maximize -->
+      <g transform="translate(280, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="none"/>
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/>
+      </g>
+      <!-- Close -->
+      <g transform="translate(310, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="none"/>
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- HOVER ON MIN -->
+    <g transform="translate(420, 90)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#F5D5A8" font-weight="700">HOVER — minimize</text>
+      <rect x="0" y="15" width="340" height="48" fill="#2A1F1A" rx="8 8 0 0"/>
+      <text x="15" y="44" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Luma Files</text>
+
+      <!-- Minimize (hover) -->
+      <g transform="translate(250, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="#F5D5A8" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="0" y="0" width="24" height="24" fill="#F5D5A8" rx="6"/>
+        <rect x="6" y="16" width="12" height="1.5" fill="#1F1611"/>
+      </g>
+      <g transform="translate(280, 27)">
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/>
+      </g>
+      <g transform="translate(310, 27)">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- HOVER ON MAX -->
+    <g transform="translate(810, 90)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#6B8E7F" font-weight="700">HOVER — maximize</text>
+      <rect x="0" y="15" width="340" height="48" fill="#2A1F1A" rx="8 8 0 0"/>
+      <text x="15" y="44" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Luma Files</text>
+
+      <g transform="translate(250, 27)">
+        <rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/>
+      </g>
+      <!-- Maximize (hover) -->
+      <g transform="translate(280, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="#6B8E7F" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="0" y="0" width="24" height="24" fill="#6B8E7F" rx="6"/>
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" rx="1"/>
+      </g>
+      <g transform="translate(310, 27)">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- HOVER ON CLOSE -->
+    <g transform="translate(30, 200)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#D97757" font-weight="700">HOVER — close</text>
+      <rect x="0" y="15" width="340" height="48" fill="#2A1F1A" rx="8 8 0 0"/>
+      <text x="15" y="44" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Luma Files</text>
+
+      <g transform="translate(250, 27)">
+        <rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/>
+      </g>
+      <g transform="translate(280, 27)">
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/>
+      </g>
+      <!-- Close (hover) -->
+      <g transform="translate(310, 27)">
+        <rect x="0" y="0" width="24" height="24" fill="#D97757" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="0" y="0" width="24" height="24" fill="#D97757" rx="6"/>
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- DESIGN NOTES -->
+    <g transform="translate(420, 200)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#8B7D72">DETALHES</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Hit area: 24×24 px</text>
+      <text x="0" y="42" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ícone interno: 12×12 px</text>
+      <text x="0" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Gap entre ícones: 6 px</text>
+      <text x="0" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Squircle radius no hover: 6 px</text>
+      <text x="0" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Glow no hover: blur 4px, opacity 0.4</text>
+    </g>
+
+    <g transform="translate(810, 200)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#8B7D72">CORES</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Min hover: Honey <tspan font-family="monospace" fill="#D97757">#F5D5A8</tspan></text>
+      <text x="0" y="42" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Max hover: Sage <tspan font-family="monospace" fill="#D97757">#6B8E7F</tspan></text>
+      <text x="0" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Close hover: Coral <tspan font-family="monospace" fill="#D97757">#D97757</tspan></text>
+      <text x="0" y="82" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ícone default: Cream 85% opacity</text>
+      <text x="0" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ícone no hover: Cream/Coffee 100%</text>
+    </g>
+  </g>
+
+  <!-- =================== -->
+  <!-- 2. SHOW DESKTOP     -->
+  <!-- =================== -->
+  <text x="60" y="555" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — BOTÃO SHOW DESKTOP (estilo Win7/KDE/Mint, no canto DIREITO)</text>
+
+  <g transform="translate(60, 575)">
+    <rect x="0" y="0" width="1160" height="200" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="38" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#1F1611">Barrinha fininha no extremo direito da taskbar — clica e minimiza tudo</text>
+    <text x="30" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">Aquele detalhe gostoso do Win7 que o Windows 10/11 tirou e a galera ama.</text>
+
+    <!-- Default state -->
+    <g transform="translate(30, 85)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#8B7D72">DEFAULT</text>
+      <rect x="0" y="15" width="500" height="48" fill="url(#taskbarBg)" rx="0"/>
+      <!-- Clock -->
+      <g transform="translate(430, 23)">
+        <text x="0" y="14" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">22:47</text>
+        <text x="0" y="28" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92">14 mai</text>
+      </g>
+      <!-- Show desktop bar -->
+      <rect x="491" y="15" width="1" height="48" fill="#FBF6EE" opacity="0.15"/>
+      <rect x="492" y="15" width="8" height="48" fill="#1F1611"/>
+    </g>
+
+    <!-- Hover state -->
+    <g transform="translate(560, 85)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1.5" fill="#E89B3D" font-weight="700">HOVER (mostra prévia da área de trabalho)</text>
+      <rect x="0" y="15" width="500" height="48" fill="url(#taskbarBg)" rx="0"/>
+      <g transform="translate(430, 23)">
+        <text x="0" y="14" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">22:47</text>
+        <text x="0" y="28" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92">14 mai</text>
+      </g>
+      <!-- Show desktop bar (hover - amber glow) -->
+      <rect x="491" y="15" width="1" height="48" fill="#E89B3D" opacity="0.5"/>
+      <rect x="492" y="15" width="8" height="48" fill="#E89B3D" opacity="0.25" filter="url(#softGlow)"/>
+      <rect x="492" y="15" width="8" height="48" fill="#E89B3D" opacity="0.3"/>
+    </g>
+  </g>
+
+  <!-- =================== -->
+  <!-- 3. TASKBAR COMPLETA -->
+  <!-- =================== -->
+  <text x="60" y="830" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — TASKBAR COMPLETA REFINADA (em contexto)</text>
+
+  <g transform="translate(60, 850)">
+    <!-- Wallpaper -->
+    <rect x="0" y="0" width="1160" height="300" fill="url(#bgSky)" rx="8 8 0 0"/>
+
+    <!-- Mock windows com NEW window controls -->
+    <g>
+      <!-- Window 1 -->
+      <rect x="80" y="40" width="380" height="200" fill="#FBF6EE" rx="8"/>
+      <rect x="80" y="40" width="380" height="32" fill="#E8DDD0" rx="8 8 0 0"/>
+      <text x="100" y="60" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611">Luma Files</text>
+      <!-- Luma controls (light theme) -->
+      <g transform="translate(376, 44)">
+        <rect x="6" y="16" width="12" height="1.5" fill="#1F1611" opacity="0.7"/>
+      </g>
+      <g transform="translate(406, 44)">
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#1F1611" stroke-width="1.5" opacity="0.7" rx="1"/>
+      </g>
+      <g transform="translate(436, 44)">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#1F1611" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#1F1611" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+      </g>
+
+      <!-- Window 2 -->
+      <rect x="520" y="20" width="420" height="220" fill="#1F1611" rx="8"/>
+      <rect x="520" y="20" width="420" height="32" fill="#0F0A07" rx="8 8 0 0"/>
+      <text x="540" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Luma Terminal</text>
+      <!-- Luma controls (dark theme) -->
+      <g transform="translate(856, 24)">
+        <rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/>
+      </g>
+      <g transform="translate(886, 24)">
+        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/>
+      </g>
+      <g transform="translate(916, 24)">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+      </g>
+      <text x="540" y="80" font-family="monospace" font-size="11" fill="#F5D5A8">murillo@fedora:~/projetos/luma$</text>
+      <text x="540" y="100" font-family="monospace" font-size="11" fill="#E89B3D">$ cargo run --release</text>
+    </g>
+
+    <!-- TASKBAR -->
+    <g transform="translate(0, 252)">
+      <rect x="0" y="0" width="1160" height="48" fill="url(#taskbarBg)" rx="0 0 8 8"/>
+      <rect x="0" y="0" width="1160" height="1" fill="#E89B3D" opacity="0.25"/>
+
+      <!-- Launcher -->
+      <g transform="translate(12, 8)">
+        <rect x="0" y="0" width="32" height="32" fill="#2A1F1A" rx="6"/>
+        <g transform="translate(8, 6)">
+          <rect x="3" y="0" width="3.5" height="16" fill="url(#logoBeam)" rx="1.75"/>
+          <rect x="3" y="12.5" width="16" height="3.5" fill="#F5D5A8" rx="1.75"/>
+          <circle cx="4.75" cy="14.25" r="1.5" fill="#FBF6EE"/>
+        </g>
+      </g>
+
+      <!-- Divider -->
+      <rect x="56" y="14" width="1" height="20" fill="#FBF6EE" opacity="0.15"/>
+
+      <!-- Window button 1 (ACTIVE) -->
+      <g transform="translate(68, 8)">
+        <rect x="0" y="0" width="220" height="32" fill="#3D2520" rx="6"/>
+        <rect x="0" y="29" width="220" height="3" fill="#E89B3D" filter="url(#amberGlow)"/>
+        <rect x="8" y="8" width="16" height="16" fill="#D97757" rx="3"/>
+        <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Luma Files</text>
+      </g>
+
+      <!-- Window button 2 -->
+      <g transform="translate(296, 8)">
+        <rect x="0" y="0" width="220" height="32" fill="#2A1F1A" rx="6" opacity="0.8"/>
+        <rect x="8" y="8" width="16" height="16" fill="#1F1611" rx="3"/>
+        <rect x="10" y="10" width="12" height="12" fill="#F5D5A8" rx="2"/>
+        <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.7">Luma Terminal</text>
+      </g>
+
+      <!-- Window button 3 -->
+      <g transform="translate(524, 8)">
+        <rect x="0" y="0" width="220" height="32" fill="#2A1F1A" rx="6" opacity="0.8"/>
+        <rect x="8" y="8" width="16" height="16" fill="#6B8E7F" rx="3"/>
+        <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.7">Brave Browser</text>
+      </g>
+
+      <!-- RIGHT SIDE -->
+      <!-- Tray -->
+      <g transform="translate(880, 8)">
+        <circle cx="14" cy="16" r="4" fill="#6B8E7F"/>
+        <circle cx="28" cy="16" r="4" fill="#FBF6EE" opacity="0.4"/>
+      </g>
+      <rect x="922" y="14" width="1" height="20" fill="#FBF6EE" opacity="0.15"/>
+      <!-- Volume -->
+      <g transform="translate(940, 18)">
+        <path d="M 0 4 L 4 4 L 8 0 L 8 16 L 4 12 L 0 12 Z" fill="#FBF6EE" opacity="0.85"/>
+      </g>
+      <!-- WiFi -->
+      <g transform="translate(970, 19)">
+        <path d="M 0 8 Q 6 2 12 8" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.4"/>
+        <path d="M 2 11 Q 6 7 10 11" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.7"/>
+        <circle cx="6" cy="13" r="1.2" fill="#FBF6EE"/>
+      </g>
+      <!-- Battery -->
+      <g transform="translate(1000, 19)">
+        <rect x="0" y="0" width="20" height="10" fill="none" stroke="#FBF6EE" stroke-width="1" opacity="0.8" rx="1"/>
+        <rect x="20" y="3" width="2" height="4" fill="#FBF6EE" opacity="0.8"/>
+        <rect x="2" y="2" width="13" height="6" fill="#E89B3D" rx="0.5"/>
+      </g>
+      <!-- Clock -->
+      <g transform="translate(1060, 8)">
+        <text x="0" y="14" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">22:47</text>
+        <text x="0" y="28" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92">14 mai</text>
+      </g>
+
+      <!-- SHOW DESKTOP (canto direito) -->
+      <rect x="1149" y="0" width="1" height="48" fill="#FBF6EE" opacity="0.15"/>
+      <rect x="1150" y="0" width="10" height="48" fill="#1F1611"/>
+    </g>
+  </g>
+
+  <!-- =================== -->
+  <!-- 4. ANATOMIA          -->
+  <!-- =================== -->
+  <text x="60" y="1210" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — ANATOMIA E MEDIDAS COMPLETAS</text>
+
+  <g transform="translate(60, 1230)">
+    <rect x="0" y="0" width="1160" height="240" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Taskbar</text>
+    <text x="30" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Altura: <tspan font-family="monospace" fill="#D97757">48px</tspan></text>
+    <text x="30" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Padding lateral: <tspan font-family="monospace" fill="#D97757">12px</tspan> esq, <tspan font-family="monospace" fill="#D97757">0px</tspan> dir (show-desktop encosta)</text>
+    <text x="30" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Gap entre applets: <tspan font-family="monospace" fill="#D97757">8px</tspan></text>
+    <text x="30" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border-top: <tspan font-family="monospace" fill="#D97757">1px Amber @ 0.25 opacity</tspan></text>
+    <text x="30" y="138" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Background: gradient Coffee 0.94 → Black 0.97</text>
+
+    <text x="30" y="175" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Show Desktop (canto direito)</text>
+    <text x="30" y="198" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Largura: <tspan font-family="monospace" fill="#D97757">10px</tspan> · Altura: full taskbar</text>
+    <text x="30" y="218" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border-left: 1px Cream @ 0.15 opacity (separação)</text>
+
+    <text x="600" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Window Controls (Luma Original)</text>
+    <text x="600" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Hit area: <tspan font-family="monospace" fill="#D97757">24×24 px</tspan></text>
+    <text x="600" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ícone interno: <tspan font-family="monospace" fill="#D97757">12×12 px</tspan></text>
+    <text x="600" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Gap entre 3 controles: <tspan font-family="monospace" fill="#D97757">6px</tspan></text>
+    <text x="600" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Padding direito do header: <tspan font-family="monospace" fill="#D97757">12px</tspan></text>
+    <text x="600" y="138" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Stroke dos ícones: <tspan font-family="monospace" fill="#D97757">1.5px round-cap</tspan></text>
+
+    <text x="600" y="175" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Hover squircle</text>
+    <text x="600" y="198" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border-radius: <tspan font-family="monospace" fill="#D97757">6px</tspan></text>
+    <text x="600" y="218" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Glow externo: blur <tspan font-family="monospace" fill="#D97757">4px</tspan>, opacity <tspan font-family="monospace" fill="#D97757">0.4</tspan></text>
+  </g>
+
+  <!-- =================== -->
+  <!-- 5. ESTADOS WINDOW    -->
+  <!-- =================== -->
+  <text x="60" y="1520" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — ESTADOS DOS WINDOW BUTTONS (taskbar)</text>
+
+  <g transform="translate(60, 1540)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">DEFAULT</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="48" fill="url(#taskbarBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="220" height="32" fill="#2A1F1A" rx="6"/>
+          <rect x="8" y="8" width="16" height="16" fill="#D97757" rx="3"/>
+          <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.7">Luma Files</text>
+        </g>
+      </g>
+    </g>
+    <g transform="translate(300, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">HOVER</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="48" fill="url(#taskbarBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="220" height="32" fill="#3D2520" rx="6"/>
+          <rect x="8" y="8" width="16" height="16" fill="#D97757" rx="3"/>
+          <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Luma Files</text>
+        </g>
+      </g>
+    </g>
+    <g transform="translate(600, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#D97757" font-weight="700">ACTIVE</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="48" fill="url(#taskbarBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="220" height="32" fill="#3D2520" rx="6"/>
+          <rect x="0" y="29" width="220" height="3" fill="#E89B3D" filter="url(#amberGlow)"/>
+          <rect x="8" y="8" width="16" height="16" fill="#D97757" rx="3"/>
+          <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Luma Files</text>
+        </g>
+      </g>
+    </g>
+    <g transform="translate(900, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">MINIMIZADO</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="48" fill="url(#taskbarBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="220" height="32" fill="#1F1611" rx="6" opacity="0.6"/>
+          <rect x="8" y="8" width="16" height="16" fill="#D97757" rx="3" opacity="0.5"/>
+          <text x="32" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.4" font-style="italic">Luma Files</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- =================== -->
+  <!-- 6. APPLETS LIST     -->
+  <!-- =================== -->
+  <text x="60" y="1690" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">6 — APPLETS QUE COMPÕEM A TASKBAR (ordem ESQ → DIR)</text>
+
+  <g transform="translate(60, 1710)">
+    <rect x="0" y="0" width="1160" height="360" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="monospace" font-size="12" fill="#D97757">01. luma-applet-launcher</text>
+    <text x="280" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Orbe Luma. Abre menu.</text>
+
+    <text x="30" y="68" font-family="monospace" font-size="12" fill="#D97757">02. luma-applet-window-list</text>
+    <text x="280" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Lista de janelas abertas. Indicador âmbar na ativa.</text>
+
+    <text x="30" y="96" font-family="monospace" font-size="12" fill="#D97757">03. luma-applet-tray</text>
+    <text x="280" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Tray (Discord, Telegram, Steam, etc).</text>
+
+    <text x="30" y="124" font-family="monospace" font-size="12" fill="#D97757">04. luma-applet-volume</text>
+    <text x="280" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Volume (PipeWire/PulseAudio).</text>
+
+    <text x="30" y="152" font-family="monospace" font-size="12" fill="#D97757">05. luma-applet-wifi</text>
+    <text x="280" y="152" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Rede (NetworkManager via DBus).</text>
+
+    <text x="30" y="180" font-family="monospace" font-size="12" fill="#D97757">06. luma-applet-battery</text>
+    <text x="280" y="180" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Bateria (/sys/class/power_supply/).</text>
+
+    <text x="30" y="208" font-family="monospace" font-size="12" fill="#D97757">07. luma-applet-bluetooth</text>
+    <text x="280" y="208" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Bluetooth.</text>
+
+    <text x="30" y="236" font-family="monospace" font-size="12" fill="#D97757">08. luma-applet-clock</text>
+    <text x="280" y="236" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Relógio em 2 linhas (hora + data).</text>
+
+    <text x="30" y="264" font-family="monospace" font-size="12" fill="#D97757">09. luma-applet-show-desktop</text>
+    <text x="280" y="264" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Barrinha fininha estilo Win7/KDE. Minimiza tudo.</text>
+
+    <text x="30" y="310" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Removidos do design atual:</text>
+    <text x="30" y="332" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Show desktop "botãozinho à esquerda" (sai daqui, vira só a barrinha direita)</text>
+    <text x="600" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Cores específicas de cada applet:</text>
+    <text x="600" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Volume: ícone Cream → âmbar quando mudo</text>
+    <text x="600" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• WiFi: Cream → coral quando desconectado</text>
+    <text x="600" y="116" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Battery: barra âmbar; coral quando &lt; 20%</text>
+    <text x="600" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Bluetooth: Cream quando off; sage quando on</text>
+  </g>
+</svg>

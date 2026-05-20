@@ -1,0 +1,432 @@
+<svg viewBox="0 0 1280 2600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="titlebarActive" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A1F1A"/>
+      <stop offset="100%" stop-color="#1F1611"/>
+    </linearGradient>
+    <linearGradient id="titlebarInactive" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="windowShadow">
+      <feGaussianBlur stdDeviation="14"/>
+      <feOffset dx="0" dy="6" result="offsetblur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.35"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="2600" fill="#FBF6EE"/>
+
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Window v2</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Decoração completa · Golden Hour identity · PCD controls · active/inactive states</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ============ -->
+  <!-- 1. JANELA ATIVA -->
+  <!-- ============ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — JANELA ATIVA (foco do usuário)</text>
+
+  <g transform="translate(60, 200)" filter="url(#windowShadow)">
+    <!-- Window body -->
+    <rect width="700" height="400" fill="#FBF6EE" rx="12" stroke="#2A1F1A" stroke-width="1"/>
+
+    <!-- Title bar -->
+    <rect width="700" height="40" fill="url(#titlebarActive)" rx="12 12 0 0"/>
+    <!-- Amber accent line (matches taskbar/menu) -->
+    <rect width="700" height="2" fill="#E89B3D" opacity="0.5" rx="12 12 0 0"/>
+
+    <!-- App icon (esquerda) -->
+    <rect x="12" y="10" width="20" height="20" fill="#D97757" rx="4"/>
+
+    <!-- Title (centro) -->
+    <text x="350" y="26" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="500" fill="#FBF6EE" text-anchor="middle">Documento.txt</text>
+
+    <!-- 3 controls (direita) -->
+    <g transform="translate(620, 8)">
+      <!-- Minimize -->
+      <g transform="translate(0, 0)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <line x1="7" y1="14" x2="17" y2="14" stroke="#F5D5A8" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+      <!-- Maximize -->
+      <g transform="translate(28, 0)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <rect x="8" y="8" width="8" height="8" fill="none" stroke="#6B8E7F" stroke-width="1.5" rx="1.5"/>
+      </g>
+      <!-- Close -->
+      <g transform="translate(56, 0)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <g transform="translate(7, 7)" stroke="#D97757" stroke-width="1.8" stroke-linecap="round">
+          <line x1="0" y1="0" x2="10" y2="10"/>
+          <line x1="10" y1="0" x2="0" y2="10"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Content area mock -->
+    <g transform="translate(20, 60)">
+      <rect width="240" height="14" fill="#1F1611" opacity="0.8" rx="2"/>
+      <rect width="380" height="2" y="24" fill="#E8DDD0"/>
+      <rect width="660" height="8" y="40" fill="#4A3933" opacity="0.5" rx="1"/>
+      <rect width="640" height="8" y="56" fill="#4A3933" opacity="0.5" rx="1"/>
+      <rect width="550" height="8" y="72" fill="#4A3933" opacity="0.5" rx="1"/>
+      <rect width="600" height="8" y="92" fill="#4A3933" opacity="0.5" rx="1"/>
+      <rect width="500" height="8" y="108" fill="#4A3933" opacity="0.5" rx="1"/>
+    </g>
+
+    <!-- Footer info -->
+    <text x="20" y="380" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Linha 12 · Coluna 24 · UTF-8</text>
+  </g>
+
+  <!-- Annotation -->
+  <g transform="translate(800, 230)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Anatomia (estado ativo)</text>
+
+    <text x="0" y="30" font-family="monospace" font-size="11" fill="#D97757">A</text>
+    <text x="20" y="30" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Linha âmbar 2px topo (continuidade com taskbar)</text>
+
+    <text x="0" y="54" font-family="monospace" font-size="11" fill="#D97757">B</text>
+    <text x="20" y="54" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Title bar gradient Coffee → Coffee escuro (altura 40px)</text>
+
+    <text x="0" y="78" font-family="monospace" font-size="11" fill="#D97757">C</text>
+    <text x="20" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">App icon 20×20 quadrado colorido à esquerda</text>
+
+    <text x="0" y="102" font-family="monospace" font-size="11" fill="#D97757">D</text>
+    <text x="20" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Título Manrope 13px weight 500 cream centro</text>
+
+    <text x="0" y="126" font-family="monospace" font-size="11" fill="#D97757">E</text>
+    <text x="20" y="126" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">3 controls 24×24 com ícone DENTRO (não bolinhas)</text>
+
+    <text x="0" y="150" font-family="monospace" font-size="11" fill="#D97757">F</text>
+    <text x="20" y="150" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Border 1px Coffee #2A1F1A + sombra 14px blur</text>
+
+    <text x="0" y="174" font-family="monospace" font-size="11" fill="#D97757">G</text>
+    <text x="20" y="174" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Corner radius 12px</text>
+
+    <text x="0" y="210" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-style="italic">PCD: cada control é 24×24 = hit target generoso. Hover aumenta pra 28×28.</text>
+  </g>
+
+  <!-- ============ -->
+  <!-- 2. JANELA INATIVA -->
+  <!-- ============ -->
+  <text x="60" y="660" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — JANELA INATIVA (em segundo plano)</text>
+
+  <g transform="translate(60, 700)">
+    <rect width="700" height="400" fill="#FBF6EE" rx="12" opacity="0.85" stroke="#1F1611" stroke-width="1" stroke-opacity="0.6"/>
+
+    <!-- Title bar - inactive (mais escura, sem linha âmbar) -->
+    <rect width="700" height="40" fill="url(#titlebarInactive)" rx="12 12 0 0"/>
+
+    <!-- App icon - dessaturado -->
+    <rect x="12" y="10" width="20" height="20" fill="#5C4940" rx="4"/>
+
+    <!-- Title - mais apagado -->
+    <text x="350" y="26" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="500" fill="#A89D92" text-anchor="middle">Outro Doc.txt</text>
+
+    <!-- 3 controls - SEM cor (só silhueta) -->
+    <g transform="translate(620, 8)">
+      <g transform="translate(0, 0)">
+        <rect width="24" height="24" fill="transparent" rx="6"/>
+        <line x1="7" y1="14" x2="17" y2="14" stroke="#5C4940" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(28, 0)">
+        <rect width="24" height="24" fill="transparent" rx="6"/>
+        <rect x="8" y="8" width="8" height="8" fill="none" stroke="#5C4940" stroke-width="1.5" rx="1.5"/>
+      </g>
+      <g transform="translate(56, 0)">
+        <rect width="24" height="24" fill="transparent" rx="6"/>
+        <g transform="translate(7, 7)" stroke="#5C4940" stroke-width="1.8" stroke-linecap="round">
+          <line x1="0" y1="0" x2="10" y2="10"/>
+          <line x1="10" y1="0" x2="0" y2="10"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Content area mock - dessaturado -->
+    <g transform="translate(20, 60)" opacity="0.6">
+      <rect width="240" height="14" fill="#1F1611" rx="2"/>
+      <rect width="380" height="2" y="24" fill="#E8DDD0"/>
+      <rect width="660" height="8" y="40" fill="#4A3933" rx="1"/>
+      <rect width="640" height="8" y="56" fill="#4A3933" rx="1"/>
+      <rect width="550" height="8" y="72" fill="#4A3933" rx="1"/>
+    </g>
+  </g>
+
+  <g transform="translate(800, 730)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Mudanças (vs ativa)</text>
+    <text x="0" y="30" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Linha âmbar topo: REMOVIDA</text>
+    <text x="0" y="50" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Title bar: gradient mais escuro</text>
+    <text x="0" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Título: cor cinza Coffee+ (#A89D92)</text>
+    <text x="0" y="90" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• App icon: dessaturado #5C4940</text>
+    <text x="0" y="110" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Controls: SEM cor (só silhueta cinza)</text>
+    <text x="0" y="130" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Body: opacity 0.85</text>
+    <text x="0" y="150" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border: opacity reduzida</text>
+
+    <text x="0" y="190" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-style="italic">Visualmente CLARO qual janela tem foco. Zero confusão.</text>
+  </g>
+
+  <!-- ============ -->
+  <!-- 3. CONTROLS - 3 ESTADOS -->
+  <!-- ============ -->
+  <text x="60" y="1160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — CONTROLS (4 estados cada)</text>
+
+  <g transform="translate(60, 1200)">
+    <rect width="1160" height="280" fill="#1F1611" rx="12"/>
+
+    <!-- Headers -->
+    <text x="190" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">DEFAULT</text>
+    <text x="430" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">HOVER</text>
+    <text x="670" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">ACTIVE (pressed)</text>
+    <text x="910" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">INACTIVE (out of focus)</text>
+
+    <!-- ROW 1: Minimize -->
+    <text x="60" y="84" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Minimize</text>
+
+    <g transform="translate(170, 70)">
+      <rect width="44" height="44" fill="#3D2520" rx="10"/>
+      <line x1="14" y1="22" x2="30" y2="22" stroke="#F5D5A8" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(410, 70)">
+      <rect width="44" height="44" fill="#F5D5A8" rx="10"/>
+      <line x1="14" y1="22" x2="30" y2="22" stroke="#1F1611" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(650, 70)">
+      <rect width="44" height="44" fill="#E0B97C" rx="10"/>
+      <line x1="14" y1="22" x2="30" y2="22" stroke="#1F1611" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(890, 70)">
+      <rect width="44" height="44" fill="transparent" rx="10"/>
+      <line x1="14" y1="22" x2="30" y2="22" stroke="#5C4940" stroke-width="2" stroke-linecap="round"/>
+    </g>
+
+    <!-- ROW 2: Maximize -->
+    <text x="60" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Maximize</text>
+
+    <g transform="translate(170, 134)">
+      <rect width="44" height="44" fill="#3D2520" rx="10"/>
+      <rect x="14" y="14" width="16" height="16" fill="none" stroke="#6B8E7F" stroke-width="2" rx="2"/>
+    </g>
+    <g transform="translate(410, 134)">
+      <rect width="44" height="44" fill="#6B8E7F" rx="10"/>
+      <rect x="14" y="14" width="16" height="16" fill="none" stroke="#1F1611" stroke-width="2" rx="2"/>
+    </g>
+    <g transform="translate(650, 134)">
+      <rect width="44" height="44" fill="#5C7C6E" rx="10"/>
+      <rect x="14" y="14" width="16" height="16" fill="none" stroke="#1F1611" stroke-width="2" rx="2"/>
+    </g>
+    <g transform="translate(890, 134)">
+      <rect width="44" height="44" fill="transparent" rx="10"/>
+      <rect x="14" y="14" width="16" height="16" fill="none" stroke="#5C4940" stroke-width="2" rx="2"/>
+    </g>
+
+    <!-- ROW 3: Close -->
+    <text x="60" y="212" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Close</text>
+
+    <g transform="translate(170, 198)">
+      <rect width="44" height="44" fill="#3D2520" rx="10"/>
+      <g transform="translate(14, 14)" stroke="#D97757" stroke-width="2.5" stroke-linecap="round">
+        <line x1="0" y1="0" x2="16" y2="16"/>
+        <line x1="16" y1="0" x2="0" y2="16"/>
+      </g>
+    </g>
+    <g transform="translate(410, 198)">
+      <rect width="44" height="44" fill="#D97757" rx="10"/>
+      <g transform="translate(14, 14)" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round">
+        <line x1="0" y1="0" x2="16" y2="16"/>
+        <line x1="16" y1="0" x2="0" y2="16"/>
+      </g>
+    </g>
+    <g transform="translate(650, 198)">
+      <rect width="44" height="44" fill="#9F4A35" rx="10"/>
+      <g transform="translate(14, 14)" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round">
+        <line x1="0" y1="0" x2="16" y2="16"/>
+        <line x1="16" y1="0" x2="0" y2="16"/>
+      </g>
+    </g>
+    <g transform="translate(890, 198)">
+      <rect width="44" height="44" fill="transparent" rx="10"/>
+      <g transform="translate(14, 14)" stroke="#5C4940" stroke-width="2.5" stroke-linecap="round">
+        <line x1="0" y1="0" x2="16" y2="16"/>
+        <line x1="16" y1="0" x2="0" y2="16"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 4. VARIANTES -->
+  <!-- ============ -->
+  <text x="60" y="1540" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — VARIANTES DE JANELA</text>
+
+  <!-- Janela MAXIMIZADA (sem corner radius) -->
+  <g transform="translate(60, 1580)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Maximizada (sem cantos arredondados)</text>
+
+    <rect y="20" width="540" height="200" fill="#FBF6EE" stroke="#2A1F1A" stroke-width="1"/>
+    <rect y="20" width="540" height="40" fill="url(#titlebarActive)"/>
+    <rect y="20" width="540" height="2" fill="#E89B3D" opacity="0.5"/>
+    <rect x="12" y="30" width="20" height="20" fill="#D97757" rx="4"/>
+    <text x="270" y="46" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="500" fill="#FBF6EE" text-anchor="middle">Brave — Tela cheia</text>
+    <g transform="translate(460, 28)">
+      <rect width="24" height="24" fill="#3D2520" rx="6"/>
+      <line x1="7" y1="14" x2="17" y2="14" stroke="#F5D5A8" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(488, 28)">
+      <rect width="24" height="24" fill="#3D2520" rx="6"/>
+      <rect x="8" y="8" width="8" height="8" fill="none" stroke="#6B8E7F" stroke-width="1.5"/>
+    </g>
+    <g transform="translate(516, 28)">
+      <rect width="24" height="24" fill="#3D2520" rx="6"/>
+      <g transform="translate(7, 7)" stroke="#D97757" stroke-width="1.8">
+        <line x1="0" y1="0" x2="10" y2="10"/>
+        <line x1="10" y1="0" x2="0" y2="10"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Diálogo modal (centrado, menor) -->
+  <g transform="translate(680, 1580)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Diálogo modal (menor + centralizado)</text>
+
+    <g filter="url(#windowShadow)">
+      <rect y="20" width="380" height="200" fill="#FBF6EE" rx="12" stroke="#2A1F1A"/>
+      <rect y="20" width="380" height="40" fill="url(#titlebarActive)" rx="12 12 0 0"/>
+      <rect y="20" width="380" height="2" fill="#E89B3D" opacity="0.5" rx="12 12 0 0"/>
+
+      <text x="190" y="46" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="500" fill="#FBF6EE" text-anchor="middle">Confirmar ação?</text>
+      <g transform="translate(348, 28)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <g transform="translate(7, 7)" stroke="#D97757" stroke-width="1.8">
+          <line x1="0" y1="0" x2="10" y2="10"/>
+          <line x1="10" y1="0" x2="0" y2="10"/>
+        </g>
+      </g>
+
+      <text x="20" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">Quer mesmo desligar o sistema?</text>
+      <text x="20" y="120" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Todos os apps abertos serão fechados.</text>
+
+      <g transform="translate(180, 170)">
+        <rect width="80" height="32" fill="transparent" rx="6" stroke="#A89D92"/>
+        <text x="40" y="20" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" text-anchor="middle">Cancelar</text>
+      </g>
+      <g transform="translate(270, 170)">
+        <rect width="90" height="32" fill="#D97757" rx="6"/>
+        <text x="45" y="20" font-family="system-ui, sans-serif" font-size="12" font-weight="500" fill="#FBF6EE" text-anchor="middle">Desligar</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Janela com TABS -->
+  <g transform="translate(60, 1840)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Janela com TABS (Brave/Files/Editor)</text>
+
+    <g filter="url(#windowShadow)">
+      <rect y="20" width="1160" height="200" fill="#FBF6EE" rx="12" stroke="#2A1F1A"/>
+      <rect y="20" width="1160" height="40" fill="url(#titlebarActive)" rx="12 12 0 0"/>
+      <rect y="20" width="1160" height="2" fill="#E89B3D" opacity="0.5" rx="12 12 0 0"/>
+
+      <rect x="12" y="30" width="20" height="20" fill="#6B8E7F" rx="4"/>
+
+      <!-- Tabs no title bar (acima de outras divisões) -->
+      <g transform="translate(50, 30)">
+        <!-- Tab 1 ATIVA -->
+        <g transform="translate(0, 0)">
+          <rect width="180" height="22" fill="#FBF6EE" rx="6 6 0 0"/>
+          <rect x="0" y="0" width="3" height="22" fill="#E89B3D" rx="1.5 0 0 0"/>
+          <text x="14" y="14" font-family="system-ui, sans-serif" font-size="11" fill="#1F1611">claude.ai</text>
+        </g>
+        <!-- Tab 2 -->
+        <g transform="translate(190, 0)">
+          <rect width="180" height="22" fill="#3D2520" rx="6 6 0 0"/>
+          <text x="14" y="14" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">github.com</text>
+        </g>
+        <!-- Tab 3 -->
+        <g transform="translate(380, 0)">
+          <rect width="180" height="22" fill="#3D2520" rx="6 6 0 0"/>
+          <text x="14" y="14" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">phoronix.com</text>
+        </g>
+        <!-- Botão + -->
+        <g transform="translate(572, 0)">
+          <rect width="22" height="22" fill="transparent" rx="4"/>
+          <line x1="6" y1="11" x2="16" y2="11" stroke="#A89D92" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="11" y1="6" x2="11" y2="16" stroke="#A89D92" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <g transform="translate(1080, 28)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <line x1="7" y1="14" x2="17" y2="14" stroke="#F5D5A8" stroke-width="1.5"/>
+      </g>
+      <g transform="translate(1108, 28)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <rect x="8" y="8" width="8" height="8" fill="none" stroke="#6B8E7F" stroke-width="1.5"/>
+      </g>
+      <g transform="translate(1136, 28)">
+        <rect width="24" height="24" fill="#3D2520" rx="6"/>
+        <g transform="translate(7, 7)" stroke="#D97757" stroke-width="1.8">
+          <line x1="0" y1="0" x2="10" y2="10"/>
+          <line x1="10" y1="0" x2="0" y2="10"/>
+        </g>
+      </g>
+
+      <text x="60" y="100" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611">Conteúdo da página ativa...</text>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 5. TOKENS -->
+  <!-- ============ -->
+  <text x="60" y="2120" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 2150)">
+    <rect width="1160" height="420" fill="#1F1611" rx="12"/>
+
+    <text x="30" y="40" font-family="monospace" font-size="11" fill="#A89D92">[window]</text>
+    <text x="30" y="62" font-family="monospace" font-size="11" fill="#FBF6EE">titlebar_height          = <tspan fill="#E89B3D">40</tspan></text>
+    <text x="30" y="82" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius            = <tspan fill="#E89B3D">12</tspan></text>
+    <text x="30" y="102" font-family="monospace" font-size="11" fill="#FBF6EE">border_color             = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="30" y="122" font-family="monospace" font-size="11" fill="#FBF6EE">border_width             = <tspan fill="#E89B3D">1</tspan></text>
+    <text x="30" y="142" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_blur              = <tspan fill="#E89B3D">14</tspan></text>
+    <text x="30" y="162" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_offset_y          = <tspan fill="#E89B3D">6</tspan></text>
+    <text x="30" y="182" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_color             = <tspan fill="#6B8E7F">"#000000"</tspan></text>
+    <text x="30" y="202" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_alpha             = <tspan fill="#E89B3D">0.35</tspan></text>
+
+    <text x="30" y="240" font-family="monospace" font-size="11" fill="#A89D92">[window.titlebar.active]</text>
+    <text x="30" y="262" font-family="monospace" font-size="11" fill="#FBF6EE">bg_gradient_top          = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="30" y="282" font-family="monospace" font-size="11" fill="#FBF6EE">bg_gradient_bottom       = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="30" y="302" font-family="monospace" font-size="11" fill="#FBF6EE">accent_line_color        = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="30" y="322" font-family="monospace" font-size="11" fill="#FBF6EE">accent_line_alpha        = <tspan fill="#E89B3D">0.5</tspan></text>
+    <text x="30" y="342" font-family="monospace" font-size="11" fill="#FBF6EE">title_color              = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="30" y="362" font-family="monospace" font-size="11" fill="#FBF6EE">title_size               = <tspan fill="#E89B3D">13</tspan></text>
+    <text x="30" y="382" font-family="monospace" font-size="11" fill="#FBF6EE">title_weight             = <tspan fill="#E89B3D">500</tspan></text>
+
+    <text x="600" y="40" font-family="monospace" font-size="11" fill="#A89D92">[window.controls]</text>
+    <text x="600" y="62" font-family="monospace" font-size="11" fill="#FBF6EE">size                     = <tspan fill="#E89B3D">24</tspan></text>
+    <text x="600" y="82" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius            = <tspan fill="#E89B3D">6</tspan></text>
+    <text x="600" y="102" font-family="monospace" font-size="11" fill="#FBF6EE">gap                      = <tspan fill="#E89B3D">4</tspan></text>
+    <text x="600" y="122" font-family="monospace" font-size="11" fill="#FBF6EE">position                 = <tspan fill="#6B8E7F">"right"</tspan></text>
+
+    <text x="600" y="160" font-family="monospace" font-size="11" fill="#A89D92">[window.controls.minimize]</text>
+    <text x="600" y="180" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color               = <tspan fill="#6B8E7F">"#F5D5A8"</tspan></text>
+    <text x="600" y="200" font-family="monospace" font-size="11" fill="#FBF6EE">hover_bg                 = <tspan fill="#6B8E7F">"#F5D5A8"</tspan></text>
+    <text x="600" y="220" font-family="monospace" font-size="11" fill="#FBF6EE">hover_icon               = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+
+    <text x="600" y="258" font-family="monospace" font-size="11" fill="#A89D92">[window.controls.maximize]</text>
+    <text x="600" y="278" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color               = <tspan fill="#6B8E7F">"#6B8E7F"</tspan></text>
+    <text x="600" y="298" font-family="monospace" font-size="11" fill="#FBF6EE">hover_bg                 = <tspan fill="#6B8E7F">"#6B8E7F"</tspan></text>
+    <text x="600" y="318" font-family="monospace" font-size="11" fill="#FBF6EE">hover_icon               = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+
+    <text x="600" y="356" font-family="monospace" font-size="11" fill="#A89D92">[window.controls.close]</text>
+    <text x="600" y="376" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color               = <tspan fill="#6B8E7F">"#D97757"</tspan></text>
+    <text x="600" y="396" font-family="monospace" font-size="11" fill="#FBF6EE">hover_bg                 = <tspan fill="#6B8E7F">"#D97757"</tspan></text>
+  </g>
+</svg>

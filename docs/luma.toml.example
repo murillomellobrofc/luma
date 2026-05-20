@@ -1,0 +1,27 @@
+# ~/.config/luma/luma.toml — tema do compositor Luma
+#
+# Todas as opções são opcionais. O que faltar vira o default (verde
+# Lumina #9AFF1F). Cores em formato "#RRGGBB" ou "#RRGGBBAA".
+#
+# Os botões fechar/maximizar/minimizar NÃO são customizáveis aqui — eles
+# seguem estilo Windows 7 fixo (cinza + vermelho) pra manter
+# reconhecibilidade visual em qualquer paleta.
+
+# Cor de fundo do output (clear color), padrão verde Lumina vivo.
+# clear = "#9AFF1F"
+
+# Cor do header e bordas laterais/inferior das janelas.
+# border = "#2F8010"
+
+# Taskbar inferior.
+# taskbar_bg = "#1A4D0A"
+# taskbar_block_inactive = "#4DB31E"
+# taskbar_block_active = "#B3FF4D"
+# taskbar_launcher = "#9AFF1F"
+
+# Menu launcher.
+# menu_bg = "#0D2901"
+# menu_item_hover = "#4DB31E"
+
+# Modo do wallpaper. Valores: "stretch" (default), "center", "cover".
+# wallpaper_mode = "cover"

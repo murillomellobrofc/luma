@@ -1,0 +1,32 @@
+<svg viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lumaBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="50%" stop-color="#D97757"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="lumaGlow">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ícone: Light Beam -->
+  <g transform="translate(80, 100)">
+    <!-- Haste vertical (raio de luz) -->
+    <rect x="40" y="0" width="40" height="200" fill="url(#lumaBeam)" rx="20"/>
+    <!-- Base horizontal -->
+    <rect x="40" y="160" width="200" height="40" fill="#F5D5A8" rx="20"/>
+    <!-- Ponto luminoso na intersecção -->
+    <circle cx="60" cy="180" r="18" fill="#FBF6EE" filter="url(#lumaGlow)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="420" y="240" font-family="Fraunces, Georgia, serif" font-size="180" font-weight="500" fill="#1F1611">Luma</text>
+
+  <!-- Subtítulo opcional -->
+  <text x="424" y="285" font-family="Manrope, system-ui, sans-serif" font-size="22" fill="#8B7D72" letter-spacing="6">DESKTOP ENVIRONMENT</text>
+</svg>

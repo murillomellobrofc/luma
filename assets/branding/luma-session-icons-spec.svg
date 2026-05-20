@@ -1,0 +1,360 @@
+<svg viewBox="0 0 1280 1800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="iconShadow">
+      <feGaussianBlur stdDeviation="2"/>
+      <feOffset dx="0" dy="1" result="offsetblur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.25"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1800" fill="#FBF6EE"/>
+
+  <!-- HEADER -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Session Icons</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">5 ícones de sessão · 100% distinguíveis · stroke 2px · linecap round</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ============= -->
+  <!-- 1. OS 5 ÍCONES -->
+  <!-- ============= -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — OS 5 ÍCONES (vista ampliada 4×)</text>
+
+  <g transform="translate(60, 200)">
+    <rect width="1160" height="320" fill="#1F1611" rx="12"/>
+
+    <!-- LOCK (bloquear) -->
+    <g transform="translate(80, 80)">
+      <rect width="160" height="160" fill="#2A1F1A" rx="20"/>
+      <g transform="translate(50, 40)" fill="none" stroke="#FBF6EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Padlock body -->
+        <rect x="10" y="40" width="40" height="34" rx="4"/>
+        <!-- Padlock arc -->
+        <path d="M 18 40 V 25 a 12 12 0 0 1 24 0 V 40"/>
+        <!-- Keyhole -->
+        <circle cx="30" cy="55" r="3" fill="#FBF6EE" stroke="none"/>
+      </g>
+      <text x="80" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="700">Bloquear</text>
+      <text x="80" y="220" font-family="monospace" font-size="10" fill="#F5D5A8" text-anchor="middle">Honey hover</text>
+    </g>
+
+    <!-- LOGOUT (sair) -->
+    <g transform="translate(280, 80)">
+      <rect width="160" height="160" fill="#2A1F1A" rx="20"/>
+      <g transform="translate(40, 50)" fill="none" stroke="#FBF6EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Door/box (open right side) -->
+        <path d="M 30 5 V 0 H 5 V 60 H 30 V 55"/>
+        <!-- Arrow going out to the right -->
+        <line x1="20" y1="30" x2="65" y2="30"/>
+        <path d="M 50 18 L 65 30 L 50 42"/>
+      </g>
+      <text x="80" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="700">Sair</text>
+      <text x="80" y="220" font-family="monospace" font-size="10" fill="#9F4A35" text-anchor="middle">Coffee+ hover</text>
+    </g>
+
+    <!-- SLEEP (suspender - LUA CRESCENTE) -->
+    <g transform="translate(480, 80)">
+      <rect width="160" height="160" fill="#2A1F1A" rx="20"/>
+      <g transform="translate(48, 38)" fill="none" stroke="#FBF6EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Crescent moon -->
+        <path d="M 50 15 a 35 35 0 1 0 14 50 a 25 25 0 0 1 -14 -50 Z" fill="#FBF6EE" fill-opacity="0.1"/>
+      </g>
+      <text x="80" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="700">Suspender</text>
+      <text x="80" y="220" font-family="monospace" font-size="10" fill="#6B8E7F" text-anchor="middle">Sage hover</text>
+    </g>
+
+    <!-- RESTART (reiniciar - SETA CIRCULAR) -->
+    <g transform="translate(680, 80)">
+      <rect width="160" height="160" fill="#2A1F1A" rx="20"/>
+      <g transform="translate(40, 38)" fill="none" stroke="#FBF6EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Circular arrow (open at top) -->
+        <path d="M 60 20 a 35 35 0 1 0 18 30"/>
+        <!-- Arrow head -->
+        <path d="M 60 0 L 60 22 L 38 22"/>
+      </g>
+      <text x="80" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="700">Reiniciar</text>
+      <text x="80" y="220" font-family="monospace" font-size="10" fill="#E89B3D" text-anchor="middle">Amber hover</text>
+    </g>
+
+    <!-- POWER (desligar - símbolo universal) -->
+    <g transform="translate(880, 80)">
+      <rect width="160" height="160" fill="#D97757" rx="20"/>
+      <g transform="translate(40, 35)" fill="none" stroke="#FBF6EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Vertical line top -->
+        <line x1="40" y1="5" x2="40" y2="40"/>
+        <!-- Circle open at top -->
+        <path d="M 18 20 a 35 35 0 1 0 44 0"/>
+      </g>
+      <text x="80" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="700">Desligar</text>
+      <text x="80" y="220" font-family="monospace" font-size="10" fill="#FBF6EE" text-anchor="middle">Default Coral ⚠</text>
+    </g>
+  </g>
+
+  <!-- ============= -->
+  <!-- 2. ESTADOS -->
+  <!-- ============= -->
+  <text x="60" y="580" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — ESTADOS (default, hover, active)</text>
+
+  <g transform="translate(60, 620)">
+    <rect width="1160" height="280" fill="#1F1611" rx="12"/>
+
+    <!-- Headers -->
+    <text x="200" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">DEFAULT</text>
+    <text x="500" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">HOVER</text>
+    <text x="800" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">ACTIVE (clicado)</text>
+
+    <!-- ROW 1: Lock -->
+    <text x="80" y="84" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Bloquear</text>
+
+    <g transform="translate(170, 70)">
+      <rect width="44" height="44" fill="none" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+        <rect x="3" y="11" width="12" height="10" rx="1"/>
+        <path d="M 5 11 V 8 a 4 4 0 0 1 8 0 V 11"/>
+        <circle cx="9" cy="15" r="0.8" fill="#FBF6EE" stroke="none"/>
+      </g>
+    </g>
+
+    <g transform="translate(470, 70)">
+      <rect width="44" height="44" fill="#F5D5A8" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#1F1611" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="12" height="10" rx="1"/>
+        <path d="M 5 11 V 8 a 4 4 0 0 1 8 0 V 11"/>
+        <circle cx="9" cy="15" r="0.8" fill="#1F1611" stroke="none"/>
+      </g>
+    </g>
+
+    <g transform="translate(770, 70)">
+      <rect width="44" height="44" fill="#E0B97C" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#1F1611" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="12" height="10" rx="1"/>
+        <path d="M 5 11 V 8 a 4 4 0 0 1 8 0 V 11"/>
+        <circle cx="9" cy="15" r="0.8" fill="#1F1611" stroke="none"/>
+      </g>
+    </g>
+
+    <!-- ROW 2: Sleep -->
+    <text x="80" y="140" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Suspender</text>
+
+    <g transform="translate(170, 126)">
+      <rect width="44" height="44" fill="none" rx="8"/>
+      <g transform="translate(13, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+        <path d="M 14 4 a 10 10 0 1 0 4 17 a 7 7 0 0 1 -4 -17 Z" fill="#FBF6EE" fill-opacity="0.15"/>
+      </g>
+    </g>
+
+    <g transform="translate(470, 126)">
+      <rect width="44" height="44" fill="#6B8E7F" rx="8"/>
+      <g transform="translate(13, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 14 4 a 10 10 0 1 0 4 17 a 7 7 0 0 1 -4 -17 Z" fill="#FBF6EE" fill-opacity="0.15"/>
+      </g>
+    </g>
+
+    <g transform="translate(770, 126)">
+      <rect width="44" height="44" fill="#5C7C6E" rx="8"/>
+      <g transform="translate(13, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 14 4 a 10 10 0 1 0 4 17 a 7 7 0 0 1 -4 -17 Z" fill="#FBF6EE" fill-opacity="0.15"/>
+      </g>
+    </g>
+
+    <!-- ROW 3: Restart -->
+    <text x="80" y="196" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Reiniciar</text>
+
+    <g transform="translate(170, 182)">
+      <rect width="44" height="44" fill="none" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+        <path d="M 14 4 a 9 9 0 1 0 5 8"/>
+        <path d="M 14 -1 L 14 5 L 8 5"/>
+      </g>
+    </g>
+
+    <g transform="translate(470, 182)">
+      <rect width="44" height="44" fill="#E89B3D" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#1F1611" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 14 4 a 9 9 0 1 0 5 8"/>
+        <path d="M 14 -1 L 14 5 L 8 5"/>
+      </g>
+    </g>
+
+    <g transform="translate(770, 182)">
+      <rect width="44" height="44" fill="#C58124" rx="8"/>
+      <g transform="translate(13, 11)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 14 4 a 9 9 0 1 0 5 8"/>
+        <path d="M 14 -1 L 14 5 L 8 5"/>
+      </g>
+    </g>
+
+    <!-- ROW 4: Power -->
+    <text x="80" y="252" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Desligar</text>
+
+    <g transform="translate(170, 238)">
+      <rect width="44" height="44" fill="#D97757" rx="8"/>
+      <g transform="translate(14, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="2" x2="8" y2="11"/>
+        <path d="M 3 6 a 7 7 0 1 0 10 0"/>
+      </g>
+    </g>
+
+    <g transform="translate(470, 238)">
+      <rect width="44" height="44" fill="#E89B3D" rx="8"/>
+      <g transform="translate(14, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="2" x2="8" y2="11"/>
+        <path d="M 3 6 a 7 7 0 1 0 10 0"/>
+      </g>
+    </g>
+
+    <g transform="translate(770, 238)">
+      <rect width="44" height="44" fill="#9F4A35" rx="8"/>
+      <g transform="translate(14, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="2" x2="8" y2="11"/>
+        <path d="M 3 6 a 7 7 0 1 0 10 0"/>
+      </g>
+    </g>
+
+    <text x="900" y="84" font-family="monospace" font-size="11" fill="#F5D5A8">Honey #F5D5A8</text>
+    <text x="900" y="140" font-family="monospace" font-size="11" fill="#6B8E7F">Sage #6B8E7F</text>
+    <text x="900" y="196" font-family="monospace" font-size="11" fill="#E89B3D">Amber #E89B3D</text>
+    <text x="900" y="252" font-family="monospace" font-size="11" fill="#D97757">Coral #D97757 (default!)</text>
+  </g>
+
+  <!-- ============= -->
+  <!-- 3. SESSÃO BAR EM CONTEXTO -->
+  <!-- ============= -->
+  <text x="60" y="960" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — SESSÃO BAR EM CONTEXTO REAL</text>
+
+  <g transform="translate(60, 1000)">
+    <rect width="1160" height="100" fill="#0F0A07" rx="12"/>
+
+    <!-- 5 botões à esquerda -->
+    <g transform="translate(20, 28)">
+      <!-- Lock -->
+      <g transform="translate(0, 0)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(13, 11)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+          <rect x="3" y="11" width="12" height="10" rx="1"/>
+          <path d="M 5 11 V 8 a 4 4 0 0 1 8 0 V 11"/>
+          <circle cx="9" cy="15" r="0.8" fill="#FBF6EE" stroke="none"/>
+        </g>
+      </g>
+
+      <!-- Logout -->
+      <g transform="translate(56, 0)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(11, 13)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+          <path d="M 9 2 V 0 H 0 V 18 H 9 V 16"/>
+          <line x1="6" y1="9" x2="20" y2="9"/>
+          <path d="M 16 5 L 20 9 L 16 13"/>
+        </g>
+      </g>
+
+      <!-- Sleep -->
+      <g transform="translate(112, 0)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(13, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+          <path d="M 14 4 a 10 10 0 1 0 4 17 a 7 7 0 0 1 -4 -17 Z" fill="#FBF6EE" fill-opacity="0.15"/>
+        </g>
+      </g>
+
+      <!-- Restart -->
+      <g transform="translate(168, 0)">
+        <rect width="44" height="44" fill="none" rx="8"/>
+        <g transform="translate(13, 11)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+          <path d="M 14 4 a 9 9 0 1 0 5 8"/>
+          <path d="M 14 -1 L 14 5 L 8 5"/>
+        </g>
+      </g>
+
+      <!-- Power (CORAL default) -->
+      <g transform="translate(224, 0)">
+        <rect width="44" height="44" fill="#D97757" rx="8"/>
+        <g transform="translate(14, 10)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="2" x2="8" y2="11"/>
+          <path d="M 3 6 a 7 7 0 1 0 10 0"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Hint no centro -->
+    <text x="580" y="55" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">↑ ↓ navegar · ↵ abrir · Esc fechar · Tab ver todos</text>
+
+    <!-- Mini lugares à direita -->
+    <g transform="translate(990, 38)">
+      <g transform="translate(0, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+        <path d="M 0 4 a 2 2 0 0 1 2 -2 h 6 l 2 2 h 10 a 2 2 0 0 1 2 2 v 10 a 2 2 0 0 1 -2 2 h -18 a 2 2 0 0 1 -2 -2 Z" stroke-linejoin="round"/>
+      </g>
+      <g transform="translate(40, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+        <path d="M 8 0 v 14 M 4 10 l 4 4 l 4 -4" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="0" y1="18" x2="16" y2="18"/>
+      </g>
+      <g transform="translate(80, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+        <rect x="0" y="0" width="18" height="14" rx="1"/>
+        <line x1="0" y1="5" x2="18" y2="5"/>
+      </g>
+      <g transform="translate(120, 0)" stroke="#A89D92" stroke-width="1.5" fill="none">
+        <circle cx="6" cy="6" r="5"/>
+        <line x1="10" y1="10" x2="15" y2="15" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============= -->
+  <!-- 4. DIFERENCIAÇÃO PCD -->
+  <!-- ============= -->
+  <text x="60" y="1150" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — POR QUE ESSES ÍCONES SÃO DISTINGUÍVEIS</text>
+
+  <g transform="translate(60, 1180)">
+    <rect width="1160" height="280" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Cada ícone tem SHAPE FUNDAMENTAL diferente</text>
+
+    <text x="30" y="74" font-family="monospace" font-size="12" fill="#D97757">▣  Bloquear</text>
+    <text x="180" y="74" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Forma: quadrado com arco em cima (CADEADO clássico, universalmente reconhecido)</text>
+
+    <text x="30" y="102" font-family="monospace" font-size="12" fill="#D97757">→▣  Sair</text>
+    <text x="180" y="102" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Forma: quadrado + FLECHA SAINDO. Diferente do Lock, sem arco em cima. Single shape.</text>
+
+    <text x="30" y="130" font-family="monospace" font-size="12" fill="#D97757">🌙  Suspender</text>
+    <text x="180" y="130" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Forma: LUA CRESCENTE (curva irregular). Único ícone curvilíneo aberto.</text>
+
+    <text x="30" y="158" font-family="monospace" font-size="12" fill="#D97757">↻  Reiniciar</text>
+    <text x="180" y="158" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Forma: CÍRCULO ABERTO + FLECHA (movimento). Diferente de Sleep (não tem flecha) e Power (flecha fora).</text>
+
+    <text x="30" y="186" font-family="monospace" font-size="12" fill="#D97757">⏻  Desligar</text>
+    <text x="180" y="186" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Forma: CÍRCULO ABERTO + LINHA VERTICAL CENTRADA. Símbolo universal IEC 5009.</text>
+
+    <text x="30" y="225" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Teste de leitura:</text>
+    <text x="30" y="248" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Mesmo em 16px (taskbar mínima), cada ícone é reconhecível em &lt;0.3s.</text>
+    <text x="30" y="266" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Power tem cor coral SEMPRE — o único colorido. Reduz risco de click acidental ao confundir.</text>
+  </g>
+
+  <!-- ============= -->
+  <!-- 5. COMPORTAMENTOS -->
+  <!-- ============= -->
+  <text x="60" y="1510" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — O QUE CADA UM FAZ</text>
+
+  <g transform="translate(60, 1540)">
+    <rect width="1160" height="240" fill="#1F1611" rx="8"/>
+
+    <text x="30" y="40" font-family="monospace" font-size="12" fill="#F5D5A8">Bloquear (Lock)</text>
+    <text x="180" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Trava sessão. Pede senha pra voltar. Apps continuam abertos. Atalho: Super+L</text>
+
+    <text x="30" y="74" font-family="monospace" font-size="12" fill="#9F4A35">Sair (Logout)</text>
+    <text x="180" y="74" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Fecha TODOS os apps e volta pra tela de login. Pede confirmação se há trabalho não salvo.</text>
+
+    <text x="30" y="108" font-family="monospace" font-size="12" fill="#6B8E7F">Suspender (Sleep)</text>
+    <text x="180" y="108" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">PC entra em modo de baixo consumo. RAM preservada. Acordar é instantâneo.</text>
+
+    <text x="30" y="142" font-family="monospace" font-size="12" fill="#E89B3D">Reiniciar (Restart)</text>
+    <text x="180" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Reboot completo do sistema. Pede confirmação. Salva estado antes.</text>
+
+    <text x="30" y="176" font-family="monospace" font-size="12" fill="#D97757">Desligar (Power)</text>
+    <text x="180" y="176" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Shutdown total. Pede confirmação. CORAL no default = visual de "ação séria".</text>
+
+    <text x="30" y="216" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Power tem cor coral por default ⚠ porque é a ação MAIS irreversível dos 5 (precisa avisar visualmente).</text>
+  </g>
+</svg>

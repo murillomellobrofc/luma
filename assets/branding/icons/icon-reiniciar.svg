@@ -1,0 +1,9 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" fill="#1F1611" rx="14"/>
+  <g stroke="#E89B3D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Arco grande + extensão curva pra cima saindo no topo -->
+    <path d="M 48 32 A 16 16 0 1 1 32 16 C 36 16 41 18 44 21 L 48 24"/>
+    <!-- Arrowhead "L" no canto superior direito (integra com o final do arco) -->
+    <path d="M 48 16 L 48 24 L 40 24"/>
+  </g>
+</svg>

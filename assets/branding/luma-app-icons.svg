@@ -1,0 +1,345 @@
+<svg viewBox="0 0 1280 1800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradientes pra cada app icon -->
+    <linearGradient id="bgSage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8FAA9C"/>
+      <stop offset="100%" stop-color="#5C7C6E"/>
+    </linearGradient>
+    <linearGradient id="bgCoral" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E89B7E"/>
+      <stop offset="100%" stop-color="#B8543E"/>
+    </linearGradient>
+    <linearGradient id="bgCream" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFCF6"/>
+      <stop offset="100%" stop-color="#F0E5D3"/>
+    </linearGradient>
+    <linearGradient id="bgHoney" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FCE3B8"/>
+      <stop offset="100%" stop-color="#E0B97C"/>
+    </linearGradient>
+    <linearGradient id="bgCoffee" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2E1F18"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+
+    <!-- Sky for image icon (mini luma wallpaper) -->
+    <linearGradient id="miniSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="50%" stop-color="#7A3A2C"/>
+      <stop offset="100%" stop-color="#E89B3D"/>
+    </linearGradient>
+
+    <filter id="iconShadow">
+      <feGaussianBlur stdDeviation="6"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="orbGlow">
+      <feGaussianBlur stdDeviation="1.5"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Reusable icon definitions for the small row -->
+    <symbol id="iconSettings" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="url(#bgSage)" rx="22"/>
+      <g transform="translate(20, 28)">
+        <rect x="0" y="6" width="60" height="3" fill="#FBF6EE" rx="1.5" opacity="0.85"/>
+        <circle cx="14" cy="7.5" r="6" fill="#FBF6EE"/>
+        <rect x="0" y="24" width="60" height="3" fill="#FBF6EE" rx="1.5" opacity="0.85"/>
+        <circle cx="42" cy="25.5" r="6" fill="#E89B3D"/>
+        <rect x="0" y="42" width="60" height="3" fill="#FBF6EE" rx="1.5" opacity="0.85"/>
+        <circle cx="24" cy="43.5" r="6" fill="#FBF6EE"/>
+      </g>
+    </symbol>
+
+    <symbol id="iconImage" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="url(#bgCoral)" rx="22"/>
+      <g transform="translate(15, 20)">
+        <rect width="70" height="60" fill="url(#miniSky)" rx="6"/>
+        <circle cx="50" cy="42" r="9" fill="#FBF6EE" filter="url(#orbGlow)"/>
+        <path d="M 0 60 L 12 48 L 26 56 L 42 38 L 56 50 L 70 44 L 70 60 Z" fill="#1F1611"/>
+      </g>
+    </symbol>
+
+    <symbol id="iconText" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="url(#bgCream)" rx="22"/>
+      <g transform="translate(20, 25)">
+        <rect x="0" y="0" width="46" height="4" fill="#1F1611" rx="2"/>
+        <rect x="0" y="12" width="60" height="4" fill="#1F1611" rx="2"/>
+        <rect x="0" y="24" width="54" height="4" fill="#1F1611" rx="2"/>
+        <rect x="0" y="36" width="60" height="4" fill="#1F1611" rx="2"/>
+        <rect x="0" y="48" width="34" height="4" fill="#E89B3D" rx="2"/>
+      </g>
+    </symbol>
+
+    <symbol id="iconFiles" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="url(#bgHoney)" rx="22"/>
+      <g transform="translate(18, 25)">
+        <path d="M 0 6 a 4 4 0 0 1 4 -4 h 18 l 4 6 h 36 a 4 4 0 0 1 4 4 v 36 a 4 4 0 0 1 -4 4 h -58 a 4 4 0 0 1 -4 -4 Z" fill="#1F1611"/>
+        <rect x="6" y="14" width="52" height="32" fill="#2A1F1A" rx="3"/>
+        <circle cx="56" cy="12" r="2" fill="#E89B3D" filter="url(#orbGlow)"/>
+      </g>
+    </symbol>
+
+    <symbol id="iconTerminal" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="url(#bgCoffee)" rx="22"/>
+      <g transform="translate(20, 30)">
+        <path d="M 4 6 L 18 18 L 4 30" fill="none" stroke="#E89B3D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="26" y="28" width="22" height="3" fill="#FBF6EE" rx="1.5"/>
+      </g>
+    </symbol>
+  </defs>
+
+  <rect width="1280" height="1800" fill="#FBF6EE"/>
+
+  <!-- HEADER -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma App Icons</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">5 apps nativos · família visual unificada · Golden Hour palette</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- LARGE ICONS ROW -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — ÍCONES (200×200)</text>
+
+  <g transform="translate(60, 200)">
+    <!-- Settings -->
+    <g transform="translate(0, 0)" filter="url(#iconShadow)">
+      <rect width="200" height="200" fill="url(#bgSage)" rx="44"/>
+      <g transform="translate(36, 56)">
+        <rect x="0" y="12" width="128" height="6" fill="#FBF6EE" rx="3" opacity="0.85"/>
+        <circle cx="28" cy="15" r="12" fill="#FBF6EE"/>
+        <rect x="0" y="50" width="128" height="6" fill="#FBF6EE" rx="3" opacity="0.85"/>
+        <circle cx="86" cy="53" r="12" fill="#E89B3D"/>
+        <circle cx="86" cy="53" r="12" fill="#E89B3D" filter="url(#orbGlow)" opacity="0.5"/>
+        <rect x="0" y="88" width="128" height="6" fill="#FBF6EE" rx="3" opacity="0.85"/>
+        <circle cx="48" cy="91" r="12" fill="#FBF6EE"/>
+      </g>
+    </g>
+    <text x="100" y="240" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="500" fill="#1F1611" text-anchor="middle">Settings</text>
+    <text x="100" y="262" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">Sage · #6B8E7F</text>
+
+    <!-- Image -->
+    <g transform="translate(232, 0)" filter="url(#iconShadow)">
+      <rect width="200" height="200" fill="url(#bgCoral)" rx="44"/>
+      <g transform="translate(28, 38)">
+        <rect width="144" height="124" fill="url(#miniSky)" rx="12"/>
+        <circle cx="104" cy="90" r="18" fill="#FBF6EE" filter="url(#orbGlow)"/>
+        <circle cx="104" cy="90" r="9" fill="#FFFFFF"/>
+        <!-- Mini stars -->
+        <circle cx="30" cy="30" r="1.2" fill="#FBF6EE" opacity="0.85"/>
+        <circle cx="60" cy="22" r="0.9" fill="#FBF6EE" opacity="0.7"/>
+        <circle cx="90" cy="34" r="1" fill="#FBF6EE" opacity="0.75"/>
+        <circle cx="125" cy="24" r="0.8" fill="#FBF6EE" opacity="0.6"/>
+        <!-- Mountains -->
+        <path d="M 0 124 L 24 100 L 50 116 L 84 78 L 112 102 L 144 88 L 144 124 Z" fill="#1F1611"/>
+      </g>
+    </g>
+    <text x="332" y="240" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="500" fill="#1F1611" text-anchor="middle">Image</text>
+    <text x="332" y="262" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">Coral · #D97757</text>
+
+    <!-- Text -->
+    <g transform="translate(464, 0)" filter="url(#iconShadow)">
+      <rect width="200" height="200" fill="url(#bgCream)" rx="44"/>
+      <g transform="translate(40, 50)">
+        <rect x="0" y="0" width="92" height="8" fill="#1F1611" rx="4"/>
+        <rect x="0" y="24" width="120" height="8" fill="#1F1611" rx="4"/>
+        <rect x="0" y="48" width="108" height="8" fill="#1F1611" rx="4"/>
+        <rect x="0" y="72" width="120" height="8" fill="#1F1611" rx="4"/>
+        <rect x="0" y="96" width="68" height="8" fill="#E89B3D" rx="4"/>
+        <rect x="0" y="96" width="68" height="8" fill="#E89B3D" rx="4" filter="url(#orbGlow)" opacity="0.4"/>
+      </g>
+    </g>
+    <text x="564" y="240" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="500" fill="#1F1611" text-anchor="middle">Text</text>
+    <text x="564" y="262" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">Cream · #FBF6EE</text>
+
+    <!-- Files -->
+    <g transform="translate(696, 0)" filter="url(#iconShadow)">
+      <rect width="200" height="200" fill="url(#bgHoney)" rx="44"/>
+      <g transform="translate(36, 50)">
+        <!-- Folder back -->
+        <path d="M 0 12 a 6 6 0 0 1 6 -6 h 36 l 8 12 h 72 a 6 6 0 0 1 6 6 v 72 a 6 6 0 0 1 -6 6 h -116 a 6 6 0 0 1 -6 -6 Z" fill="#1F1611"/>
+        <!-- Folder body (slightly offset) -->
+        <rect x="12" y="28" width="104" height="64" fill="#2A1F1A" rx="6"/>
+        <!-- Amber accent dot -->
+        <circle cx="112" cy="24" r="4" fill="#E89B3D" filter="url(#orbGlow)"/>
+        <circle cx="112" cy="24" r="4" fill="#E89B3D"/>
+      </g>
+    </g>
+    <text x="796" y="240" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="500" fill="#1F1611" text-anchor="middle">Files</text>
+    <text x="796" y="262" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">Honey · #F5D5A8</text>
+
+    <!-- Terminal -->
+    <g transform="translate(928, 0)" filter="url(#iconShadow)">
+      <rect width="200" height="200" fill="url(#bgCoffee)" rx="44"/>
+      <g transform="translate(40, 60)">
+        <path d="M 4 12 L 36 36 L 4 60" fill="none" stroke="#E89B3D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M 4 12 L 36 36 L 4 60" fill="none" stroke="#E89B3D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#orbGlow)" opacity="0.5"/>
+        <rect x="52" y="56" width="48" height="6" fill="#FBF6EE" rx="3"/>
+      </g>
+    </g>
+    <text x="1028" y="240" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="500" fill="#1F1611" text-anchor="middle">Terminal</text>
+    <text x="1028" y="262" font-family="monospace" font-size="10" fill="#8B7D72" text-anchor="middle">Coffee · #1F1611</text>
+  </g>
+
+  <!-- SMALL ROW IN TASKBAR CONTEXT -->
+  <text x="60" y="540" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — TESTE EM TASKBAR (50×50, ainda legíveis e identificáveis)</text>
+
+  <g transform="translate(60, 580)">
+    <!-- Taskbar mock -->
+    <rect width="1160" height="80" fill="#1F1611" rx="8"/>
+    <rect width="1160" height="1" fill="#E89B3D" opacity="0.25" rx="8 8 0 0"/>
+
+    <g transform="translate(30, 15)">
+      <use href="#iconSettings" width="50" height="50"/>
+    </g>
+    <g transform="translate(96, 15)">
+      <use href="#iconImage" width="50" height="50"/>
+    </g>
+    <g transform="translate(162, 15)">
+      <use href="#iconText" width="50" height="50"/>
+    </g>
+    <g transform="translate(228, 15)">
+      <use href="#iconFiles" width="50" height="50"/>
+    </g>
+    <g transform="translate(294, 15)">
+      <use href="#iconTerminal" width="50" height="50"/>
+    </g>
+  </g>
+
+  <!-- TINY ROW (16x16 favicon test) -->
+  <text x="60" y="720" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — FAVICON / SISTEMA (24×24, teste de mínimo)</text>
+
+  <g transform="translate(60, 750)">
+    <rect width="320" height="60" fill="#FBF6EE" rx="8" stroke="#E8DDD0"/>
+    <g transform="translate(20, 18)"><use href="#iconSettings" width="24" height="24"/></g>
+    <g transform="translate(60, 18)"><use href="#iconImage" width="24" height="24"/></g>
+    <g transform="translate(100, 18)"><use href="#iconText" width="24" height="24"/></g>
+    <g transform="translate(140, 18)"><use href="#iconFiles" width="24" height="24"/></g>
+    <g transform="translate(180, 18)"><use href="#iconTerminal" width="24" height="24"/></g>
+    <text x="230" y="36" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">⟵ ainda dá pra ver cada um</text>
+  </g>
+
+  <!-- RATIONALE -->
+  <text x="60" y="870" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — METÁFORA E RACIONAL POR APP</text>
+
+  <g transform="translate(60, 900)">
+    <rect width="1160" height="440" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <!-- Settings -->
+    <g transform="translate(30, 30)">
+      <rect width="60" height="60" fill="url(#bgSage)" rx="14"/>
+      <g transform="translate(11, 17)">
+        <rect x="0" y="4" width="38" height="2" fill="#FBF6EE" rx="1" opacity="0.85"/>
+        <circle cx="8" cy="5" r="4" fill="#FBF6EE"/>
+        <rect x="0" y="14" width="38" height="2" fill="#FBF6EE" rx="1" opacity="0.85"/>
+        <circle cx="26" cy="15" r="4" fill="#E89B3D"/>
+        <rect x="0" y="24" width="38" height="2" fill="#FBF6EE" rx="1" opacity="0.85"/>
+        <circle cx="14" cy="25" r="4" fill="#FBF6EE"/>
+      </g>
+    </g>
+    <text x="110" y="50" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Settings — três sliders</text>
+    <text x="110" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Cada slider em posição diferente. O do meio é âmbar — sugere "ajuste ativo". Sage é cor de equilíbrio, neutralidade.</text>
+
+    <!-- Image -->
+    <g transform="translate(30, 110)">
+      <rect width="60" height="60" fill="url(#bgCoral)" rx="14"/>
+      <g transform="translate(8, 11)">
+        <rect width="44" height="38" fill="url(#miniSky)" rx="3"/>
+        <circle cx="32" cy="28" r="5.5" fill="#FBF6EE"/>
+        <path d="M 0 38 L 7 30 L 16 35 L 26 24 L 35 31 L 44 27 L 44 38 Z" fill="#1F1611"/>
+      </g>
+    </g>
+    <text x="110" y="130" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Image — o wallpaper do Luma dentro do ícone</text>
+    <text x="110" y="152" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Mini-paisagem com sol nascendo + montanhas. Bonito pra caralho e auto-referencial (Luma dentro de Luma).</text>
+
+    <!-- Text -->
+    <g transform="translate(30, 190)">
+      <rect width="60" height="60" fill="url(#bgCream)" rx="14"/>
+      <g transform="translate(12, 15)">
+        <rect x="0" y="0" width="28" height="2.5" fill="#1F1611" rx="1.25"/>
+        <rect x="0" y="7" width="36" height="2.5" fill="#1F1611" rx="1.25"/>
+        <rect x="0" y="14" width="33" height="2.5" fill="#1F1611" rx="1.25"/>
+        <rect x="0" y="21" width="36" height="2.5" fill="#1F1611" rx="1.25"/>
+        <rect x="0" y="28" width="20" height="2.5" fill="#E89B3D" rx="1.25"/>
+      </g>
+    </g>
+    <text x="110" y="210" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Text — página com cursor âmbar</text>
+    <text x="110" y="232" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Linhas de texto + última linha âmbar (sugere "linha sendo escrita agora"). Cream = papel.</text>
+
+    <!-- Files -->
+    <g transform="translate(30, 270)">
+      <rect width="60" height="60" fill="url(#bgHoney)" rx="14"/>
+      <g transform="translate(11, 15)">
+        <path d="M 0 4 a 2 2 0 0 1 2 -2 h 11 l 3 4 h 22 a 2 2 0 0 1 2 2 v 22 a 2 2 0 0 1 -2 2 h -36 a 2 2 0 0 1 -2 -2 Z" fill="#1F1611"/>
+        <rect x="4" y="10" width="32" height="20" fill="#2A1F1A" rx="2"/>
+        <circle cx="34" cy="8" r="1.5" fill="#E89B3D"/>
+      </g>
+    </g>
+    <text x="110" y="290" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Files — pasta com bolinha âmbar (notificação)</text>
+    <text x="110" y="312" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Pasta clássica reinterpretada. A bolinha âmbar no canto sugere "tem coisa nova" (notificação universal).</text>
+
+    <!-- Terminal -->
+    <g transform="translate(30, 350)">
+      <rect width="60" height="60" fill="url(#bgCoffee)" rx="14"/>
+      <g transform="translate(12, 18)">
+        <path d="M 1 4 L 11 12 L 1 20" fill="none" stroke="#E89B3D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="16" y="18" width="14" height="2" fill="#FBF6EE" rx="1"/>
+      </g>
+    </g>
+    <text x="110" y="370" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Terminal — chevron âmbar + cursor cream</text>
+    <text x="110" y="392" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Símbolo universal de "linha de comando". O cursor blink sugere "esperando input". Coffee = profissional, dev.</text>
+
+    <text x="700" y="50" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Elementos unificadores</text>
+    <text x="700" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Squircle 22% radius (estilo iOS/macOS)</text>
+    <text x="700" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Gradient sutil no fundo de cada um</text>
+    <text x="700" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Cada um tem 1 detalhe âmbar (continuidade)</text>
+    <text x="700" y="138" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Drop shadow consistente</text>
+    <text x="700" y="158" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Cor primária da paleta Golden Hour</text>
+
+    <text x="700" y="200" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Diferenciação</text>
+    <text x="700" y="228" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Cores distintas pra reconhecimento rápido</text>
+    <text x="700" y="248" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Metáforas visuais diferentes (sliders, foto,</text>
+    <text x="700" y="268" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">  texto, pasta, terminal)</text>
+    <text x="700" y="288" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Mantém legibilidade até 24×24 px</text>
+
+    <text x="700" y="330" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Arquivos a gerar</text>
+    <text x="700" y="358" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Pra cada app: SVG vetorial + PNGs em</text>
+    <text x="700" y="378" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">16, 24, 32, 48, 64, 128, 256 e 512.</text>
+    <text x="700" y="398" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Total: 5 SVG + 40 PNG = 45 arquivos.</text>
+  </g>
+
+  <!-- DARK BG TEST -->
+  <text x="60" y="1390" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — TESTE EM FUNDO ESCURO (taskbar real / launcher dock)</text>
+
+  <g transform="translate(60, 1420)">
+    <rect width="1160" height="200" fill="#1F1611" rx="12"/>
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92">DOCK / TASKBAR</text>
+
+    <g transform="translate(30, 65)" filter="url(#iconShadow)"><use href="#iconSettings" width="100" height="100"/></g>
+    <g transform="translate(160, 65)" filter="url(#iconShadow)"><use href="#iconImage" width="100" height="100"/></g>
+    <g transform="translate(290, 65)" filter="url(#iconShadow)"><use href="#iconText" width="100" height="100"/></g>
+    <g transform="translate(420, 65)" filter="url(#iconShadow)"><use href="#iconFiles" width="100" height="100"/></g>
+    <g transform="translate(550, 65)" filter="url(#iconShadow)"><use href="#iconTerminal" width="100" height="100"/></g>
+
+    <text x="700" y="90" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Todos legíveis e identificáveis em fundo escuro,</text>
+    <text x="700" y="110" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">com shadow suave que dá "flutuação" sem exagero.</text>
+    <text x="700" y="140" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Cores Sage e Cream se destacam no escuro,</text>
+    <text x="700" y="160" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Coffee se funde mas continua reconhecível pelo</text>
+    <text x="700" y="180" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">chevron âmbar.</text>
+  </g>
+
+  <!-- FILE NAMES -->
+  <text x="60" y="1670" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">6 — NOMES DOS ARQUIVOS NO REPO</text>
+
+  <g transform="translate(60, 1690)">
+    <rect width="1160" height="90" fill="#1F1611" rx="8"/>
+    <text x="30" y="30" font-family="monospace" font-size="12" fill="#A89D92">assets/icons/apps/</text>
+    <text x="30" y="50" font-family="monospace" font-size="12" fill="#F5D5A8">├── luma-settings.svg     luma-image.svg     luma-text.svg     luma-files.svg     luma-terminal.svg</text>
+    <text x="30" y="72" font-family="monospace" font-size="12" fill="#A89D92">└── png/  (gerar com rsvg-convert pra cada tamanho: 16, 24, 32, 48, 64, 128, 256, 512)</text>
+  </g>
+</svg>

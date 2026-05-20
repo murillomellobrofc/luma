@@ -1,0 +1,53 @@
+[package]
+name = "luma"
+version = "0.3.0"
+edition = "2021"
+description = "Wayland compositor e ambiente gráfico do Lumina OS"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+bitflags = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+fontdue = "0.9"
+fuzzy-matcher = "0.3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+meval = "0.2"
+# Carregamento dos 4 SVGs da session bar (H32.10.14). usvg parse, resvg
+# rasteriza, tiny-skia faz a pixmap RGBA premultiplicada.
+resvg = { version = "0.44", default-features = false }
+tiny-skia = { version = "0.11", default-features = false, features = ["std"] }
+usvg = { version = "0.44", default-features = false }
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+urlencoding = "2"
+walkdir = "2"
+xcursor = "0.3"
+
+[dependencies.smithay]
+git = "https://github.com/Smithay/smithay.git"
+default-features = false
+features = [
+    "backend_winit",
+    "backend_drm",
+    "backend_gbm",
+    "backend_libinput",
+    "backend_udev",
+    "backend_session_libseat",
+    "renderer_gl",
+    "wayland_frontend",
+    "desktop",
+    "xwayland",
+]
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+
+# Fork local do smithay pra patch do winit backend (multi-window). H35.
+# Mantém URL no Smithay dep acima; patch substitui pelo path local.
+[patch.'https://github.com/Smithay/smithay.git']
+smithay = { path = "vendor/smithay" }

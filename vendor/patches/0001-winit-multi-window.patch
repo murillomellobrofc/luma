@@ -1,0 +1,151 @@
+diff --git a/src/backend/winit/mod.rs b/src/backend/winit/mod.rs
+index 69301cde..c2d14fcf 100644
+--- a/src/backend/winit/mod.rs
++++ b/src/backend/winit/mod.rs
+@@ -214,6 +214,146 @@ where
+     ))
+ }
+ 
++/// Multi-window variant of [`init_from_attributes_with_gl_attr`] — cria
++/// N windows compartilhando um único `WinitEventLoop`. Cada window
++/// tem seu próprio EGLContext + renderer, registrado num
++/// `WinitGraphicsBackend` separado. Patch local pra suportar
++/// multi-monitor simulado no luma (H35).
++///
++/// LIMITAÇÕES: eventos de window_event() NÃO discriminam qual window
++/// gerou o evento (todos vão pro mesmo callback). Resize de window
++/// secundária e input absolute position assumem window primária. O
++/// consumidor (luma) trata via output focado.
++#[allow(clippy::type_complexity)]
++pub fn init_multi<R>(
++    attributes_list: Vec<WindowAttributes>,
++    gl_attributes: GlAttributes,
++) -> Result<(Vec<WinitGraphicsBackend<R>>, WinitEventLoop), Error>
++where
++    R: From<GlesRenderer> + Bind<EGLSurface>,
++    crate::backend::SwapBuffersError: From<R::Error>,
++{
++    if attributes_list.is_empty() {
++        return Err(Error::NotSupported);
++    }
++    let span = info_span!("backend_winit_multi", count = attributes_list.len());
++    let _guard = span.enter();
++    info!(
++        "Initializing winit backend with {} windows",
++        attributes_list.len()
++    );
++
++    let event_loop = EventLoop::builder().build().map_err(Error::EventLoopCreation)?;
++
++    let mut backends: Vec<WinitGraphicsBackend<R>> = Vec::new();
++    let mut first_is_x11 = false;
++    let mut first_scale = 1.0_f64;
++    let mut first_window: Option<Arc<WinitWindow>> = None;
++
++    for (idx, attrs) in attributes_list.into_iter().enumerate() {
++        #[allow(deprecated)]
++        let window = Arc::new(
++            event_loop
++                .create_window(attrs)
++                .map_err(Error::WindowCreation)?,
++        );
++        debug!("Window {idx} created (id={:?})", window.id());
++
++        let (display, context, surface, is_x11) = {
++            let display = unsafe { EGLDisplay::new(window.clone())? };
++            let context = EGLContext::new_with_config(
++                &display,
++                gl_attributes,
++                PixelFormatRequirements::_10_bit(),
++            )
++            .or_else(|_| {
++                EGLContext::new_with_config(&display, gl_attributes, PixelFormatRequirements::_8_bit())
++            })?;
++            let (surface, is_x11) = match window.window_handle().map(|handle| handle.as_raw()) {
++                Ok(RawWindowHandle::Wayland(handle)) => {
++                    let size = window.inner_size();
++                    let surface = unsafe {
++                        wegl::WlEglSurface::new_from_raw(
++                            handle.surface.as_ptr() as *mut _,
++                            size.width as i32,
++                            size.height as i32,
++                        )
++                    }
++                    .map_err(|err| Error::Surface(err.into()))?;
++                    unsafe {
++                        (
++                            EGLSurface::new(
++                                &display,
++                                context.pixel_format().unwrap(),
++                                context.config_id(),
++                                surface,
++                            )
++                            .map_err(EGLError::CreationFailed)?,
++                            false,
++                        )
++                    }
++                }
++                Ok(RawWindowHandle::Xlib(handle)) => unsafe {
++                    (
++                        EGLSurface::new(
++                            &display,
++                            context.pixel_format().unwrap(),
++                            context.config_id(),
++                            native::XlibWindow(handle.window),
++                        )
++                        .map_err(EGLError::CreationFailed)?,
++                        true,
++                    )
++                },
++                _ => panic!("only running on Wayland or with Xlib is supported"),
++            };
++            let _ = context.unbind();
++            (display, context, surface, is_x11)
++        };
++
++        let renderer = unsafe { GlesRenderer::new(context)?.into() };
++        let damage_tracking = display.supports_damage();
++
++        if idx == 0 {
++            first_is_x11 = is_x11;
++            first_scale = window.scale_factor();
++            first_window = Some(window.clone());
++        }
++
++        backends.push(WinitGraphicsBackend {
++            window,
++            span: span.clone(),
++            _display: display,
++            egl_surface: surface,
++            damage_tracking,
++            bind_size: None,
++            renderer,
++        });
++    }
++
++    drop(_guard);
++
++    event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
++    let event_loop = Generic::new(event_loop, Interest::READ, calloop::Mode::Level);
++
++    Ok((
++        backends,
++        WinitEventLoop {
++            inner: WinitEventLoopInner {
++                scale_factor: first_scale,
++                clock: Clock::<Monotonic>::new(),
++                key_counter: 0,
++                window: first_window.expect("at least one window"),
++                is_x11: first_is_x11,
++            },
++            fake_token: None,
++            event_loop,
++            pending_events: Vec::new(),
++            span,
++        },
++    ))
++}
++
+ /// Errors thrown by the `winit` backends
+ #[derive(thiserror::Error, Debug)]
+ pub enum Error {

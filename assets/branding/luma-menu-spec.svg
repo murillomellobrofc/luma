@@ -1,0 +1,484 @@
+<svg viewBox="0 0 1280 2100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="menuBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611" stop-opacity="0.97"/>
+      <stop offset="100%" stop-color="#0F0A07" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="dividerLine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBF6EE" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FBF6EE" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FBF6EE" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <filter id="menuShadow">
+      <feGaussianBlur stdDeviation="12"/>
+      <feOffset dx="0" dy="6" result="offsetblur"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="2100" fill="#FBF6EE"/>
+
+  <!-- Header -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Menu — Spec Visual</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Duas colunas (Win7 alma) + Golden Hour visual + Sessão Luma Original</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ================== -->
+  <!-- 1. MENU COMPLETO    -->
+  <!-- ================== -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — MENU COMPLETO (estado default)</text>
+
+  <g transform="translate(60, 180)">
+    <!-- Wallpaper bg for context -->
+    <rect x="0" y="0" width="1160" height="640" fill="#3D2520" rx="8"/>
+
+    <!-- Mock taskbar at bottom -->
+    <rect x="0" y="592" width="1160" height="48" fill="url(#menuBg)"/>
+    <rect x="0" y="592" width="1160" height="1" fill="#E89B3D" opacity="0.25"/>
+    <!-- Launcher button on taskbar (highlighted = menu open) -->
+    <g transform="translate(12, 600)">
+      <rect x="0" y="0" width="32" height="32" fill="#3D2520" rx="6"/>
+      <rect x="0" y="29" width="32" height="3" fill="#E89B3D" filter="url(#amberGlow)"/>
+      <g transform="translate(8, 6)">
+        <rect x="3" y="0" width="3.5" height="16" fill="url(#logoBeam)" rx="1.75"/>
+        <rect x="3" y="12.5" width="16" height="3.5" fill="#F5D5A8" rx="1.75"/>
+        <circle cx="4.75" cy="14.25" r="1.5" fill="#FBF6EE"/>
+      </g>
+    </g>
+
+    <!-- THE MENU -->
+    <g transform="translate(8, 50)" filter="url(#menuShadow)">
+      <rect x="0" y="0" width="560" height="540" fill="url(#menuBg)" rx="10"/>
+      <!-- Subtle amber border on top -->
+      <rect x="0" y="0" width="560" height="1" fill="#E89B3D" opacity="0.25" rx="10 10 0 0"/>
+
+      <!-- TOP: User profile bar -->
+      <g transform="translate(20, 20)">
+        <!-- Avatar -->
+        <circle cx="20" cy="20" r="20" fill="url(#logoBeam)"/>
+        <text x="20" y="26" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE" text-anchor="middle">M</text>
+        <!-- Username -->
+        <text x="56" y="20" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE">Murillo</text>
+        <text x="56" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">murillo@fedora</text>
+      </g>
+
+      <!-- SEARCH BAR -->
+      <g transform="translate(20, 80)">
+        <rect x="0" y="0" width="520" height="40" fill="#2A1F1A" rx="8"/>
+        <!-- Search icon -->
+        <g transform="translate(12, 12)" fill="none" stroke="#A89D92" stroke-width="1.5">
+          <circle cx="7" cy="7" r="5.5"/>
+          <line x1="11" y1="11" x2="15" y2="15" stroke-linecap="round"/>
+        </g>
+        <text x="40" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92">Buscar apps, lugares, configurações...</text>
+        <!-- Shortcut hint -->
+        <g transform="translate(480, 11)">
+          <rect x="0" y="0" width="28" height="18" fill="#1F1611" rx="3"/>
+          <text x="14" y="13" font-family="monospace" font-size="9" fill="#8B7D72" text-anchor="middle">⌘ K</text>
+        </g>
+      </g>
+
+      <!-- TWO COLUMNS -->
+      <!-- Left column: Favoritos / Apps -->
+      <g transform="translate(20, 140)">
+        <text x="0" y="0" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">FAVORITOS</text>
+
+        <!-- App row 1: Arquivos -->
+        <g transform="translate(0, 14)">
+          <rect x="0" y="0" width="250" height="36" fill="none" rx="6"/>
+          <!-- Icon -->
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Arquivos</text>
+        </g>
+
+        <!-- App row 2: Navegador -->
+        <g transform="translate(0, 54)">
+          <rect x="0" y="0" width="250" height="36" fill="none" rx="6"/>
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Navegador</text>
+        </g>
+
+        <!-- App row 3: Terminal (HOVER state) -->
+        <g transform="translate(0, 94)">
+          <rect x="0" y="0" width="250" height="36" fill="#3D2520" rx="6"/>
+          <!-- Left amber indicator -->
+          <rect x="0" y="6" width="3" height="24" fill="#E89B3D" rx="0"/>
+          <rect x="8" y="8" width="20" height="20" fill="#1F1611" rx="4"/>
+          <rect x="11" y="11" width="14" height="14" fill="#F5D5A8" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Terminal</text>
+          <!-- Pin icon (right) -->
+          <g transform="translate(220, 11)" opacity="0.5">
+            <path d="M 7 0 L 9 4 L 14 5 L 10 8 L 11 13 L 7 11 L 3 13 L 4 8 L 0 5 L 5 4 Z" fill="#F5D5A8" transform="scale(0.6)"/>
+          </g>
+        </g>
+
+        <!-- App row 4: Editor -->
+        <g transform="translate(0, 134)">
+          <rect x="8" y="8" width="20" height="20" fill="#F5D5A8" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Editor</text>
+        </g>
+
+        <!-- App row 5: Calculadora -->
+        <g transform="translate(0, 174)">
+          <rect x="8" y="8" width="20" height="20" fill="#9F4A35" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Calculadora</text>
+        </g>
+
+        <!-- App row 6: Player -->
+        <g transform="translate(0, 214)">
+          <rect x="8" y="8" width="20" height="20" fill="#E89B3D" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Player</text>
+        </g>
+
+        <!-- App row 7: Fotos -->
+        <g transform="translate(0, 254)">
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Fotos</text>
+        </g>
+
+        <!-- App row 8: Ajustes -->
+        <g transform="translate(0, 294)">
+          <rect x="8" y="8" width="20" height="20" fill="#6B8E7F" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Ajustes</text>
+        </g>
+      </g>
+
+      <!-- Divider vertical (between columns) -->
+      <rect x="285" y="140" width="1" height="320" fill="url(#dividerLine)"/>
+
+      <!-- Right column: Lugares -->
+      <g transform="translate(305, 140)">
+        <text x="0" y="0" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">LUGARES</text>
+
+        <g transform="translate(0, 14)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Documentos</text>
+        </g>
+        <g transform="translate(0, 54)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Downloads</text>
+        </g>
+        <g transform="translate(0, 94)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Galeria</text>
+        </g>
+        <g transform="translate(0, 134)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Música</text>
+        </g>
+        <g transform="translate(0, 174)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Sistema</text>
+        </g>
+        <g transform="translate(0, 214)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Painel</text>
+        </g>
+        <g transform="translate(0, 254)">
+          <rect x="8" y="8" width="20" height="20" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Suporte</text>
+        </g>
+
+        <!-- "Todos os apps" link -->
+        <g transform="translate(0, 300)">
+          <rect x="0" y="0" width="235" height="36" fill="#2A1F1A" rx="6"/>
+          <g transform="translate(8, 12)" stroke="#E89B3D" stroke-width="1.5" fill="none">
+            <line x1="0" y1="3" x2="12" y2="3" stroke-linecap="round"/>
+            <line x1="0" y1="7" x2="12" y2="7" stroke-linecap="round"/>
+            <line x1="0" y1="11" x2="12" y2="11" stroke-linecap="round"/>
+          </g>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#E89B3D" font-weight="500">Todos os apps</text>
+        </g>
+      </g>
+
+      <!-- SESSÃO BAR (Luma Original — sem o "Sair" vermelho do Win7) -->
+      <g transform="translate(20, 478)">
+        <rect x="0" y="0" width="520" height="44" fill="#0F0A07" rx="8"/>
+
+        <!-- Lock -->
+        <g transform="translate(10, 6)">
+          <rect x="0" y="0" width="32" height="32" fill="none" rx="6"/>
+          <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+            <rect x="2" y="6" width="12" height="9" rx="1"/>
+            <path d="M 4 6 V 4 a 4 4 0 0 1 8 0 V 6"/>
+          </g>
+        </g>
+
+        <!-- Sleep -->
+        <g transform="translate(50, 6)">
+          <rect x="0" y="0" width="32" height="32" fill="none" rx="6"/>
+          <path transform="translate(8, 8)" d="M 12 2 a 8 8 0 1 0 4 11 a 6 6 0 0 1 -4 -11" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+        </g>
+
+        <!-- Restart -->
+        <g transform="translate(90, 6)">
+          <rect x="0" y="0" width="32" height="32" fill="none" rx="6"/>
+          <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+            <path d="M 14 4 a 6 6 0 1 0 2 4" stroke-linecap="round"/>
+            <path d="M 14 1 L 14 5 L 10 5" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </g>
+
+        <!-- Power (Coral hover state, exemplo) -->
+        <g transform="translate(130, 6)">
+          <rect x="0" y="0" width="32" height="32" fill="#D97757" rx="6" opacity="0.4" filter="url(#softGlow)"/>
+          <rect x="0" y="0" width="32" height="32" fill="#D97757" rx="6"/>
+          <g transform="translate(8, 8)" fill="none" stroke="#FBF6EE" stroke-width="1.5">
+            <path d="M 8 2 V 8" stroke-linecap="round"/>
+            <path d="M 3 5 a 7 7 0 1 0 10 0" stroke-linecap="round"/>
+          </g>
+        </g>
+
+        <!-- Right side: "Bom dia, Murillo" greeting -->
+        <text x="510" y="28" font-family="Fraunces, Georgia, serif" font-size="13" font-style="italic" fill="#A89D92" text-anchor="end">Bom dia, Murillo ☀</text>
+      </g>
+    </g>
+
+    <!-- Annotation lines pointing at parts -->
+    <g stroke="#E89B3D" stroke-width="1" fill="none" opacity="0.6" stroke-dasharray="3 3">
+      <!-- ... omitido pra não poluir -->
+    </g>
+  </g>
+
+  <!-- ================== -->
+  <!-- 2. SEARCH ACTIVE    -->
+  <!-- ================== -->
+  <text x="60" y="870" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — SEARCH ATIVO (resultados em tempo real)</text>
+
+  <g transform="translate(60, 890)">
+    <rect x="0" y="0" width="580" height="500" fill="url(#menuBg)" rx="10" filter="url(#menuShadow)"/>
+    <rect x="0" y="0" width="580" height="1" fill="#E89B3D" opacity="0.25" rx="10 10 0 0"/>
+
+    <!-- Profile bar -->
+    <g transform="translate(20, 20)">
+      <circle cx="20" cy="20" r="20" fill="url(#logoBeam)"/>
+      <text x="20" y="26" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE" text-anchor="middle">M</text>
+      <text x="56" y="20" font-family="Fraunces, Georgia, serif" font-size="18" font-weight="600" fill="#FBF6EE">Murillo</text>
+      <text x="56" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">murillo@fedora</text>
+    </g>
+
+    <!-- Search bar with input -->
+    <g transform="translate(20, 80)">
+      <rect x="0" y="0" width="540" height="40" fill="#3D2520" rx="8" stroke="#E89B3D" stroke-width="1.5"/>
+      <g transform="translate(12, 12)" fill="none" stroke="#E89B3D" stroke-width="1.5">
+        <circle cx="7" cy="7" r="5.5"/>
+        <line x1="11" y1="11" x2="15" y2="15" stroke-linecap="round"/>
+      </g>
+      <text x="40" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">term</text>
+      <rect x="65" y="13" width="2" height="15" fill="#E89B3D"/>
+    </g>
+
+    <!-- Results -->
+    <g transform="translate(20, 140)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">3 RESULTADOS</text>
+
+      <!-- Result 1 (selected, Enter abre) -->
+      <g transform="translate(0, 14)">
+        <rect x="0" y="0" width="540" height="44" fill="#3D2520" rx="6"/>
+        <rect x="0" y="6" width="3" height="32" fill="#E89B3D"/>
+        <rect x="12" y="10" width="24" height="24" fill="#1F1611" rx="4"/>
+        <rect x="15" y="13" width="18" height="18" fill="#F5D5A8" rx="3"/>
+        <text x="48" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Terminal</text>
+        <text x="48" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">App · Pressione Enter pra abrir</text>
+        <text x="520" y="28" font-family="monospace" font-size="9" fill="#8B7D72" text-anchor="end">↵</text>
+      </g>
+
+      <!-- Result 2 -->
+      <g transform="translate(0, 70)">
+        <rect x="12" y="10" width="24" height="24" fill="none" stroke="#A89D92" stroke-width="1.5" rx="3"/>
+        <text x="48" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Terminal de Desenvolvimento</text>
+        <text x="48" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Pasta · ~/projetos/luma/terminal</text>
+      </g>
+
+      <!-- Result 3 -->
+      <g transform="translate(0, 126)">
+        <rect x="12" y="10" width="24" height="24" fill="#6B8E7F" rx="4"/>
+        <text x="48" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Configurações &gt; Terminal</text>
+        <text x="48" y="38" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Ajuste · Atalhos do terminal padrão</text>
+      </g>
+    </g>
+
+    <!-- Tips at bottom -->
+    <g transform="translate(20, 440)">
+      <rect x="0" y="0" width="540" height="40" fill="none"/>
+      <text x="0" y="20" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">↑ ↓ navegar · ↵ abrir · Esc fechar</text>
+    </g>
+  </g>
+
+  <!-- ================== -->
+  <!-- 3. ESTADOS APP ROW  -->
+  <!-- ================== -->
+  <text x="60" y="1440" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — ESTADOS DA LINHA DO APP</text>
+
+  <g transform="translate(60, 1460)">
+    <!-- Default -->
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">DEFAULT</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="40" fill="url(#menuBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="250" height="36" fill="none" rx="6"/>
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Arquivos</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Hover -->
+    <g transform="translate(300, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#E89B3D" font-weight="700">HOVER / KEYBOARD FOCUS</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="40" fill="url(#menuBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="250" height="36" fill="#3D2520" rx="6"/>
+          <rect x="0" y="6" width="3" height="24" fill="#E89B3D"/>
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Arquivos</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Recém-usado (badge) -->
+    <g transform="translate(600, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">RECÉM-USADO</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="280" height="40" fill="url(#menuBg)" rx="8"/>
+        <g transform="translate(12, 8)">
+          <rect x="0" y="0" width="250" height="36" fill="none" rx="6"/>
+          <rect x="8" y="8" width="20" height="20" fill="#D97757" rx="4"/>
+          <text x="40" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Arquivos</text>
+          <circle cx="230" cy="18" r="3" fill="#E89B3D"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================== -->
+  <!-- 4. SESSÃO HOVER     -->
+  <!-- ================== -->
+  <text x="60" y="1610" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — BOTÕES DE SESSÃO (estilo Luma Original, mesmos princípios dos window controls)</text>
+
+  <g transform="translate(60, 1630)">
+    <rect x="0" y="0" width="1160" height="180" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">4 botões na mesma família dos window controls: ícone monocromático, squircle colorido só no hover</text>
+
+    <g transform="translate(30, 60)">
+      <!-- Lock default -->
+      <g transform="translate(0, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">LOCK · Honey hover</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <g transform="translate(20, 20)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <rect x="2" y="6" width="16" height="13" rx="1"/>
+          <path d="M 5 6 V 4 a 5 5 0 0 1 10 0 V 6"/>
+        </g>
+      </g>
+      <!-- Lock hover -->
+      <g transform="translate(80, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#F5D5A8" font-weight="700">HOVER</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <rect x="14" y="14" width="32" height="32" fill="#F5D5A8" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="14" y="14" width="32" height="32" fill="#F5D5A8" rx="6"/>
+        <g transform="translate(22, 22)" fill="none" stroke="#1F1611" stroke-width="1.5">
+          <rect x="2" y="6" width="12" height="10" rx="1"/>
+          <path d="M 4 6 V 4 a 4 4 0 0 1 8 0 V 6"/>
+        </g>
+      </g>
+
+      <!-- Sleep -->
+      <g transform="translate(200, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">SLEEP · Sage hover</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <path transform="translate(20, 20)" d="M 14 2 a 8 8 0 1 0 4 11 a 6 6 0 0 1 -4 -11" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(280, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#6B8E7F" font-weight="700">HOVER</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <rect x="14" y="14" width="32" height="32" fill="#6B8E7F" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="14" y="14" width="32" height="32" fill="#6B8E7F" rx="6"/>
+        <path transform="translate(22, 22)" d="M 12 2 a 7 7 0 1 0 4 10 a 5 5 0 0 1 -4 -10" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+
+      <!-- Restart -->
+      <g transform="translate(400, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">RESTART · Amber hover</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <g transform="translate(22, 22)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 14 4 a 7 7 0 1 0 3 5" stroke-linecap="round"/>
+          <path d="M 14 1 L 14 5 L 10 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(480, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#E89B3D" font-weight="700">HOVER</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <rect x="14" y="14" width="32" height="32" fill="#E89B3D" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="14" y="14" width="32" height="32" fill="#E89B3D" rx="6"/>
+        <g transform="translate(22, 22)" fill="none" stroke="#FBF6EE" stroke-width="1.5">
+          <path d="M 12 4 a 6 6 0 1 0 3 4" stroke-linecap="round"/>
+          <path d="M 12 1 L 12 5 L 8 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+
+      <!-- Power -->
+      <g transform="translate(600, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">POWER · Coral hover</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <g transform="translate(22, 22)" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.7">
+          <path d="M 8 2 V 8" stroke-linecap="round"/>
+          <path d="M 3 5 a 7 7 0 1 0 10 0" stroke-linecap="round"/>
+        </g>
+      </g>
+      <g transform="translate(680, 0)">
+        <text x="0" y="-8" font-family="system-ui, sans-serif" font-size="10" fill="#D97757" font-weight="700">HOVER</text>
+        <rect x="0" y="0" width="60" height="60" fill="#0F0A07" rx="8"/>
+        <rect x="14" y="14" width="32" height="32" fill="#D97757" rx="6" filter="url(#softGlow)" opacity="0.4"/>
+        <rect x="14" y="14" width="32" height="32" fill="#D97757" rx="6"/>
+        <g transform="translate(22, 22)" fill="none" stroke="#FBF6EE" stroke-width="1.5">
+          <path d="M 8 2 V 7" stroke-linecap="round"/>
+          <path d="M 3 5 a 6.5 6.5 0 1 0 10 0" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================== -->
+  <!-- 5. MEDIDAS GERAIS   -->
+  <!-- ================== -->
+  <text x="60" y="1850" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — MEDIDAS GERAIS</text>
+
+  <g transform="translate(60, 1870)">
+    <rect x="0" y="0" width="1160" height="200" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Menu container</text>
+    <text x="30" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Largura: <tspan font-family="monospace" fill="#D97757">560px</tspan> · Altura: <tspan font-family="monospace" fill="#D97757">540px</tspan></text>
+    <text x="30" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border-radius: <tspan font-family="monospace" fill="#D97757">10px</tspan></text>
+    <text x="30" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Border-top: 1px Amber @ 0.25 (mesma da taskbar)</text>
+    <text x="30" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Shadow: blur 12px, offset y=6, opacity 0.4</text>
+
+    <text x="30" y="155" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">App row</text>
+    <text x="30" y="178" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Altura: 36px · Padding 8px · Indicador focus 3px à esquerda</text>
+
+    <text x="600" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Search bar</text>
+    <text x="600" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Altura: 40px · Border-radius 8px</text>
+    <text x="600" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Atalho: <tspan font-family="monospace" fill="#D97757">Super+K</tspan> ou clique pra focar</text>
+    <text x="600" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Foco: border 1.5px âmbar + texto cream</text>
+
+    <text x="600" y="135" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Sessão buttons</text>
+    <text x="600" y="158" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Hit area: 32x32 · Gap entre eles: 8px</text>
+    <text x="600" y="178" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">• Ordem: lock → sleep → restart → power</text>
+  </g>
+</svg>

@@ -1,0 +1,243 @@
+<svg viewBox="0 0 1280 1700" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="50%" stop-color="#5C2E26"/>
+      <stop offset="100%" stop-color="#B85D43"/>
+    </linearGradient>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <filter id="winShadow">
+      <feGaussianBlur stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1700" fill="#FBF6EE"/>
+
+  <!-- Header -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Window Decoration — Spec</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">Substitui o roxo legado por Golden Hour. Header dark/light, foco com âmbar, controls "Luma Original"</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ============================ -->
+  <!-- 1. ANTES vs DEPOIS            -->
+  <!-- ============================ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — ANTES vs DEPOIS</text>
+
+  <g transform="translate(60, 180)">
+    <!-- ANTES -->
+    <g>
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="12" fill="#D97757" font-weight="700">ANTES (roxo legado da fase protótipo)</text>
+      <g transform="translate(0, 15)">
+        <rect x="0" y="0" width="540" height="200" fill="#1F1611" rx="0"/>
+        <!-- Old purple header -->
+        <rect x="0" y="0" width="540" height="32" fill="#4A2A4A" rx="0"/>
+        <text x="14" y="20" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Janela do Luma</text>
+        <!-- Old win7-style buttons -->
+        <rect x="468" y="6" width="20" height="20" fill="#F5C842" rx="0"/>
+        <rect x="494" y="6" width="20" height="20" fill="#6FC961" rx="0"/>
+        <rect x="520" y="6" width="20" height="20" fill="#E54E4E" rx="0"/>
+        <!-- Content area -->
+        <text x="20" y="120" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" opacity="0.6">conteúdo da janela</text>
+      </g>
+    </g>
+
+    <!-- DEPOIS -->
+    <g transform="translate(620, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="12" fill="#6B8E7F" font-weight="700">DEPOIS (Golden Hour)</text>
+      <g transform="translate(0, 15)">
+        <rect x="0" y="0" width="540" height="200" fill="#1F1611" rx="8"/>
+        <!-- New header -->
+        <rect x="0" y="0" width="540" height="40" fill="#2A1F1A" rx="8 8 0 0"/>
+        <!-- Border focado (amber 1px no topo) -->
+        <rect x="0" y="0" width="540" height="1" fill="#E89B3D" opacity="0.4" rx="8 8 0 0"/>
+        <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Janela do Luma</text>
+        <!-- Luma Original controls (default) -->
+        <g transform="translate(456, 8)">
+          <rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/>
+        </g>
+        <g transform="translate(486, 8)">
+          <rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/>
+        </g>
+        <g transform="translate(516, 8)">
+          <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+          <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        </g>
+        <!-- Content area -->
+        <text x="20" y="120" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" opacity="0.6">conteúdo da janela</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============================ -->
+  <!-- 2. HEADER DARK + LIGHT       -->
+  <!-- ============================ -->
+  <text x="60" y="440" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — VARIAÇÕES DE TEMA (escolhido automaticamente pelo theme do app)</text>
+
+  <g transform="translate(60, 460)">
+    <!-- Tema escuro -->
+    <g>
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">TEMA ESCURO (default — apps de dev, terminal, etc)</text>
+      <g transform="translate(0, 16)" filter="url(#winShadow)">
+        <rect x="0" y="0" width="540" height="220" fill="#1F1611" rx="8"/>
+        <rect x="0" y="0" width="540" height="40" fill="#2A1F1A" rx="8 8 0 0"/>
+        <rect x="0" y="0" width="540" height="1" fill="#E89B3D" opacity="0.4" rx="8 8 0 0"/>
+        <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Luma Terminal</text>
+        <g transform="translate(456, 8)"><rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/></g>
+        <g transform="translate(486, 8)"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/></g>
+        <g transform="translate(516, 8)">
+          <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+          <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        </g>
+        <text x="20" y="80" font-family="monospace" font-size="11" fill="#F5D5A8">murillo@fedora:~$</text>
+        <text x="20" y="100" font-family="monospace" font-size="11" fill="#E89B3D">$ cargo run --release</text>
+      </g>
+    </g>
+
+    <!-- Tema claro -->
+    <g transform="translate(620, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">TEMA CLARO (apps de produtividade, navegador, etc)</text>
+      <g transform="translate(0, 16)" filter="url(#winShadow)">
+        <rect x="0" y="0" width="540" height="220" fill="#FBF6EE" rx="8"/>
+        <rect x="0" y="0" width="540" height="40" fill="#E8DDD0" rx="8 8 0 0"/>
+        <rect x="0" y="0" width="540" height="1" fill="#E89B3D" opacity="0.4" rx="8 8 0 0"/>
+        <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="500">Luma Files</text>
+        <g transform="translate(456, 8)"><rect x="6" y="16" width="12" height="1.5" fill="#1F1611" opacity="0.7"/></g>
+        <g transform="translate(486, 8)"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#1F1611" stroke-width="1.5" opacity="0.7" rx="1"/></g>
+        <g transform="translate(516, 8)">
+          <line x1="7" y1="7" x2="17" y2="17" stroke="#1F1611" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+          <line x1="17" y1="7" x2="7" y2="17" stroke="#1F1611" stroke-width="1.5" opacity="0.7" stroke-linecap="round"/>
+        </g>
+        <text x="20" y="80" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">📁 Documentos · 📁 Downloads · 📁 Imagens</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============================ -->
+  <!-- 3. FOCADA vs FORA DE FOCO    -->
+  <!-- ============================ -->
+  <text x="60" y="740" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — FOCADA vs FORA DE FOCO (diferenciação clara)</text>
+
+  <g transform="translate(60, 760)">
+    <!-- Focada -->
+    <g>
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#E89B3D" font-weight="700">FOCADA (janela ativa)</text>
+      <g transform="translate(0, 16)" filter="url(#winShadow)">
+        <rect x="0" y="0" width="540" height="180" fill="#1F1611" rx="8"/>
+        <rect x="0" y="0" width="540" height="40" fill="#2A1F1A" rx="8 8 0 0"/>
+        <!-- Border âmbar mais visível em torno -->
+        <rect x="0" y="0" width="540" height="180" fill="none" stroke="#E89B3D" stroke-width="1.5" opacity="0.5" rx="8" filter="url(#softGlow)"/>
+        <rect x="0" y="0" width="540" height="180" fill="none" stroke="#E89B3D" stroke-width="1" opacity="0.7" rx="8"/>
+        <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Janela Focada</text>
+        <g transform="translate(456, 8)"><rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/></g>
+        <g transform="translate(486, 8)"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/></g>
+        <g transform="translate(516, 8)">
+          <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+          <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Fora de foco -->
+    <g transform="translate(620, 0)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72" font-weight="700">FORA DE FOCO (janela inativa atrás)</text>
+      <g transform="translate(0, 16)">
+        <rect x="0" y="0" width="540" height="180" fill="#1F1611" rx="8" opacity="0.85"/>
+        <rect x="0" y="0" width="540" height="40" fill="#0F0A07" rx="8 8 0 0"/>
+        <rect x="0" y="0" width="540" height="180" fill="none" stroke="#FBF6EE" stroke-width="1" opacity="0.08" rx="8"/>
+        <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" opacity="0.55">Janela Inativa</text>
+        <g transform="translate(456, 8)" opacity="0.4"><rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE"/></g>
+        <g transform="translate(486, 8)" opacity="0.4"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" rx="1"/></g>
+        <g transform="translate(516, 8)" opacity="0.4">
+          <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============================ -->
+  <!-- 4. TOKENS                    -->
+  <!-- ============================ -->
+  <text x="60" y="1000" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — TOKENS DO theme.toml</text>
+
+  <g transform="translate(60, 1020)">
+    <rect x="0" y="0" width="1160" height="380" fill="#1F1611" rx="8"/>
+    <text x="30" y="40" font-family="monospace" font-size="13" fill="#A89D92">[colors]</text>
+    <text x="30" y="68" font-family="monospace" font-size="13" fill="#E89B3D">window_header_bg_dark       <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#2A1F1A"</tspan>     <tspan fill="#5C5048">// Coffee +5%</tspan></text>
+    <text x="30" y="92" font-family="monospace" font-size="13" fill="#E89B3D">window_header_bg_light      <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#E8DDD0"</tspan>     <tspan fill="#5C5048">// Cream escurecido</tspan></text>
+    <text x="30" y="116" font-family="monospace" font-size="13" fill="#E89B3D">window_bg_dark              <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#1F1611"</tspan>     <tspan fill="#5C5048">// Coffee puro</tspan></text>
+    <text x="30" y="140" font-family="monospace" font-size="13" fill="#E89B3D">window_bg_light             <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#FBF6EE"</tspan>     <tspan fill="#5C5048">// Cream puro</tspan></text>
+    <text x="30" y="178" font-family="monospace" font-size="13" fill="#E89B3D">window_border_focused       <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#E89B3D"</tspan>     <tspan fill="#5C5048">// Amber</tspan></text>
+    <text x="30" y="202" font-family="monospace" font-size="13" fill="#E89B3D">window_border_focused_alpha <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">0.7</tspan>            <tspan fill="#5C5048">// border principal</tspan></text>
+    <text x="30" y="226" font-family="monospace" font-size="13" fill="#E89B3D">window_border_focused_glow  <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">0.5</tspan>            <tspan fill="#5C5048">// halo externo</tspan></text>
+    <text x="30" y="264" font-family="monospace" font-size="13" fill="#E89B3D">window_border_unfocused     <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#FBF6EE"</tspan>     <tspan fill="#5C5048">// Cream</tspan></text>
+    <text x="30" y="288" font-family="monospace" font-size="13" fill="#E89B3D">window_border_unfocused_alpha <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">0.08</tspan>         <tspan fill="#5C5048">// quase invisível</tspan></text>
+    <text x="30" y="326" font-family="monospace" font-size="13" fill="#E89B3D">window_header_top_accent    <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#E89B3D"</tspan>     <tspan fill="#5C5048">// linha 1px no topo</tspan></text>
+    <text x="30" y="350" font-family="monospace" font-size="13" fill="#E89B3D">window_header_top_alpha     <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">0.4</tspan>            <tspan fill="#5C5048">// opacity da linha</tspan></text>
+
+    <text x="650" y="40" font-family="monospace" font-size="13" fill="#A89D92">[window]</text>
+    <text x="650" y="68" font-family="monospace" font-size="13" fill="#E89B3D">corner_radius          <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">8</tspan>          <tspan fill="#5C5048">// px</tspan></text>
+    <text x="650" y="92" font-family="monospace" font-size="13" fill="#E89B3D">header_height          <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">40</tspan>         <tspan fill="#5C5048">// px (era 32, ganhou 8)</tspan></text>
+    <text x="650" y="116" font-family="monospace" font-size="13" fill="#E89B3D">title_size             <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">13</tspan>         <tspan fill="#5C5048">// px</tspan></text>
+    <text x="650" y="140" font-family="monospace" font-size="13" fill="#E89B3D">title_weight           <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">500</tspan></text>
+    <text x="650" y="164" font-family="monospace" font-size="13" fill="#E89B3D">title_padding_left     <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">16</tspan>         <tspan fill="#5C5048">// px</tspan></text>
+    <text x="650" y="202" font-family="monospace" font-size="13" fill="#E89B3D">controls_padding_right <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">12</tspan>         <tspan fill="#5C5048">// px</tspan></text>
+    <text x="650" y="226" font-family="monospace" font-size="13" fill="#E89B3D">controls_gap           <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">6</tspan>          <tspan fill="#5C5048">// px entre cada</tspan></text>
+    <text x="650" y="264" font-family="monospace" font-size="13" fill="#E89B3D">shadow_blur            <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">8</tspan>          <tspan fill="#5C5048">// px (raio)</tspan></text>
+    <text x="650" y="288" font-family="monospace" font-size="13" fill="#E89B3D">shadow_offset_y        <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">4</tspan>          <tspan fill="#5C5048">// px</tspan></text>
+    <text x="650" y="312" font-family="monospace" font-size="13" fill="#E89B3D">shadow_color           <tspan fill="#A89D92">=</tspan> <tspan fill="#6B8E7F">"#000000"</tspan>   <tspan fill="#5C5048">// preto</tspan></text>
+    <text x="650" y="336" font-family="monospace" font-size="13" fill="#E89B3D">shadow_alpha           <tspan fill="#A89D92">=</tspan> <tspan fill="#D97757">0.4</tspan></text>
+  </g>
+
+  <!-- ============================ -->
+  <!-- 5. CONTEXTO COMPLETO         -->
+  <!-- ============================ -->
+  <text x="60" y="1440" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — CONTEXTO COMPLETO (janelas em cima do wallpaper)</text>
+
+  <g transform="translate(60, 1460)">
+    <rect x="0" y="0" width="1160" height="220" fill="url(#bgSky)" rx="8"/>
+
+    <!-- Janela 1 dark focada -->
+    <g transform="translate(80, 30)" filter="url(#winShadow)">
+      <rect x="0" y="0" width="420" height="160" fill="#1F1611" rx="8"/>
+      <rect x="0" y="0" width="420" height="40" fill="#2A1F1A" rx="8 8 0 0"/>
+      <rect x="0" y="0" width="420" height="160" fill="none" stroke="#E89B3D" stroke-width="1" opacity="0.7" rx="8"/>
+      <rect x="0" y="0" width="420" height="1" fill="#E89B3D" opacity="0.4" rx="8 8 0 0"/>
+      <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="500">Luma Terminal</text>
+      <g transform="translate(336, 8)"><rect x="6" y="16" width="12" height="1.5" fill="#FBF6EE" opacity="0.85"/></g>
+      <g transform="translate(366, 8)"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" rx="1"/></g>
+      <g transform="translate(396, 8)">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#FBF6EE" stroke-width="1.5" opacity="0.85" stroke-linecap="round"/>
+      </g>
+      <text x="20" y="75" font-family="monospace" font-size="11" fill="#F5D5A8">$ cargo run</text>
+      <text x="20" y="95" font-family="monospace" font-size="11" fill="#E89B3D">Compiling luma v0.9.0</text>
+    </g>
+
+    <!-- Janela 2 light fora de foco -->
+    <g transform="translate(560, 50)">
+      <rect x="0" y="0" width="420" height="160" fill="#FBF6EE" rx="8" opacity="0.92"/>
+      <rect x="0" y="0" width="420" height="40" fill="#E8DDD0" rx="8 8 0 0"/>
+      <rect x="0" y="0" width="420" height="160" fill="none" stroke="#1F1611" stroke-width="1" opacity="0.08" rx="8"/>
+      <text x="16" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" opacity="0.55">Luma Files</text>
+      <g transform="translate(336, 8)" opacity="0.4"><rect x="6" y="16" width="12" height="1.5" fill="#1F1611"/></g>
+      <g transform="translate(366, 8)" opacity="0.4"><rect x="6" y="6" width="12" height="12" fill="none" stroke="#1F1611" stroke-width="1.5" rx="1"/></g>
+      <g transform="translate(396, 8)" opacity="0.4">
+        <line x1="7" y1="7" x2="17" y2="17" stroke="#1F1611" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="17" y1="7" x2="7" y2="17" stroke="#1F1611" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+      <text x="20" y="80" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933" opacity="0.6">📁 Documentos</text>
+    </g>
+  </g>
+</svg>

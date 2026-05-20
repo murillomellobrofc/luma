@@ -1,0 +1,316 @@
+<svg viewBox="0 0 1280 1800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="taskbarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A6FA5"/>
+      <stop offset="50%" stop-color="#7A9BC4"/>
+      <stop offset="100%" stop-color="#B5D0E8"/>
+    </linearGradient>
+    <filter id="taskbarShadow">
+      <feGaussianBlur stdDeviation="6"/>
+      <feOffset dx="0" dy="-3" result="offsetblur"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1800" fill="#FBF6EE"/>
+
+  <!-- HEADER -->
+  <text x="60" y="60" font-family="Georgia, serif" font-size="36" font-weight="600" fill="#1F1611">Luma Taskbar v2</text>
+  <text x="60" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#8B7D72">7 zonas · dock+taskbar mix · PCD-friendly · com botão Show Desktop</text>
+  <line x1="60" y1="120" x2="1220" y2="120" stroke="#E8DDD0"/>
+
+  <!-- ============ -->
+  <!-- 1. TASKBAR FULL -->
+  <!-- ============ -->
+  <text x="60" y="160" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — TASKBAR COMPLETA (largura inteira da tela)</text>
+
+  <g transform="translate(60, 180)">
+    <!-- Desktop com wallpaper -->
+    <rect width="1160" height="380" fill="url(#bgSky)" rx="12"/>
+
+    <!-- Janela exemplo -->
+    <g transform="translate(180, 60)">
+      <rect width="480" height="220" fill="#FBF6EE" rx="8" opacity="0.95"/>
+      <rect width="480" height="32" fill="#2A1F1A" rx="8 8 0 0"/>
+      <circle cx="14" cy="16" r="5" fill="#D97757"/>
+      <circle cx="32" cy="16" r="5" fill="#F5D5A8"/>
+      <circle cx="50" cy="16" r="5" fill="#6B8E7F"/>
+      <text x="240" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle">Documento.txt</text>
+    </g>
+
+    <!-- TASKBAR -->
+    <g transform="translate(0, 320)" filter="url(#taskbarShadow)">
+      <rect width="1160" height="60" fill="url(#taskbarGrad)"/>
+      <rect width="1160" height="2" fill="#E89B3D" opacity="0.5"/>
+
+      <!-- ZONA A: LAUNCHER -->
+      <g transform="translate(12, 12)">
+        <rect width="36" height="36" fill="#3D2520" rx="6"/>
+        <g transform="translate(11, 6)">
+          <rect x="0" y="0" width="6" height="22" fill="url(#logoBeam)" rx="3"/>
+          <rect x="0" y="16" width="22" height="6" fill="#F5D5A8" rx="3"/>
+        </g>
+      </g>
+
+      <!-- DIVIDER -->
+      <line x1="60" y1="14" x2="60" y2="46" stroke="#FBF6EE" stroke-opacity="0.1"/>
+
+      <!-- ZONA B: APPS ABERTOS -->
+      <g transform="translate(76, 14)">
+        <!-- App 1 ATIVO -->
+        <g transform="translate(0, 0)">
+          <rect width="120" height="32" fill="#3D2520" rx="6"/>
+          <rect x="0" y="0" width="4" height="32" fill="#E89B3D" rx="2 0 0 2" filter="url(#amberGlow)"/>
+          <rect x="14" y="8" width="16" height="16" fill="#D97757" rx="3"/>
+          <text x="40" y="20" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" font-weight="500">Documento</text>
+        </g>
+
+        <!-- App 2 -->
+        <g transform="translate(132, 0)">
+          <rect width="120" height="32" fill="transparent" rx="6"/>
+          <rect x="14" y="8" width="16" height="16" fill="#6B8E7F" rx="3"/>
+          <text x="40" y="20" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" opacity="0.7">Brave</text>
+        </g>
+
+        <!-- App 3 -->
+        <g transform="translate(264, 0)">
+          <rect width="120" height="32" fill="transparent" rx="6"/>
+          <rect x="14" y="8" width="16" height="16" fill="#1F1611" rx="3"/>
+          <rect x="17" y="11" width="10" height="10" fill="#E89B3D" rx="2"/>
+          <text x="40" y="20" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" opacity="0.7">Terminal</text>
+        </g>
+      </g>
+
+      <!-- ZONA C: WORKSPACES PAGER (centro) -->
+      <g transform="translate(580, 22)">
+        <circle cx="0" cy="10" r="3" fill="#FBF6EE" opacity="0.25"/>
+        <rect x="-12" y="6" width="24" height="14" fill="#E89B3D" rx="7" filter="url(#amberGlow)"/>
+        <rect x="-12" y="6" width="24" height="14" fill="#E89B3D" rx="7"/>
+        <text x="0" y="17" font-family="system-ui, sans-serif" font-size="10" font-weight="700" fill="#1F1611" text-anchor="middle">2</text>
+        <circle cx="20" cy="10" r="3" fill="#FBF6EE" opacity="0.25"/>
+      </g>
+
+      <!-- ZONA D: SYSTEM TRAY -->
+      <g transform="translate(820, 22)">
+        <g transform="translate(0, 0)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85">
+          <rect x="0" y="2" width="18" height="10" rx="1"/>
+          <line x1="19" y1="6" x2="20" y2="8" stroke-linecap="round"/>
+          <rect x="2" y="4" width="10" height="6" fill="#6B8E7F" stroke="none"/>
+        </g>
+
+        <g transform="translate(40, 0)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85" stroke-linecap="round">
+          <path d="M 2 8 a 8 6 0 0 1 12 0"/>
+          <path d="M 4 10 a 5 4 0 0 1 8 0"/>
+          <circle cx="8" cy="12" r="1" fill="#FBF6EE" stroke="none"/>
+        </g>
+
+        <g transform="translate(72, 0)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 1 6 L 5 6 L 9 2 V 12 L 5 8 H 1 Z"/>
+          <path d="M 12 5 a 3 3 0 0 1 0 4"/>
+        </g>
+
+        <g transform="translate(104, 0)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85">
+          <path d="M 2 12 V 7 a 6 6 0 0 1 12 0 v 5"/>
+          <line x1="0" y1="12" x2="16" y2="12" stroke-linecap="round"/>
+          <circle cx="13" cy="3" r="2.5" fill="#D97757" stroke="none"/>
+        </g>
+      </g>
+
+      <!-- ZONA E: CLOCK -->
+      <g transform="translate(970, 14)">
+        <text x="0" y="14" font-family="Fraunces, Georgia, serif" font-size="15" font-weight="600" fill="#FBF6EE">14:23</text>
+        <text x="0" y="28" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92">qui · 15 mai</text>
+      </g>
+
+      <!-- ZONA F: AVATAR -->
+      <g transform="translate(1040, 16)">
+        <circle cx="14" cy="14" r="14" fill="url(#logoBeam)"/>
+        <text x="14" y="20" font-family="Fraunces, Georgia, serif" font-size="14" font-weight="600" fill="#FBF6EE" text-anchor="middle">M</text>
+      </g>
+
+      <!-- ZONA G: SHOW DESKTOP (NOVO) -->
+      <g transform="translate(1086, 8)">
+        <rect width="60" height="44" fill="transparent" rx="8" stroke="#FBF6EE" stroke-opacity="0.15"/>
+        <g transform="translate(18, 12)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65">
+          <!-- 2 janelas sobrepostas -->
+          <rect x="0" y="0" width="14" height="11" rx="1"/>
+          <rect x="6" y="4" width="14" height="11" rx="1" fill="#0F0A07" stroke="#FBF6EE"/>
+          <!-- Seta pra baixo (minimize) -->
+          <line x1="10" y1="18" x2="10" y2="22" stroke="#FBF6EE"/>
+          <path d="M 7 20 L 10 22 L 13 20" stroke="#FBF6EE"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 2. AS 7 ZONAS -->
+  <!-- ============ -->
+  <text x="60" y="620" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — AS 7 ZONAS DA TASKBAR</text>
+
+  <g transform="translate(60, 640)">
+    <rect width="1160" height="380" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <!-- Zona A -->
+    <g transform="translate(30, 30)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#D97757" font-weight="700">A — Launcher Luma</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">36×36 quadrado com logo. Click = menu fullscreen. Atalho: Super.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">posição: esquerda · padding 12px</text>
+    </g>
+
+    <!-- Zona B -->
+    <g transform="translate(30, 100)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">B — Apps abertos</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Pills 120×32 com ícone 16px + nome. Ativo: barra âmbar 4px esquerda + glow.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">posição: após launcher · gap 12px entre pills</text>
+    </g>
+
+    <!-- Zona C -->
+    <g transform="translate(30, 170)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#E89B3D" font-weight="700">C — Workspaces pager</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Dots inativos cream@0.25 + pill ativo âmbar com glow. Click alterna.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">posição: centro · gap 8px entre items</text>
+    </g>
+
+    <!-- Zona D -->
+    <g transform="translate(30, 240)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#9F4A35" font-weight="700">D — System tray (applets)</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Bateria + wifi + volume + notificações. Cada um abre popup ao clicar.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">posição: direita · gap 16px · stroke 1.5</text>
+    </g>
+
+    <!-- Zona E -->
+    <g transform="translate(600, 30)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">E — Clock</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Hora Fraunces 15px + data 9px abaixo. Click abre calendar popup.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">formato: 24h · "qui · 15 mai"</text>
+    </g>
+
+    <!-- Zona F -->
+    <g transform="translate(600, 100)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#F5D5A8" font-weight="700">F — Avatar</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Circle 28px com gradient Coffee→Honey + inicial Fraunces 14px.</text>
+      <text x="0" y="40" font-family="monospace" font-size="10" fill="#8B7D72">click: menu sessão (lock/sleep/restart/power/logout)</text>
+    </g>
+
+    <!-- Zona G -->
+    <g transform="translate(600, 170)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">G — Show Desktop ⭐ NOVO</text>
+      <text x="0" y="22" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Botão 60×44 com ícone "2 janelas minimizando". Click 1: esconde tudo.</text>
+      <text x="0" y="40" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Click 2: restaura. Hit target gigante (canto da tela).</text>
+      <text x="0" y="58" font-family="monospace" font-size="10" fill="#8B7D72">atalho: Super+D · tooltip: "Mostrar desktop"</text>
+    </g>
+
+    <!-- Totals -->
+    <text x="30" y="340" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Especificações gerais</text>
+    <text x="30" y="362" font-family="monospace" font-size="11" fill="#4A3933">altura 60px · largura 100% · linha âmbar 2px topo · bg gradient Coffee · shadow blur 6</text>
+  </g>
+
+  <!-- ============ -->
+  <!-- 3. SHOW DESKTOP STATES -->
+  <!-- ============ -->
+  <text x="60" y="1060" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — SHOW DESKTOP BUTTON · 3 ESTADOS</text>
+
+  <g transform="translate(60, 1080)">
+    <rect width="1160" height="280" fill="#1F1611" rx="12"/>
+
+    <!-- Default -->
+    <g transform="translate(40, 60)">
+      <text x="60" y="-20" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" letter-spacing="1" text-anchor="middle">DEFAULT</text>
+      <rect width="120" height="80" fill="transparent" rx="10" stroke="#FBF6EE" stroke-opacity="0.15"/>
+      <g transform="translate(48, 20)" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
+        <rect x="0" y="0" width="16" height="13" rx="1"/>
+        <rect x="7" y="5" width="16" height="13" rx="1" fill="#1F1611"/>
+        <line x1="11" y1="22" x2="11" y2="30"/>
+        <path d="M 7 26 L 11 30 L 15 26"/>
+      </g>
+      <text x="60" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">cream @ 0.5</text>
+    </g>
+
+    <!-- Hover -->
+    <g transform="translate(200, 60)">
+      <text x="60" y="-20" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" letter-spacing="1" text-anchor="middle">HOVER</text>
+      <rect width="120" height="80" fill="#3D2520" rx="10"/>
+      <g transform="translate(48, 20)" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="0" y="0" width="16" height="13" rx="1"/>
+        <rect x="7" y="5" width="16" height="13" rx="1" fill="#3D2520"/>
+        <line x1="11" y1="22" x2="11" y2="30"/>
+        <path d="M 7 26 L 11 30 L 15 26"/>
+      </g>
+      <text x="60" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">cream @ 1.0 + bg #3D2520</text>
+      <text x="60" y="126" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92" text-anchor="middle" font-style="italic">tooltip: "Mostrar desktop"</text>
+    </g>
+
+    <!-- Active (desktop shown) -->
+    <g transform="translate(360, 60)">
+      <text x="60" y="-20" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" letter-spacing="1" text-anchor="middle">ACTIVE</text>
+      <rect width="120" height="80" fill="#E89B3D" rx="10" filter="url(#amberGlow)"/>
+      <rect width="120" height="80" fill="#E89B3D" rx="10"/>
+      <g transform="translate(48, 20)" fill="none" stroke="#1F1611" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="0" y="0" width="16" height="13" rx="1"/>
+        <rect x="7" y="5" width="16" height="13" rx="1" fill="#E89B3D"/>
+        <line x1="11" y1="22" x2="11" y2="30"/>
+        <path d="M 7 26 L 11 30 L 15 26"/>
+      </g>
+      <text x="60" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle">bg âmbar (desktop visível)</text>
+      <text x="60" y="126" font-family="system-ui, sans-serif" font-size="9" fill="#A89D92" text-anchor="middle" font-style="italic">click de novo restaura</text>
+    </g>
+
+    <!-- Behavior text -->
+    <g transform="translate(540, 50)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Comportamento</text>
+      <text x="0" y="26" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Click 1: minimiza TODAS as janelas com animação 200ms</text>
+      <text x="0" y="48" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Click 2 (mesmo botão): restaura tudo onde estava</text>
+      <text x="0" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Atalho: Super+D (alterna mesma ação)</text>
+      <text x="0" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Hover: tooltip aparece após 500ms</text>
+      <text x="0" y="114" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Hit target 60×44px = generoso pra PCD</text>
+      <text x="0" y="136" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Posição: canto inferior DIREITO da taskbar</text>
+      <text x="0" y="158" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">• Quando desktop tá visível: botão fica âmbar (status claro)</text>
+      <text x="0" y="184" font-family="system-ui, sans-serif" font-size="11" fill="#E89B3D" font-style="italic">Padrão familiar do Windows = curva de aprendizado zero</text>
+    </g>
+  </g>
+
+  <!-- ============ -->
+  <!-- 4. POPUPS DOS APPLETS -->
+  <!-- ============ -->
+  <text x="60" y="1420" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — POPUPS DOS APPLETS (H44+ depois)</text>
+
+  <g transform="translate(60, 1440)">
+    <rect width="1160" height="320" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="14" fill="#1F1611" font-weight="700">Click em cada applet abre popup</text>
+
+    <text x="30" y="78" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">🔋 Bateria</text>
+    <text x="160" y="78" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Popup com porcentagem · tempo restante · modo (eco/balanced/perf) · perfis</text>
+
+    <text x="30" y="108" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">📶 WiFi</text>
+    <text x="160" y="108" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Lista de redes disponíveis · força do sinal · botão Configurações</text>
+
+    <text x="30" y="138" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">🔊 Volume</text>
+    <text x="160" y="138" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Slider áudio · slider microfone · output device dropdown</text>
+
+    <text x="30" y="168" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">🔔 Notificações</text>
+    <text x="160" y="168" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Histórico de notificações · do not disturb toggle · clear all</text>
+
+    <text x="30" y="198" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">🕐 Relógio</text>
+    <text x="160" y="198" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Calendar widget · próximos eventos · timezone secondary</text>
+
+    <text x="30" y="228" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">M Avatar</text>
+    <text x="160" y="228" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Menu sessão (Lock · Logout · Sleep · Restart · Power) · Settings · About</text>
+
+    <text x="30" y="278" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Popups vão ser feitos nas etapas H44-H47 (próximas).</text>
+    <text x="30" y="296" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Agora na H33.taskbar só os ÍCONES visíveis. Click ainda não abre nada.</text>
+  </g>
+</svg>

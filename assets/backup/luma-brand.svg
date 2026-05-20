@@ -1,0 +1,146 @@
+<svg viewBox="0 0 1200 1800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sunrise" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBF6EE"/>
+      <stop offset="30%" stop-color="#F5D5A8"/>
+      <stop offset="55%" stop-color="#E89B3D"/>
+      <stop offset="80%" stop-color="#D97757"/>
+      <stop offset="100%" stop-color="#9F4A35"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="1800" fill="#FBF6EE"/>
+
+  <!-- Header -->
+  <text x="60" y="80" font-family="Georgia, serif" font-size="48" font-weight="600" fill="#1F1611">Luma — Brand Identity</text>
+  <text x="60" y="115" font-family="system-ui, sans-serif" font-size="16" fill="#8B7D72">Proposta inicial · iterar à vontade</text>
+  <line x1="60" y1="150" x2="1140" y2="150" stroke="#E8DDD0" stroke-width="1"/>
+
+  <!-- LOGO CONCEPTS -->
+  <text x="60" y="200" font-family="system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#8B7D72">LOGO CONCEPTS</text>
+
+  <!-- Concept A: Sunrise Orb -->
+  <g transform="translate(60, 240)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1F1611">Concept A — Sunrise Orb</text>
+    <rect x="0" y="20" width="500" height="250" fill="#FFFFFF" rx="12" stroke="#E8DDD0"/>
+    <g transform="translate(60, 80)">
+      <circle cx="60" cy="60" r="60" fill="url(#sunrise)"/>
+      <line x1="-10" y1="75" x2="130" y2="75" stroke="#1F1611" stroke-width="2" opacity="0.35"/>
+    </g>
+    <text x="220" y="115" font-family="Georgia, serif" font-size="64" font-weight="500" fill="#1F1611">Luma</text>
+    <text x="220" y="145" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72" letter-spacing="2">DESKTOP ENVIRONMENT</text>
+    <text x="20" y="225" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">• Calor, acolhimento, amanhecer brasileiro</text>
+    <text x="20" y="245" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">• Lê bem a partir de 16px (favicon)</text>
+  </g>
+
+  <!-- Concept B: Light Beam -->
+  <g transform="translate(620, 240)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1F1611">Concept B — Light Beam</text>
+    <rect x="0" y="20" width="500" height="250" fill="#1F1611" rx="12"/>
+    <g transform="translate(60, 80)">
+      <rect x="20" y="0" width="20" height="100" fill="url(#beam)" rx="10"/>
+      <rect x="20" y="80" width="100" height="20" fill="#F5D5A8" rx="10"/>
+      <circle cx="30" cy="90" r="9" fill="#FBF6EE" filter="url(#glow)"/>
+    </g>
+    <text x="220" y="115" font-family="Georgia, serif" font-size="64" font-weight="500" fill="#FBF6EE">Luma</text>
+    <text x="220" y="145" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" letter-spacing="2">DESKTOP ENVIRONMENT</text>
+    <text x="20" y="225" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">• Mais tech-forward, moderno</text>
+    <text x="20" y="245" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">• L de Luma como raio de luz</text>
+  </g>
+
+  <!-- PALETTE -->
+  <text x="60" y="570" font-family="system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#8B7D72">COLOR PALETTE — "GOLDEN HOUR"</text>
+
+  <g transform="translate(60, 600)">
+    <rect x="0" y="0" width="180" height="180" fill="#E89B3D" rx="8"/>
+    <text x="10" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#FFFFFF" font-weight="700">Luma Amber</text>
+    <text x="10" y="168" font-family="monospace" font-size="10" fill="#FFFFFF" opacity="0.85">#E89B3D</text>
+
+    <rect x="190" y="0" width="180" height="180" fill="#D97757" rx="8"/>
+    <text x="200" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#FFFFFF" font-weight="700">Luma Coral</text>
+    <text x="200" y="168" font-family="monospace" font-size="10" fill="#FFFFFF" opacity="0.85">#D97757</text>
+
+    <rect x="380" y="0" width="180" height="180" fill="#1F1611" rx="8"/>
+    <text x="390" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" font-weight="700">Luma Coffee</text>
+    <text x="390" y="168" font-family="monospace" font-size="10" fill="#FBF6EE" opacity="0.85">#1F1611</text>
+
+    <rect x="570" y="0" width="180" height="180" fill="#FBF6EE" rx="8" stroke="#E8DDD0"/>
+    <text x="580" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#1F1611" font-weight="700">Luma Cream</text>
+    <text x="580" y="168" font-family="monospace" font-size="10" fill="#1F1611" opacity="0.85">#FBF6EE</text>
+
+    <rect x="760" y="0" width="180" height="180" fill="#6B8E7F" rx="8"/>
+    <text x="770" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#FFFFFF" font-weight="700">Luma Sage</text>
+    <text x="770" y="168" font-family="monospace" font-size="10" fill="#FFFFFF" opacity="0.85">#6B8E7F</text>
+
+    <rect x="950" y="0" width="180" height="180" fill="#F5D5A8" rx="8"/>
+    <text x="960" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#1F1611" font-weight="700">Luma Honey</text>
+    <text x="960" y="168" font-family="monospace" font-size="10" fill="#1F1611" opacity="0.85">#F5D5A8</text>
+  </g>
+
+  <text x="60" y="820" font-family="Georgia, serif" font-size="14" font-style="italic" fill="#4A3933">"Inspirada na hora dourada brasileira — calor, acolhimento, identidade tropical sem ser óbvia."</text>
+
+  <!-- TYPOGRAPHY -->
+  <text x="60" y="880" font-family="system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#8B7D72">TYPOGRAPHY</text>
+
+  <g transform="translate(60, 910)">
+    <rect x="0" y="0" width="540" height="220" fill="#FFFFFF" rx="12" stroke="#E8DDD0"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">DISPLAY / BRAND</text>
+    <text x="20" y="100" font-family="Georgia, serif" font-size="56" font-weight="600" fill="#1F1611">Fraunces</text>
+    <text x="20" y="135" font-family="Georgia, serif" font-size="20" fill="#4A3933">O DE que abraça o usuário.</text>
+    <text x="20" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Serifa moderna com personalidade. Free / Google Fonts.</text>
+    <text x="20" y="190" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Uso: títulos, hero do site, splash de boot, wordmark.</text>
+  </g>
+
+  <g transform="translate(620, 910)">
+    <rect x="0" y="0" width="540" height="220" fill="#FFFFFF" rx="12" stroke="#E8DDD0"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">UI / BODY</text>
+    <text x="20" y="100" font-family="system-ui, sans-serif" font-size="56" font-weight="600" fill="#1F1611">Manrope</text>
+    <text x="20" y="135" font-family="system-ui, sans-serif" font-size="20" fill="#4A3933">Geométrica, calorosa, legível.</text>
+    <text x="20" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Não é Inter. Open source / Google Fonts.</text>
+    <text x="20" y="190" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Uso: menus, taskbar, settings, todos os apps Luma.</text>
+  </g>
+
+  <g transform="translate(60, 1160)">
+    <rect x="0" y="0" width="1100" height="180" fill="#1F1611" rx="12"/>
+    <text x="20" y="40" font-family="system-ui, sans-serif" font-size="10" letter-spacing="2" fill="#8B7D72">MONOSPACE / CODE</text>
+    <text x="20" y="100" font-family="monospace" font-size="42" font-weight="500" fill="#F5D5A8">JetBrains Mono</text>
+    <text x="20" y="140" font-family="monospace" font-size="16" fill="#E89B3D">fn luma_boot() -&gt; Result&lt;Compositor, Error&gt; { ... }</text>
+    <text x="20" y="165" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Pro Luma Terminal e Luma Text. Open source.</text>
+  </g>
+
+  <!-- TONE OF VOICE -->
+  <text x="60" y="1390" font-family="system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#8B7D72">TONE OF VOICE</text>
+
+  <g transform="translate(60, 1420)">
+    <rect x="0" y="0" width="1100" height="320" fill="#FFFFFF" rx="12" stroke="#E8DDD0"/>
+    <text x="40" y="50" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#6B8E7F">✓ FAZER</text>
+    <text x="600" y="50" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#D97757">✗ NÃO FAZER</text>
+
+    <text x="40" y="90" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Caloroso, próximo, fala "você"</text>
+    <text x="40" y="120" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Explica termo técnico quando aparece</text>
+    <text x="40" y="150" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Linguagem inclusiva (lembra das PCDs)</text>
+    <text x="40" y="180" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Português brasileiro natural</text>
+    <text x="40" y="210" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Humor leve, autoral, sem forçar</text>
+    <text x="40" y="240" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Histórias concretas e exemplos</text>
+
+    <text x="600" y="90" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Corporativo, formal, distante</text>
+    <text x="600" y="120" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Jargão técnico sem explicar</text>
+    <text x="600" y="150" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• "Powered by", "leverage", buzzwords</text>
+    <text x="600" y="180" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Tradução literal do inglês</text>
+    <text x="600" y="210" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Hype vazio ("revolucionário")</text>
+    <text x="600" y="240" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611">• Tom condescendente com iniciante</text>
+
+    <text x="40" y="290" font-family="Georgia, serif" font-size="14" font-style="italic" fill="#4A3933">"Linux como você lembra. Tecnologia como você merece."</text>
+  </g>
+</svg>
