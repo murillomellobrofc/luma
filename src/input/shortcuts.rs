@@ -102,6 +102,21 @@ pub fn match_shortcut(
     if show_desktop_mod && (keysym == Keysym::d || keysym == Keysym::D) {
         return Some(KeyAction::ToggleShowDesktop);
     }
+    // H46.media.fallback: Ctrl+Alt+Espaço / . / , como fallback pras
+    // teclas XF86 de mídia (KDE host intercepta XF86 antes de chegar
+    // aqui em modo aninhado). Mesmo padrão dos fallbacks do show-
+    // desktop e workspaces.
+    if modifiers.ctrl && modifiers.alt {
+        if keysym == Keysym::space {
+            return Some(KeyAction::MediaPlayPause);
+        }
+        if keysym == Keysym::period {
+            return Some(KeyAction::MediaNext);
+        }
+        if keysym == Keysym::comma {
+            return Some(KeyAction::MediaPrev);
+        }
+    }
     // H36.4-6: workspaces.
     // CANONICAL (futuro DRM): Super+N, Super+Shift+N, Super+Tab, Super+Esc.
     // FALLBACK (modo aninhado em KDE/GNOME que interceptam Super):
