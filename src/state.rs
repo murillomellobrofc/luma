@@ -161,6 +161,9 @@ pub struct LumaState {
     /// Última atualização do cache audio (refresh quando popup aberto).
     /// H44.volume.17.
     pub audio_last_refresh: Option<std::time::Instant>,
+    /// OSD ativo (volume ou brilho via teclas XF86). H45.osd.
+    /// `None` = nenhum overlay; tick limpa quando expira.
+    pub osd: Option<crate::osd::Osd>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -578,6 +581,7 @@ impl LumaState {
             audio_sources: Vec::new(),
             audio_streams: Vec::new(),
             audio_last_refresh: None,
+            osd: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

@@ -9,6 +9,7 @@ mod gfx;
 mod handlers;
 mod input;
 mod menu;
+mod osd;
 mod overview;
 mod pager;
 mod popup;
