@@ -481,9 +481,16 @@ pub fn init_winit(
                         _ => None,
                     }
                 };
-                // H33.taskbar.10: wifi + volume icons (placeholders visuais).
+                // H33.taskbar.10-11: wifi + volume + bell icons + notif dot.
                 let wifi_render = crate::tray::ensure_wifi_icon(&mut data.state.tray);
                 let volume_render = crate::tray::ensure_volume_icon(&mut data.state.tray);
+                let bell_render = crate::tray::ensure_bell_icon(&mut data.state.tray);
+                let notif_count = data.state.tray.notif_count;
+                let notif_dot_render = if notif_count > 0 {
+                    Some(crate::tray::ensure_notif_dot(&mut data.state.tray))
+                } else {
+                    None
+                };
 
 
                 match backend.bind() {
@@ -1615,107 +1622,96 @@ pub fn init_winit(
                         }
 
                         // Clock 2 linhas (H32.5.10): hora 13pt cor primary
-                        // H33.taskbar.9-10: system tray (battery + wifi + volume).
-                        // Ordem da DIREITA pra ESQUERDA: battery[+%] | volume | wifi.
-                        // Posicionamento provisório (à esquerda do clock);
-                        // D.12 reforma pro grupo direito real.
+                        // H33.taskbar.9-10-11-12: system tray (zona D) ancorado
+                        // à esquerda do clock. Ordem ESQ→DIR (spec H33):
+                        //   battery+%, wifi, volume, bell.
+                        // Calculamos o cursor da DIREITA (bell) pra ESQUERDA
+                        // (battery), depois pintamos.
                         {
-                            let t_sys = &crate::theme::current().taskbar.system_tray;
+                            let theme = crate::theme::current();
+                            let t_sys = &theme.taskbar.system_tray;
+                            let t_grp = &theme.taskbar.right_group;
                             let bar_y_local =
                                 output_size_logical.h - crate::taskbar::taskbar_height();
                             let center_y_for = |h: i32| {
                                 bar_y_local + (crate::taskbar::taskbar_height() - h) / 2
                             };
-                            let clock_anchor_x = output_size_logical.w
-                                - crate::taskbar::show_desktop_width()
-                                - crate::taskbar::clock_padding_right();
-                            // cursor_x começa na borda direita do tray (antes do clock).
-                            let mut cursor_x = clock_anchor_x - 16;
-                            // Battery + %: pinta label, depois ícone, ambos à esquerda do cursor.
+                            // Largura efetiva do clock (max entre hora e data).
+                            let clock_w = clock_time_label
+                                .as_ref()
+                                .map(|(_, s)| s.w)
+                                .unwrap_or(0)
+                                .max(clock_date_label.as_ref().map(|(_, s)| s.w).unwrap_or(0));
+                            let right_edge = output_size_logical.w
+                                - t_grp.margin_right
+                                - crate::taskbar::show_desktop_width();
+                            let clock_left = right_edge - t_grp.gap_between_zones - clock_w;
+                            // bell_x é o canto direito DO BELL. Depois (esq→dir)
+                            // volume, wifi, battery+%. Gap entre eles = t_sys.gap.
+                            let bell_right_x = clock_left - t_grp.gap_between_zones;
+                            let bell_x = bell_right_x - bell_render.1.w;
+                            // Volume à esquerda do bell.
+                            let volume_x = bell_x - t_sys.gap - volume_render.1.w;
+                            // Wifi à esquerda do volume.
+                            let wifi_x = volume_x - t_sys.gap - wifi_render.1.w;
+                            // Battery+%: label fica à direita do icon. Bloco fica
+                            // todo à esquerda do wifi.
+                            let (battery_block_w, bat_icon_w, bat_label_w) =
+                                if let Some((_, bat_sz, _, lbl_sz)) = battery_render.as_ref() {
+                                    (bat_sz.w + 4 + lbl_sz.w, bat_sz.w, lbl_sz.w)
+                                } else {
+                                    (0, 0, 0)
+                                };
+                            let battery_right_x = if battery_block_w > 0 {
+                                wifi_x - t_sys.gap
+                            } else {
+                                wifi_x
+                            };
+                            let bat_icon_x = battery_right_x - battery_block_w;
+                            let bat_label_x = bat_icon_x + bat_icon_w + 4;
+
+                            // Pinta na ordem: battery icon → battery label →
+                            // wifi → volume → bell (+ notif dot overlay).
+                            let push_mem = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                                            buf: &MemoryRenderBuffer,
+                                            x: i32,
+                                            y: i32,
+                                            r: &mut GlesRenderer| {
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((x, y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    r,
+                                    loc.to_f64(),
+                                    buf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    elems.push(LumaRenderElement::Memory(elem));
+                                }
+                            };
                             if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
-                                let label_x = cursor_x - lbl_sz.w;
-                                let label_y = center_y_for(lbl_sz.h);
-                                let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                        label_x, label_y,
-                                    ))
-                                    .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer,
-                                    label_loc.to_f64(),
-                                    lbl_buf,
-                                    None,
-                                    None,
-                                    None,
-                                    Kind::Unspecified,
-                                ) {
-                                    custom_elements.push(LumaRenderElement::Memory(elem));
-                                }
-                                cursor_x = label_x - 4;
-                                let icon_x = cursor_x - bat_sz.w;
-                                let icon_y = center_y_for(bat_sz.h);
-                                let icon_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                        icon_x, icon_y,
-                                    ))
-                                    .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer,
-                                    icon_loc.to_f64(),
-                                    bat_buf,
-                                    None,
-                                    None,
-                                    None,
-                                    Kind::Unspecified,
-                                ) {
-                                    custom_elements.push(LumaRenderElement::Memory(elem));
-                                }
-                                cursor_x = icon_x - t_sys.gap;
+                                let _ = (bat_icon_w, bat_label_w);
+                                push_mem(&mut custom_elements, bat_buf,
+                                         bat_icon_x, center_y_for(bat_sz.h), renderer);
+                                push_mem(&mut custom_elements, lbl_buf,
+                                         bat_label_x, center_y_for(lbl_sz.h), renderer);
                             }
-                            // Volume.
-                            {
-                                let (vbuf, vsz) = &volume_render;
-                                let vx = cursor_x - vsz.w;
-                                let vy = center_y_for(vsz.h);
-                                let vloc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                        vx, vy,
-                                    ))
-                                    .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer,
-                                    vloc.to_f64(),
-                                    vbuf,
-                                    None,
-                                    None,
-                                    None,
-                                    Kind::Unspecified,
-                                ) {
-                                    custom_elements.push(LumaRenderElement::Memory(elem));
-                                }
-                                cursor_x = vx - t_sys.gap;
-                            }
-                            // Wifi.
-                            {
-                                let (wbuf, wsz) = &wifi_render;
-                                let wx = cursor_x - wsz.w;
-                                let wy = center_y_for(wsz.h);
-                                let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                        wx, wy,
-                                    ))
-                                    .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer,
-                                    wloc.to_f64(),
-                                    wbuf,
-                                    None,
-                                    None,
-                                    None,
-                                    Kind::Unspecified,
-                                ) {
-                                    custom_elements.push(LumaRenderElement::Memory(elem));
-                                }
+                            push_mem(&mut custom_elements, &wifi_render.0,
+                                     wifi_x, center_y_for(wifi_render.1.h), renderer);
+                            push_mem(&mut custom_elements, &volume_render.0,
+                                     volume_x, center_y_for(volume_render.1.h), renderer);
+                            push_mem(&mut custom_elements, &bell_render.0,
+                                     bell_x, center_y_for(bell_render.1.h), renderer);
+                            // Notif dot: canto sup-direito do bell, se há
+                            // não lidas. H33.taskbar.11.
+                            if let Some(dot) = notif_dot_render.as_ref() {
+                                let dot_size = t_sys.notif_dot_size;
+                                let dx = bell_x + bell_render.1.w - dot_size;
+                                let dy = center_y_for(bell_render.1.h);
+                                push_mem(&mut custom_elements, dot, dx, dy, renderer);
                             }
                         }
                         // alpha 1.0 + data 9pt cor secondary alpha 0.65.

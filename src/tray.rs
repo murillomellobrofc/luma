@@ -35,6 +35,13 @@ pub struct TrayState {
     pub wifi_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone volume (lazy, H33.taskbar.10).
     pub volume_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Buffer do ícone bell (lazy, H33.taskbar.11).
+    pub bell_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Buffer do notification dot (lazy, H33.taskbar.11).
+    pub notif_dot: Option<MemoryRenderBuffer>,
+    /// Contador de notificações não lidas. Sempre 0 nesta etapa
+    /// (H40 vai conectar com fonte real de notificações).
+    pub notif_count: usize,
 }
 
 impl TrayState {
@@ -133,6 +140,37 @@ pub fn ensure_wifi_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32,
     let size = Size::from((t.icon_size, t.icon_size));
     state.wifi_icon = Some((buf.clone(), size));
     (buf, size)
+}
+
+/// Gera (ou pega cacheado) o ícone bell 20px. H33.taskbar.11.
+pub fn ensure_bell_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = &state.bell_icon {
+        return (entry.0.clone(), entry.1);
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let color = smithay::backend::renderer::Color32F::new(
+        t.icon_color.r(),
+        t.icon_color.g(),
+        t.icon_color.b(),
+        t.icon_alpha,
+    );
+    let buf = crate::gfx::make_bell_icon(t.icon_size, color);
+    let size = Size::from((t.icon_size, t.icon_size));
+    state.bell_icon = Some((buf.clone(), size));
+    (buf, size)
+}
+
+/// Gera (ou pega cacheado) o notification dot coral. H33.taskbar.11.
+pub fn ensure_notif_dot(state: &mut TrayState) -> MemoryRenderBuffer {
+    if let Some(buf) = &state.notif_dot {
+        return buf.clone();
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let buf = crate::gfx::make_dot(t.notif_dot_size, t.notif_dot_color);
+    state.notif_dot = Some(buf.clone());
+    buf
 }
 
 /// Gera (ou pega cacheado) o ícone volume 20px. H33.taskbar.10.

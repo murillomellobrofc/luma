@@ -598,6 +598,107 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Ícone de sino (notification) outline. `size × size`. Forma: cúpula
+/// arredondada por cima + base reta + handle/clapper pequeno embaixo.
+/// H33.taskbar.11.
+pub fn make_bell_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let cx = size / 2;
+    let body_top = size / 5;
+    let body_bot = size - size / 4;
+    let body_w_half = size / 3;
+    // Cúpula superior (arco semicírculo): centro em (cx, body_top + body_w_half),
+    // raio ~ body_w_half.
+    let dome_cy = body_top + body_w_half;
+    let dome_r = body_w_half;
+    let dome_r_sq = dome_r * dome_r;
+    let stroke = 2;
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x - cx;
+            let dy = y - dome_cy;
+            if dy > 0 {
+                continue; // só metade superior do círculo
+            }
+            let d_sq = dx * dx + dy * dy;
+            let r_outer = dome_r + stroke / 2;
+            let r_inner = (dome_r - stroke / 2).max(0);
+            if d_sq <= r_outer * r_outer && d_sq >= r_inner * r_inner {
+                put_pixel_premul(&mut pixels, x, y, size, color);
+            }
+        }
+    }
+    // Paredes laterais retas do sino (linhas verticais).
+    for y in dome_cy..body_bot {
+        for s in 0..stroke {
+            let lx = cx - body_w_half + s;
+            let rx = cx + body_w_half - s - 1;
+            if lx >= 0 && lx < size {
+                put_pixel_premul(&mut pixels, lx, y, size, color);
+            }
+            if rx >= 0 && rx < size {
+                put_pixel_premul(&mut pixels, rx, y, size, color);
+            }
+        }
+    }
+    // Base reta horizontal.
+    for x in (cx - body_w_half - 1).max(0)..=(cx + body_w_half + 1).min(size - 1) {
+        for s in 0..stroke {
+            put_pixel_premul(&mut pixels, x, body_bot + s, size, color);
+        }
+    }
+    // Clapper (pingo pequeno embaixo do centro).
+    let clapper_cy = body_bot + 3;
+    let clapper_r = 1;
+    let clapper_r_sq = clapper_r * clapper_r;
+    for dy in -clapper_r..=clapper_r {
+        for dx in -clapper_r..=clapper_r {
+            if dx * dx + dy * dy <= clapper_r_sq {
+                let x = cx + dx;
+                let y = clapper_cy + dy;
+                if x >= 0 && x < size && y >= 0 && y < size {
+                    put_pixel_premul(&mut pixels, x, y, size, color);
+                }
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
+/// Dot circular sólido `size × size`. Usado pelo notification overlay
+/// (canto sup-direito do bell quando há não lidas). H33.taskbar.11.
+pub fn make_dot(size: i32, color: Color32F) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let r = size / 2;
+    let r_sq = r * r;
+    let cx = size / 2;
+    let cy = size / 2;
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x - cx;
+            let dy = y - cy;
+            if dx * dx + dy * dy <= r_sq {
+                put_pixel_premul(&mut pixels, x, y, size, color);
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Ícone WiFi estilo outline: 3 arcos concêntricos centrados em (cx, cy)
 /// na metade inferior, + ponto sólido na base. `size × size`. H33.taskbar.10.
 pub fn make_wifi_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
