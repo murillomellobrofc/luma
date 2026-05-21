@@ -139,6 +139,12 @@ fn run(list: SniList) -> Result<(), Box<dyn std::error::Error>> {
         &conn,
         "type='signal',sender='org.kde.StatusNotifierWatcher',interface='org.kde.StatusNotifierWatcher',member='StatusNotifierItemUnregistered'",
     )?;
+    // H47b.tray.11: signals dos items pra live update (NewIcon, NewTitle,
+    // NewToolTip, NewStatus). Wide match — re-fetcha tudo do sender.
+    add_match(
+        &conn,
+        "type='signal',interface='org.kde.StatusNotifierItem'",
+    )?;
 
     // Loop de drain — message_stream() entrega cada mensagem que casa
     // com os matches. Blocking iterator.
@@ -155,26 +161,57 @@ fn run(list: SniList) -> Result<(), Box<dyn std::error::Error>> {
         let header = msg.header();
         let member = header.member().map(|m| m.as_str().to_string());
         let iface = header.interface().map(|i| i.to_string());
-        if iface.as_deref() != Some("org.kde.StatusNotifierWatcher") {
-            continue;
-        }
-        match member.as_deref() {
-            Some("StatusNotifierItemRegistered") => {
+        match (iface.as_deref(), member.as_deref()) {
+            (Some("org.kde.StatusNotifierWatcher"), Some("StatusNotifierItemRegistered")) => {
                 if let Ok(name) = msg.body().deserialize::<String>() {
                     tracing::info!("SNI: item registrado: {name}");
                     add_item(&conn, &list, &name);
                 }
             }
-            Some("StatusNotifierItemUnregistered") => {
+            (Some("org.kde.StatusNotifierWatcher"), Some("StatusNotifierItemUnregistered")) => {
                 if let Ok(name) = msg.body().deserialize::<String>() {
                     tracing::info!("SNI: item removido: {name}");
                     remove_item(&list, &name);
+                }
+            }
+            (Some("org.kde.StatusNotifierItem"), Some(member)) => {
+                // H47b.tray.11: any change on a known item -> refresh.
+                // sender vem do header; combina com `service` salvo.
+                let sender = header.sender().map(|s| s.to_string());
+                if let Some(sender) = sender {
+                    if matches!(
+                        member,
+                        "NewIcon" | "NewTitle" | "NewToolTip" | "NewStatus" | "NewAttentionIcon"
+                    ) {
+                        refresh_by_sender(&conn, &list, &sender);
+                    }
                 }
             }
             _ => {}
         }
     }
     Ok(())
+}
+
+/// Re-fetcha properties do(s) item(s) cujo `service` == sender e
+/// substitui no list. Usado pelos signals NewIcon/NewTitle/etc.
+fn refresh_by_sender(conn: &zbus::blocking::Connection, list: &SniList, sender: &str) {
+    let targets: Vec<(String, String)> = match list.lock() {
+        Ok(g) => g
+            .iter()
+            .filter(|i| i.service == sender)
+            .map(|i| (i.service.clone(), i.object_path.clone()))
+            .collect(),
+        Err(_) => return,
+    };
+    for (service, path) in targets {
+        let raw = if path == "/StatusNotifierItem" {
+            service
+        } else {
+            format!("{}{}", service, path)
+        };
+        add_item(conn, list, &raw);
+    }
 }
 
 fn add_match(
