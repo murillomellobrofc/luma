@@ -93,6 +93,35 @@ pub fn show_desktop_width() -> i32 {
 
 // Cores agora vêm de `crate::theme::current()`.
 
+/// 6 zonas da taskbar v5 (H33.taskbar.2). Layout:
+///
+/// ```text
+/// [A]│[B B B]│[C C C C ...]          [D][E][F]
+///  ^---- grupo ESQUERDO ----^         ^-- DIREITO --^
+/// ```
+///
+/// - Grupo esquerdo ancora em `padding_left`, cresce pra direita.
+/// - Grupo direito (D/E/F) ancora na borda direita, cresce pra esquerda,
+///   3 zonas grudadas (`right_group.gap_between_zones`).
+///
+/// As funções `zone_bounds_*` em `taskbar.rs` (commits A.3+) calculam
+/// posição e tamanho de cada zona dinamicamente.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskbarZone {
+    /// A — Launcher (logo Luma). 44×44.
+    Launcher,
+    /// B — Workspaces pager. Quadrados 32×32 numerados (escondido se 1 ws).
+    Workspaces,
+    /// C — Apps abertos. Quadrados 44×44 com ícone 32px.
+    Apps,
+    /// D — System tray (battery, wifi, volume, notifications).
+    SystemTray,
+    /// E — Clock (hora Fraunces + data Manrope).
+    Clock,
+    /// F — Show desktop (botão 44×44).
+    ShowDesktop,
+}
+
 /// Resultado do hit-test na taskbar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskbarHit {

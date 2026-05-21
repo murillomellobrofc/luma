@@ -751,7 +751,8 @@ impl ColorTokens {
             applet_bg_hover: hex_color("#3D2520", 1.0),
             applet_bg_active: hex_color("#3D2520", 1.0),
             accent_amber: hex_color("#E89B3D", 1.0),
-            accent_amber_alpha_top: 0.25,
+            // H33.taskbar.2: alpha do top accent subiu de 0.25 → 0.5.
+            accent_amber_alpha_top: 0.5,
             accent_amber_glow: 3,
             hover_minimize: hex_color("#F5D5A8", 1.0),
             hover_maximize: hex_color("#6B8E7F", 1.0),
@@ -1142,12 +1143,13 @@ impl Default for SearchTokens {
 impl Default for TaskbarTokens {
     fn default() -> Self {
         Self {
-            height: 48,
+            // H33.taskbar.2: altura 64 (era 48) + border top 2px (era 1).
+            height: 64,
             padding_left: 12,
-            padding_right: 0,
+            padding_right: 12,
             gap_between_applets: 8,
-            applet_corner_radius: 6,
-            border_top_height: 1,
+            applet_corner_radius: 9,
+            border_top_height: 2,
         }
     }
 }
