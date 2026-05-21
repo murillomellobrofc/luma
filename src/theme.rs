@@ -1003,9 +1003,9 @@ impl ColorTokens {
 impl Default for WindowTokens {
     fn default() -> Self {
         Self {
-            // H_deco.v3: cantos 12px, header 40px, sombra mais forte (16),
-            // titles centralizados com padding maior.
-            corner_radius: 12,
+            // H_deco.v3: cantos 12 inicialmente; aumentado pra 20 em
+            // round.3 (raio mais visivel em janelas grandes).
+            corner_radius: 20,
             header_height: 40,
             title_size: 13.0,
             title_weight: 500,
