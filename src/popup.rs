@@ -111,6 +111,91 @@ impl AppletPopup {
     }
 }
 
+/// Região de um device card no popup. H44.volume.7-8.
+#[derive(Debug, Clone, Copy)]
+pub enum DeviceRegion {
+    /// Ícone de mute (esquerda do nome).
+    MuteIcon,
+    /// Label do nome (toggle set-default).
+    Label,
+    /// Slider — x_pct é 0..1 (clamped).
+    Slider(f32),
+}
+
+/// Resultado do hit-test de devices: idx no Vec + região clicada.
+#[derive(Debug, Clone, Copy)]
+pub struct DeviceHit {
+    pub idx: usize,
+    pub region: DeviceRegion,
+}
+
+/// Hit-test nos cards de device (Sinks ou Sources). Replica o layout
+/// do render no winit. `entry_h` deve casar com o render. H44.volume.7.
+pub fn hit_test_devices(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    n: usize,
+    point: Point<f64, Logical>,
+) -> Option<DeviceHit> {
+    let theme = crate::theme::current();
+    let t_popup = &theme.popup;
+    let t_slider = &t_popup.slider;
+    let o = popup.origin(output_size);
+    let entry_h = 64;
+    let track_w = popup.size.w - t_popup.padding * 2;
+    let track_h = t_slider.track_height;
+    let handle_r = t_slider.handle_radius;
+    let icon_w = 24;
+    let mut y_cursor = o.y + t_popup.tab_height + t_popup.padding;
+    for idx in 0..n {
+        if y_cursor + entry_h > o.y + popup.size.h - t_popup.padding {
+            break;
+        }
+        let row_top = y_cursor;
+        let row_bot = y_cursor + entry_h;
+        if (point.y as i32) >= row_top && (point.y as i32) < row_bot {
+            // Decide região por x.
+            // Mute icon: esquerda (24px wide).
+            let mute_left = o.x + t_popup.padding;
+            let mute_right = mute_left + icon_w;
+            // Label: meio.
+            let label_top = row_top;
+            let label_bot = row_top + 20;
+            // Slider: y entre track_top-handle_r e track_bot+handle_r.
+            let track_y = row_top + 22;
+            let slider_top = track_y - handle_r;
+            let slider_bot = track_y + track_h + handle_r;
+            let track_x = o.x + t_popup.padding;
+            if (point.y as i32) >= slider_top && (point.y as i32) <= slider_bot {
+                let px = point.x as f64;
+                let tx = track_x as f64;
+                if px >= tx && px <= tx + track_w as f64 {
+                    let v = ((px - tx) / track_w as f64).clamp(0.0, 1.0) as f32;
+                    return Some(DeviceHit {
+                        idx,
+                        region: DeviceRegion::Slider(v),
+                    });
+                }
+            }
+            if (point.y as i32) >= label_top && (point.y as i32) < label_bot {
+                if (point.x as i32) >= mute_left && (point.x as i32) < mute_right {
+                    return Some(DeviceHit {
+                        idx,
+                        region: DeviceRegion::MuteIcon,
+                    });
+                }
+                return Some(DeviceHit {
+                    idx,
+                    region: DeviceRegion::Label,
+                });
+            }
+            return None;
+        }
+        y_cursor += entry_h;
+    }
+    None
+}
+
 /// Slider horizontal reutilizável. H44.volume.3.
 ///
 /// Trilho cinza no fundo, fill âmbar do início até o valor, bolinha

@@ -2368,13 +2368,32 @@ pub fn init_winit(
                             let track_w = popup.size.w - t_popup.padding * 2;
                             let track_h = t_slider.track_height;
                             let handle_r = t_slider.handle_radius;
-                            for sink in &sinks {
+                            // Coleta idx pra index no audio_sinks (cache).
+                            for (sink_idx, sink) in sinks.iter().enumerate() {
                                 if y_cursor + entry_h > o.y + popup.size.h - t_popup.padding {
                                     break;
                                 }
-                                // Truncate descrição em ~42 chars pra caber.
+                                let _ = sink_idx;
+                                // Ícone mute (esquerda).
+                                let mute_icon_name = if sink.muted {
+                                    "volume-muted"
+                                } else {
+                                    "volume-high"
+                                };
+                                if let Some((ib, isz)) = crate::tray::ensure_icon_sized(
+                                    &mut data.state.tray, mute_icon_name, 18,
+                                ) {
+                                    let ix = o.x + t_popup.padding;
+                                    let iy = y_cursor;
+                                    let _ = isz;
+                                    if let Some(elem) = mk_mem(&ib, ix, iy, renderer) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+
+                                // Truncate descrição em ~38 chars pra caber.
                                 let mut label_text =
-                                    truncate_chars(&sink.description, 38);
+                                    truncate_chars(&sink.description, 32);
                                 if sink.is_default {
                                     label_text = format!("★ {}", label_text);
                                 }
@@ -2400,9 +2419,10 @@ pub fn init_winit(
                                             Transform::Normal,
                                             None,
                                         );
+                                        // Label começa após o ícone (24 + 8 gap).
                                         if let Some(elem) = mk_mem(
                                             &buf,
-                                            o.x + t_popup.padding,
+                                            o.x + t_popup.padding + 32,
                                             y_cursor,
                                             renderer,
                                         ) {

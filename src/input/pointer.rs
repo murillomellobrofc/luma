@@ -226,6 +226,42 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             p.volume_tab = tab;
                         }
                     }
+                    // H44.volume.6-8: dispatch dentro da aba Devices.
+                    if let Some(popup) = popup_clone.as_ref() {
+                        if popup.volume_tab == crate::popup::VolumeTab::Devices {
+                            let n = state.audio_sinks.len();
+                            if let Some(hit) = crate::popup::hit_test_devices(
+                                popup, output, n, pointer_pos,
+                            ) {
+                                let sink_id = state.audio_sinks[hit.idx].id;
+                                match hit.region {
+                                    crate::popup::DeviceRegion::Slider(v) => {
+                                        let pct = (v * 100.0) as u8;
+                                        crate::audio::set_volume(sink_id, pct);
+                                        // Atualiza state.
+                                        let (sinks, sources) =
+                                            crate::audio::list_devices();
+                                        state.audio_sinks = sinks;
+                                        state.audio_sources = sources;
+                                    }
+                                    crate::popup::DeviceRegion::MuteIcon => {
+                                        crate::audio::toggle_mute(sink_id);
+                                        let (sinks, sources) =
+                                            crate::audio::list_devices();
+                                        state.audio_sinks = sinks;
+                                        state.audio_sources = sources;
+                                    }
+                                    crate::popup::DeviceRegion::Label => {
+                                        crate::audio::set_default(sink_id);
+                                        let (sinks, sources) =
+                                            crate::audio::list_devices();
+                                        state.audio_sinks = sinks;
+                                        state.audio_sources = sources;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 pointer.button(
                     state,
