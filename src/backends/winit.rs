@@ -696,7 +696,7 @@ pub fn init_winit(
                             // outros from_buffer no mesmo escopo, ex:
                             // ícones reais escalados do .desktop).
                             macro_rules! push_mem {
-                                ($buf:expr, $px:expr, $py:expr $(,)?) => {{
+                                ($buf:expr_2021, $px:expr_2021, $py:expr_2021 $(,)?) => {{
                                     let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                         smithay::utils::Point::<i32, smithay::utils::Logical>
                                             ::from(($px, $py))
