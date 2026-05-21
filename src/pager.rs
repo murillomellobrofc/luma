@@ -1,15 +1,16 @@
-//! Pager de workspaces na taskbar. H36 Bloco C.
+//! Pager de workspaces na taskbar.
 //!
-//! Renderiza N items horizontais entre o launcher e a window list:
-//! - Workspace inativo: dot pequeno alpha 0.25 (ou 0.55 em hover)
-//! - Workspace ativo: pill âmbar 28×16
+//! H33.taskbar.7: quadrados 32×32 numerados (re-skin do pager H36).
+//! - Ativo: pill âmbar 32×32 r=9 + número COFFEE bold centralizado.
+//! - Inativo: sem bg (transparente) + número CREAM alpha 45%.
+//! - Hover (inativo): bg sutil cream alpha 0.1 pra feedback.
 //!
-//! Esconde quando há apenas 1 workspace (tokens.pager_show_if_count).
+//! Esconde quando há apenas 1 workspace (`tokens.pager_show_if_count`).
 
 use smithay::{
     backend::{
         allocator::Fourcc,
-        renderer::element::{memory::MemoryRenderBuffer, solid::SolidColorBuffer},
+        renderer::element::memory::MemoryRenderBuffer,
     },
     utils::{Logical, Point, Size, Transform},
 };
@@ -18,102 +19,93 @@ use smithay::{
 pub type NumberLabel = (MemoryRenderBuffer, Size<i32, Logical>);
 
 /// Buffers pré-renderizados pra cada estado do item do pager.
-/// Reutilizados entre frames; redimensionados em runtime quando contagem
-/// de workspaces muda.
+/// H33.taskbar.7: dots saíram. Apenas pill ativo (32×32 r=9) é
+/// pré-renderizado; itens inativos não têm bg (transparente).
 #[derive(Debug)]
 pub struct PagerState {
-    /// Bg do dot inativo (8×8 = 2*radius).
-    pub dot_inactive: SolidColorBuffer,
-    /// Bg do dot em hover (mesmo tamanho).
-    pub dot_hover: SolidColorBuffer,
-    /// Bg do pill ativo arredondado em capsule (r=h/2). MemoryRenderBuffer
-    /// pra ter alpha=0 nos cantos. H36.spec.fix.
+    /// Bg do pill ativo (32×32 r=9 cor âmbar). MemoryRenderBuffer pra
+    /// ter alpha=0 nos cantos. H33.taskbar.7.
     pub pill_active: MemoryRenderBuffer,
-    /// Halo externo do glow arredondado.
-    pub pill_glow_outer: MemoryRenderBuffer,
-    /// Halo interno do glow arredondado.
-    pub pill_glow_inner: MemoryRenderBuffer,
+    /// Bg sutil do hover de item inativo (32×32 r=9 cream alpha 0.1).
+    /// Cobre cliques durante hover sem alterar o número.
+    pub hover_bg: MemoryRenderBuffer,
     /// Índice do item em hover (0-based no Vec de workspaces).
     pub hovered: Option<usize>,
     /// Labels "1".."9" rasterizados em coffee escuro pra mostrar dentro
-    /// dos dots/pills. Lazy: ensure_labels rasteriza on demand.
-    /// H36.spec: indica número do workspace.
-    pub number_labels: Vec<Option<NumberLabel>>,
+    /// do pill ATIVO. Lazy: ensure_labels rasteriza on demand.
+    pub number_labels_active: Vec<Option<NumberLabel>>,
+    /// Labels "1".."9" rasterizados em cream pra mostrar nos quadrados
+    /// INATIVOS (renderizados com alpha 0.45 no draw).
+    pub number_labels_inactive: Vec<Option<NumberLabel>>,
 }
 
 impl PagerState {
     pub fn new() -> Self {
         let theme = crate::theme::current();
         let t = &theme.workspaces;
-        let dot_size = (t.pager_dot_radius * 2, t.pager_dot_radius * 2);
         Self {
-            dot_inactive: SolidColorBuffer::new(dot_size, t.pager_inactive_color),
-            dot_hover: SolidColorBuffer::new(dot_size, t.pager_hover_color),
-            // Pill capsule: corner radius = altura/2 pra cantos totalmente
-            // arredondados. H36.spec.fix.
             pill_active: crate::gfx::make_rounded_panel(
-                t.pager_active_width,
-                t.pager_active_height,
-                t.pager_active_height / 2,
+                t.pager_item_size,
+                t.pager_item_size,
+                t.pager_corner_radius,
                 t.pager_active_color,
             ),
-            // Glow: 2 halos amber alpha baixo, MAIORES que o pill, atrás dele.
-            pill_glow_outer: crate::gfx::make_rounded_panel(
-                t.pager_active_width + 8,
-                t.pager_active_height + 8,
-                (t.pager_active_height + 8) / 2,
-                {
-                    let c = t.pager_active_color;
-                    smithay::backend::renderer::Color32F::new(c.r(), c.g(), c.b(), 0.15)
-                },
-            ),
-            pill_glow_inner: crate::gfx::make_rounded_panel(
-                t.pager_active_width + 4,
-                t.pager_active_height + 4,
-                (t.pager_active_height + 4) / 2,
-                {
-                    let c = t.pager_active_color;
-                    smithay::backend::renderer::Color32F::new(c.r(), c.g(), c.b(), 0.35)
-                },
+            hover_bg: crate::gfx::make_rounded_panel(
+                t.pager_item_size,
+                t.pager_item_size,
+                t.pager_corner_radius,
+                smithay::backend::renderer::Color32F::new(
+                    t.pager_text_color_inactive.r(),
+                    t.pager_text_color_inactive.g(),
+                    t.pager_text_color_inactive.b(),
+                    0.1,
+                ),
             ),
             hovered: None,
-            number_labels: Vec::new(),
+            number_labels_active: Vec::new(),
+            number_labels_inactive: Vec::new(),
         }
     }
 
-    /// Rasteriza lazy os labels "1".."9" pra mostrar nos dots/pills.
-    /// H36.spec.
+    /// Rasteriza lazy os labels "1".."9" em ambas as cores (coffee pro
+    /// ativo, cream pro inativo). H33.taskbar.7.
     pub fn ensure_labels(&mut self, text: &crate::text::TextRenderer, max: usize) {
         let theme = crate::theme::current();
-        let coffee = theme.colors.taskbar_bg_top;
-        while self.number_labels.len() < max.min(9) {
-            let n = self.number_labels.len() + 1;
-            let (pixels, w, h) = text.rasterize_colored(
-                &n.to_string(),
-                10.0,
-                smithay::backend::renderer::Color32F::new(
-                    coffee.r(),
-                    coffee.g(),
-                    coffee.b(),
-                    1.0,
-                ),
-            );
-            if w == 0 || h == 0 {
-                self.number_labels.push(None);
-                continue;
-            }
-            let buffer = MemoryRenderBuffer::from_slice(
-                &pixels,
-                Fourcc::Argb8888,
-                (w as i32, h as i32),
-                1,
-                Transform::Normal,
-                None,
-            );
-            self.number_labels
-                .push(Some((buffer, Size::from((w as i32, h as i32)))));
+        let t = &theme.workspaces;
+        let target = max.min(9);
+
+        while self.number_labels_active.len() < target {
+            let n = self.number_labels_active.len() + 1;
+            self.number_labels_active
+                .push(build_label(text, &n.to_string(), t.pager_text_size, t.pager_text_color_active));
+        }
+        while self.number_labels_inactive.len() < target {
+            let n = self.number_labels_inactive.len() + 1;
+            self.number_labels_inactive
+                .push(build_label(text, &n.to_string(), t.pager_text_size, t.pager_text_color_inactive));
         }
     }
+}
+
+fn build_label(
+    renderer: &crate::text::TextRenderer,
+    text: &str,
+    size: f32,
+    color: smithay::backend::renderer::Color32F,
+) -> Option<NumberLabel> {
+    let (pixels, w, h) = renderer.rasterize_colored(text, size, color);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let buffer = MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w as i32, h as i32),
+        1,
+        Transform::Normal,
+        None,
+    );
+    Some((buffer, Size::from((w as i32, h as i32))))
 }
 
 impl Default for PagerState {
@@ -136,21 +128,20 @@ pub fn pager_start_x(launcher_end_x: i32) -> i32 {
 }
 
 /// Largura total que o pager ocupa pra `count` workspaces. Usado pra
-/// shiftar a window list à direita. H36.7.
+/// shiftar a window list à direita. H33.taskbar.7: agora todos os items
+/// têm o mesmo tamanho (`pager_item_size`).
 pub fn pager_total_width(count: usize) -> i32 {
     if count == 0 {
         return 0;
     }
     let t = &crate::theme::current().workspaces;
-    let active_w = t.pager_active_width;
-    let dot_w = t.pager_dot_radius * 2;
     let n = count as i32;
-    // 1 ativo + (n-1) inativos + (n-1) gaps
-    active_w + (n - 1).max(0) * dot_w + (n - 1).max(0) * t.pager_gap
+    t.pager_item_size * n + t.pager_gap * (n - 1).max(0)
 }
 
 /// Layout: pra cada workspace idx, devolve o ponto (x, y_top) do item.
-/// `taskbar_y` é o topo da taskbar; centraliza verticalmente. H36.7.
+/// `taskbar_y` é o topo da taskbar; centraliza verticalmente. H33.taskbar.7:
+/// items uniformes 32×32.
 pub fn item_layout(
     start_x: i32,
     taskbar_y: i32,
@@ -159,25 +150,19 @@ pub fn item_layout(
     current: usize,
 ) -> Vec<(i32, i32, bool)> {
     let t = &crate::theme::current().workspaces;
+    let size = t.pager_item_size;
+    let y = taskbar_y + (taskbar_h - size) / 2;
     let mut out = Vec::with_capacity(count);
     let mut cursor = start_x;
-    let dot_w = t.pager_dot_radius * 2;
     for idx in 0..count {
-        let active = idx == current;
-        let (w, h) = if active {
-            (t.pager_active_width, t.pager_active_height)
-        } else {
-            (dot_w, dot_w)
-        };
-        let y = taskbar_y + (taskbar_h - h) / 2;
-        out.push((cursor, y, active));
-        cursor += w + t.pager_gap;
+        out.push((cursor, y, idx == current));
+        cursor += size + t.pager_gap;
     }
     out
 }
 
 /// Hit-test: dado um ponto, retorna o índice do item embaixo (ou None).
-/// Hit area é generosa (mínimo 24×24 pra acessibilidade).
+/// Items ≥ 24×24 (mínimo a11y) ainda quando size cai abaixo. H33.taskbar.7.
 pub fn hit_test(
     point: Point<f64, Logical>,
     layout: &[(i32, i32, bool)],
@@ -185,18 +170,10 @@ pub fn hit_test(
     taskbar_h: i32,
 ) -> Option<usize> {
     let t = &crate::theme::current().workspaces;
-    let dot_w = t.pager_dot_radius * 2;
-    for (idx, (x, _y, active)) in layout.iter().enumerate() {
-        let item_w = if *active {
-            t.pager_active_width
-        } else {
-            dot_w
-        };
-        // Hit area mínima 24px de largura mesmo se visual menor.
-        let hit_w = item_w.max(24);
-        let hit_x = x - (hit_w - item_w) / 2;
-        if point.x as i32 >= hit_x
-            && (point.x as i32) < hit_x + hit_w
+    let size = t.pager_item_size.max(24);
+    for (idx, (x, _y, _active)) in layout.iter().enumerate() {
+        if point.x as i32 >= *x
+            && (point.x as i32) < x + size
             && point.y as i32 >= taskbar_y
             && (point.y as i32) < taskbar_y + taskbar_h
         {
@@ -206,8 +183,8 @@ pub fn hit_test(
     None
 }
 
-/// Tamanho do dot inativo pra resize dinâmico futuro.
-pub fn dot_size() -> Size<i32, Logical> {
+/// Tamanho do item do pager (uso externo, ex.: hit-tests). H33.taskbar.7.
+pub fn item_size() -> Size<i32, Logical> {
     let t = &crate::theme::current().workspaces;
-    Size::from((t.pager_dot_radius * 2, t.pager_dot_radius * 2))
+    Size::from((t.pager_item_size, t.pager_item_size))
 }

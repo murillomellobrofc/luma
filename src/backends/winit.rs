@@ -1668,30 +1668,38 @@ pub fn init_winit(
                                 data.state.workspaces.current,
                             );
                             let hovered = data.state.pager.hovered;
-                            // Pre-clone dos labels pra evitar borrow
-                            // conflict com pager.pill/dot abaixo.
-                            let labels: Vec<Option<(_, _)>> = data
+                            // H33.taskbar.7: pager re-skin — quadrados 32×32
+                            // numerados. Ativo = pill âmbar + número coffee.
+                            // Inativo = sem bg + número cream alpha 0.45.
+                            let item_size = crate::theme::current().workspaces.pager_item_size;
+                            let inactive_alpha =
+                                crate::theme::current().workspaces.pager_text_alpha_inactive;
+                            let labels_active: Vec<Option<(_, _)>> = data
                                 .state
                                 .pager
-                                .number_labels
+                                .number_labels_active
+                                .iter()
+                                .map(|o| o.as_ref().map(|(b, s)| (b.clone(), *s)))
+                                .collect();
+                            let labels_inactive: Vec<Option<(_, _)>> = data
+                                .state
+                                .pager
+                                .number_labels_inactive
                                 .iter()
                                 .map(|o| o.as_ref().map(|(b, s)| (b.clone(), *s)))
                                 .collect();
                             for (idx, (x, y, active)) in layout.iter().enumerate() {
-                                // Número PRIMEIRO (= em cima do bg). H36.spec.
-                                if let Some(Some((buf, size))) = labels.get(idx) {
-                                    let item_w = if *active {
-                                        crate::theme::current().workspaces.pager_active_width
-                                    } else {
-                                        crate::theme::current().workspaces.pager_dot_radius * 2
-                                    };
-                                    let item_h = if *active {
-                                        crate::theme::current().workspaces.pager_active_height
-                                    } else {
-                                        crate::theme::current().workspaces.pager_dot_radius * 2
-                                    };
-                                    let label_x = x + (item_w - size.w) / 2;
-                                    let label_y = y + (item_h - size.h) / 2;
+                                // Número PRIMEIRO (= em cima do bg, vem
+                                // na frente do z-stack pq pushed antes).
+                                let label = if *active {
+                                    labels_active.get(idx).and_then(|o| o.as_ref())
+                                } else {
+                                    labels_inactive.get(idx).and_then(|o| o.as_ref())
+                                };
+                                let label_alpha = if *active { None } else { Some(inactive_alpha) };
+                                if let Some((buf, size)) = label {
+                                    let label_x = x + (item_size - size.w) / 2;
+                                    let label_y = y + (item_size - size.h) / 2;
                                     let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                         smithay::utils::Point::<i32, smithay::utils::Logical>::from((
                                             label_x, label_y,
@@ -1701,7 +1709,7 @@ pub fn init_winit(
                                         renderer,
                                         label_loc.to_f64(),
                                         buf,
-                                        None,
+                                        label_alpha,
                                         None,
                                         None,
                                         Kind::Unspecified,
@@ -1709,50 +1717,29 @@ pub fn init_winit(
                                         custom_elements.push(LumaRenderElement::Memory(e));
                                     }
                                 }
-                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> = smithay::utils::Point::<
-                                    i32,
-                                    smithay::utils::Logical,
-                                >::from((*x, *y))
-                                .to_physical_precise_round(1.0);
+                                // Bg do item: pill âmbar se ativo, hover sutil
+                                // se inativo+hovered, transparente caso contrário.
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((*x, *y))
+                                        .to_physical_precise_round(1.0);
                                 if *active {
-                                    // Pill capsule via MemoryRenderBuffer.
                                     if let Ok(e) = MemoryRenderBufferRenderElement::from_buffer(
-                                        renderer, loc.to_f64(), &data.state.pager.pill_active,
+                                        renderer,
+                                        bg_loc.to_f64(),
+                                        &data.state.pager.pill_active,
                                         None, None, None, Kind::Unspecified,
                                     ) {
                                         custom_elements.push(LumaRenderElement::Memory(e));
                                     }
-                                    // Glow inner (push DEPOIS = atras do pill).
-                                    let inner_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((x - 2, y - 2))
-                                            .to_physical_precise_round(1.0);
+                                } else if hovered == Some(idx) {
                                     if let Ok(e) = MemoryRenderBufferRenderElement::from_buffer(
-                                        renderer, inner_loc.to_f64(), &data.state.pager.pill_glow_inner,
+                                        renderer,
+                                        bg_loc.to_f64(),
+                                        &data.state.pager.hover_bg,
                                         None, None, None, Kind::Unspecified,
                                     ) {
                                         custom_elements.push(LumaRenderElement::Memory(e));
                                     }
-                                    let outer_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((x - 4, y - 4))
-                                            .to_physical_precise_round(1.0);
-                                    if let Ok(e) = MemoryRenderBufferRenderElement::from_buffer(
-                                        renderer, outer_loc.to_f64(), &data.state.pager.pill_glow_outer,
-                                        None, None, None, Kind::Unspecified,
-                                    ) {
-                                        custom_elements.push(LumaRenderElement::Memory(e));
-                                    }
-                                } else {
-                                    // Dot inativo/hover continua SolidColorBuffer.
-                                    let buf = if hovered == Some(idx) {
-                                        &data.state.pager.dot_hover
-                                    } else {
-                                        &data.state.pager.dot_inactive
-                                    };
-                                    custom_elements.push(LumaRenderElement::Solid(
-                                        smithay::backend::renderer::element::solid::SolidColorRenderElement::from_buffer(
-                                            buf, loc, 1.0, 1.0, Kind::Unspecified,
-                                        ),
-                                    ));
                                 }
                             }
                         }

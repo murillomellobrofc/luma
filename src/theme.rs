@@ -632,18 +632,29 @@ pub struct MenuColumnDividerTokens {
     pub gradient: bool,
 }
 
-/// Tokens dos workspaces (pager na taskbar + overview screen). H36.
+/// Tokens dos workspaces (pager na taskbar + overview screen). H36 +
+/// H33.taskbar.7 (re-skin: 32×32 quadrados numerados em vez de dots).
 #[derive(Debug, Clone)]
 pub struct WorkspacesTokens {
     pub pager_show_if_count: usize,
     pub pager_padding_left: i32,
     pub pager_gap: i32,
-    pub pager_dot_radius: i32,
+    /// Tamanho de cada item do pager (ativo e inativos). 32 default em
+    /// H33 — substitui o `pager_dot_radius` legado.
+    pub pager_item_size: i32,
+    /// Corner radius dos quadrados do pager. 9 em H33.
+    pub pager_corner_radius: i32,
     pub pager_inactive_color: Color32F,
     pub pager_hover_color: Color32F,
-    pub pager_active_width: i32,
-    pub pager_active_height: i32,
     pub pager_active_color: Color32F,
+    /// Tamanho do número renderizado dentro do quadrado. 13 default em H33.
+    pub pager_text_size: f32,
+    /// Cor do número no item ativo (texto sobre pill âmbar — coffee). H33.
+    pub pager_text_color_active: Color32F,
+    /// Cor do número nos itens inativos (cream). H33.
+    pub pager_text_color_inactive: Color32F,
+    /// Alpha aplicado ao número dos itens inativos (45% default). H33.
+    pub pager_text_alpha_inactive: f32,
     pub overview_backdrop: Color32F,
     pub overview_thumb_width: i32,
     pub overview_thumb_height: i32,
@@ -654,14 +665,17 @@ impl Default for WorkspacesTokens {
     fn default() -> Self {
         Self {
             pager_show_if_count: 2,
-            pager_padding_left: 12,
-            pager_gap: 6,
-            pager_dot_radius: 4,
+            pager_padding_left: 14,
+            pager_gap: 8,
+            pager_item_size: 32,
+            pager_corner_radius: 9,
             pager_inactive_color: hex_color("#FBF6EE", 0.25),
             pager_hover_color: hex_color("#FBF6EE", 0.55),
-            pager_active_width: 28,
-            pager_active_height: 16,
             pager_active_color: hex_color("#E89B3D", 1.0),
+            pager_text_size: 13.0,
+            pager_text_color_active: hex_color("#1F1611", 1.0),
+            pager_text_color_inactive: hex_color("#FBF6EE", 1.0),
+            pager_text_alpha_inactive: 0.45,
             overview_backdrop: hex_color("#1F1611", 0.92),
             overview_thumb_width: 190,
             overview_thumb_height: 120,
