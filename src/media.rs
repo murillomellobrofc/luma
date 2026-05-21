@@ -15,8 +15,13 @@
 //! Trade-off: `playerctl` não vem padrão no Ubuntu/KDE; usuário
 //! instala 1x. Documentado em `docs/DEBT.md`.
 
+use std::collections::HashMap;
 use std::process::Command;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+
+use smithay::backend::allocator::Fourcc;
+use smithay::backend::renderer::element::memory::MemoryRenderBuffer;
+use smithay::utils::Transform;
 
 /// Estado de reprodução. `NoPlayer` cobre "playerctl ausente",
 /// "nenhum player MPRIS conectado" e "playerctl falhou".
@@ -134,4 +139,62 @@ pub fn read_info() -> MediaInfo {
         position,
         length,
     }
+}
+
+/// Cache de arte de álbum: chave = "<url>@<size>" pra suportar tamanhos
+/// diferentes sem re-decodificar. Lock global porque acesso vem do
+/// render path (single-threaded, contenção zero).
+static ART_CACHE: OnceLock<Mutex<HashMap<String, MemoryRenderBuffer>>> = OnceLock::new();
+
+fn art_cache() -> &'static Mutex<HashMap<String, MemoryRenderBuffer>> {
+    ART_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Carrega arte do `art_url` em `size × size`, em BGRA premultiplicado.
+/// Suporta apenas `file://` por enquanto (HTTP exigiria http client,
+/// "heavy crate" — documentado em DEBT.md). Cache por (url, size).
+///
+/// `None` se: URL vazia, scheme não-file, arquivo ausente, decode falha.
+pub fn load_art(url: &str, size: i32) -> Option<MemoryRenderBuffer> {
+    if url.is_empty() || size <= 0 {
+        return None;
+    }
+    let key = format!("{}@{}", url, size);
+    if let Some(buf) = art_cache().lock().ok()?.get(&key) {
+        return Some(buf.clone());
+    }
+    let path = url.strip_prefix("file://")?;
+    let path = urlencoding::decode(path).ok()?.into_owned();
+    let img = image::open(&path).ok()?;
+    // Resize com filtro Lanczos3 pra qualidade. Arte costuma vir em
+    // 300-640px; cair pra 76 sem filtro fica serrilhado.
+    let resized = img.resize_to_fill(
+        size as u32,
+        size as u32,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let rgba = resized.to_rgba8();
+    let (w, h) = (rgba.width() as i32, rgba.height() as i32);
+    let mut pixels = rgba.into_raw();
+    // RGBA → BGRA premultiplicado (mesmo padrão de apps.rs / wallpaper.rs).
+    for chunk in pixels.chunks_exact_mut(4) {
+        let r = chunk[0];
+        let g = chunk[1];
+        let b = chunk[2];
+        let a = chunk[3];
+        chunk[0] = ((b as u16 * a as u16) / 255) as u8;
+        chunk[1] = ((g as u16 * a as u16) / 255) as u8;
+        chunk[2] = ((r as u16 * a as u16) / 255) as u8;
+        chunk[3] = a;
+    }
+    let buf = MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    );
+    art_cache().lock().ok()?.insert(key, buf.clone());
+    Some(buf)
 }
