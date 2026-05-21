@@ -60,23 +60,38 @@ pub const BLOCK_PADDING: i32 = 4;
 
 /// Largura máxima do botão de janela na taskbar (pílula). Default 220.
 pub fn block_width() -> i32 {
-    crate::theme::current().window_button.max_width
+    crate::theme::current().taskbar.apps.button_size
 }
 
-/// Altura do botão de janela. Default 32.
+/// Altura do botão de janela (quadrado, mesmo size do width). H33.taskbar.4.
 pub fn block_height() -> i32 {
-    crate::theme::current().window_button.height
+    crate::theme::current().taskbar.apps.button_size
+}
+
+/// Corner radius do botão de janela. H33.taskbar.4.
+pub fn app_button_corner_radius() -> i32 {
+    crate::theme::current().taskbar.apps.button_corner_radius
+}
+
+/// Tamanho do ícone dentro do botão (32 default). H33.taskbar.4.
+pub fn app_icon_size() -> i32 {
+    crate::theme::current().taskbar.apps.icon_size
+}
+
+/// Corner radius do ícone (6 default). H33.taskbar.4.
+pub fn app_icon_corner_radius() -> i32 {
+    crate::theme::current().taskbar.apps.icon_corner_radius
 }
 
 /// Border-radius (px) dos applets — pílula do window button, container do
-/// launcher, etc. Default 6.
+/// launcher, etc. Default 9 (era 6 pré-H33).
 pub fn applet_corner_radius() -> i32 {
     crate::theme::current().taskbar.applet_corner_radius
 }
 
-/// Espaçamento horizontal entre blocos = mesmo gap dos applets.
+/// Espaçamento horizontal entre botões de app. H33.taskbar.4.
 pub fn block_spacing() -> i32 {
-    gap_between_applets()
+    crate::theme::current().taskbar.apps.gap
 }
 
 /// Tamanho da fonte do relógio (HH:MM no canto direito).
@@ -158,21 +173,23 @@ pub struct TaskbarState {
     /// Divider 1px à direita do launcher, altura = taskbar. Sutil
     /// (alpha ~0.1). H33.taskbar.3.
     pub launcher_divider: SolidColorBuffer,
-    /// Pílulas pré-renderizadas pros 4 estados visuais do bloco da
-    /// janela na taskbar (H32.5.5/.8). Cada uma é w×h com cantos
-    /// arredondados (raio = applet_corner_radius). Compartilhadas por
-    /// TODOS os blocos — só a cor muda por estado.
+    /// Bg dos botões de app (zona C). Pré-renderizados 44×44 (default
+    /// H33) com cantos r=9. `block_inactive` não é renderizado (app
+    /// inativo = só ícone, sem bg). Restantes via spec H33.taskbar.4-5.
     pub block_inactive: MemoryRenderBuffer,
     pub block_hover: MemoryRenderBuffer,
     pub block_active: MemoryRenderBuffer,
-    /// Pílula da janela minimizada — cor `taskbar_bg_top` (Coffee escuro)
-    /// com alpha 0.6, ícone/título atrás recebem alpha menor pra dar
-    /// feel "dim". Pré-renderizada também (H32.5.8).
+    /// Bg do botão pra app minimizado — cor `taskbar_bg_top` com alpha 0.6.
+    /// Mantido pra renderizar tom "dim" sob ícone com alpha reduzido.
     pub block_minimized: MemoryRenderBuffer,
-    /// Indicador âmbar fininho que aparece no fundo do bloco ATIVO
-    /// (H32.5.6). Cor `accent_amber`, altura `window_button.active_indicator_height`
-    /// (default 3px), largura = block_width.
+    /// Indicador âmbar do app ATIVO (linha 24×3 sob o botão). Cor
+    /// `taskbar.apps.indicator_color`, dimensões `indicator_width` ×
+    /// `indicator_height`. H33.taskbar.4-5.
     pub block_active_indicator: SolidColorBuffer,
+    /// Cache de ícones fallback (quadrado colorido por hash do nome do
+    /// app) por chave estável (app_id ou nome). Gerado lazy quando um app
+    /// não tem `.desktop` Icon resolvido. H33.taskbar.4.
+    pub fallback_icon_cache: std::collections::HashMap<String, MemoryRenderBuffer>,
     /// Cache de títulos rasterizados por janela (paralelo a `order`).
     /// Re-rasterizados quando o título da janela muda. Ainda só
     /// preparado pra ser usado pela render do bloco no winit.rs (H32.5.5
@@ -227,15 +244,16 @@ impl TaskbarState {
             amber.b(),
             theme.colors.accent_amber_alpha_top,
         );
-        // Pílulas pré-renderizadas pros 3 estados visuais (H32.5.5).
+        // Bg dos botões de app (zona C) — quadrados 44×44 r=9. H33.taskbar.4.
         let bw = block_width();
         let bh = block_height();
-        let br = applet_corner_radius();
-        let block_inactive = crate::gfx::make_rounded_panel(bw, bh, br, theme.colors.applet_bg);
+        let br = app_button_corner_radius();
+        let block_inactive =
+            crate::gfx::make_rounded_panel(bw, bh, br, theme.taskbar.apps.hover_bg);
         let block_hover =
-            crate::gfx::make_rounded_panel(bw, bh, br, theme.colors.applet_bg_hover);
+            crate::gfx::make_rounded_panel(bw, bh, br, theme.taskbar.apps.hover_bg);
         let block_active =
-            crate::gfx::make_rounded_panel(bw, bh, br, theme.colors.applet_bg_active);
+            crate::gfx::make_rounded_panel(bw, bh, br, theme.taskbar.apps.active_bg);
         // Minimizado: cor Coffee escuro (taskbar_bg_top) com alpha 0.6.
         let mini_color = smithay::backend::renderer::Color32F::new(
             theme.colors.taskbar_bg_top.r(),
@@ -244,10 +262,13 @@ impl TaskbarState {
             0.6,
         );
         let block_minimized = crate::gfx::make_rounded_panel(bw, bh, br, mini_color);
-        // Indicador âmbar do bloco ativo (3px na cor accent_amber).
+        // Indicador âmbar do app ativo — linha 24×3 (default). H33.taskbar.4-5.
         let block_active_indicator = SolidColorBuffer::new(
-            (bw, theme.window_button.active_indicator_height),
-            theme.colors.accent_amber,
+            (
+                theme.taskbar.apps.indicator_width,
+                theme.taskbar.apps.indicator_height,
+            ),
+            theme.taskbar.apps.indicator_color,
         );
         Self {
             background,
@@ -310,6 +331,7 @@ impl TaskbarState {
             hovered_block: None,
             order: Vec::new(),
             output_name: None,
+            fallback_icon_cache: std::collections::HashMap::new(),
         }
     }
 
@@ -447,6 +469,46 @@ impl TaskbarState {
     }
 }
 
+/// Hash DJB2 do nome → cor de fallback dentre as 6 da paleta Golden Hour.
+/// Determinístico (mesmo nome → mesma cor) e visualmente distribuído.
+/// H33.taskbar.4.
+fn fallback_color_for(name: &str) -> smithay::backend::renderer::Color32F {
+    let theme = crate::theme::current();
+    let palette = [
+        theme.colors.hover_close,    // Coral #D97757
+        theme.colors.accent_amber,   // Amber #E89B3D
+        theme.colors.hover_maximize, // Sage  #6B8E7F
+        theme.colors.hover_minimize, // Honey #F5D5A8
+        theme.colors.text_primary,   // Cream #FBF6EE
+        theme.colors.applet_bg_active, // Coffee+ #3D2520
+    ];
+    let mut hash: u32 = 5381;
+    for b in name.bytes() {
+        hash = hash.wrapping_mul(33).wrapping_add(b as u32);
+    }
+    palette[(hash as usize) % palette.len()]
+}
+
+/// Pega (ou cria + cacheia) o buffer de fallback do app `name` —
+/// quadrado `icon_size × icon_size` cor `fallback_color_for(name)` com
+/// cantos arredondados. H33.taskbar.4.
+pub fn fallback_icon_for(
+    state: &mut TaskbarState,
+    name: &str,
+) -> MemoryRenderBuffer {
+    if let Some(buf) = state.fallback_icon_cache.get(name) {
+        return buf.clone();
+    }
+    let size = app_icon_size();
+    let radius = app_icon_corner_radius();
+    let color = fallback_color_for(name);
+    let buf = crate::gfx::make_rounded_panel(size, size, radius, color);
+    state
+        .fallback_icon_cache
+        .insert(name.to_string(), buf.clone());
+    buf
+}
+
 /// Helper genérico pra rasterizar texto e empacotar em (buffer, size).
 /// `None` se o renderer devolveu buffer vazio (texto vazio ou erro).
 fn rasterize_text(
@@ -480,10 +542,15 @@ fn truncate_with_ellipsis(s: &str, max_chars: usize) -> String {
     out
 }
 
-// Blocos viraram pílulas Memory; consts antigas (BLOCK_SIZE etc) saíram.
+// Blocos viraram quadrados 44×44 KDE-style em H33.taskbar.4.
 
+/// X inicial dos botões de app (zona C). Vem depois do launcher, do
+/// divider e do gap antes do divider que separa launcher do resto.
+/// H33.taskbar.4.
 pub fn blocks_start_x() -> i32 {
-    padding_left() + launcher_width() + gap_between_applets()
+    let t = &crate::theme::current().taskbar.launcher;
+    // launcher | divider_gap | divider | gap_between_applets
+    padding_left() + launcher_width() + t.divider_gap_left + 1 + gap_between_applets()
 }
 
 /// Mesmo que `blocks_start_x` mas incluindo a largura do pager quando

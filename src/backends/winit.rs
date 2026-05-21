@@ -246,23 +246,35 @@ pub fn init_winit(
                     .map(Some)
                     .collect();
                 let n_windows = window_surfaces.len();
-                // Resolve ícone de cada janela na taskbar via app_id (xdg).
-                // Faz uma vez por frame — busca é O(n_apps * n_windows), mas
-                // ambos são pequenos (16 apps × 8 janelas). Cache se virar gargalo.
-                let taskbar_icons: Vec<Option<crate::apps::AppIcon>> = window_surfaces
+                // Resolve app_id + ícone de cada janela na taskbar. H33.taskbar.4:
+                // app_id também coletado pra gerar fallback colorido por hash
+                // quando não tem ícone do `.desktop`.
+                let taskbar_app_ids: Vec<String> = window_surfaces
                     .iter()
                     .map(|opt| {
-                        let surface = opt.as_ref()?;
-                        let app_id = smithay::wayland::compositor::with_states(surface, |states| {
+                        let Some(surface) = opt.as_ref() else { return String::new() };
+                        smithay::wayland::compositor::with_states(surface, |states| {
                             states
                                 .data_map
                                 .get::<smithay::wayland::shell::xdg::XdgToplevelSurfaceData>()
-                                .and_then(|d| d.lock().unwrap().app_id.clone())
-                        })?;
+                                .and_then(|d| {
+                                    let g = d.lock().unwrap();
+                                    g.app_id.clone().or_else(|| g.title.clone())
+                                })
+                        })
+                        .unwrap_or_default()
+                    })
+                    .collect();
+                let taskbar_icons: Vec<Option<crate::apps::AppIcon>> = taskbar_app_ids
+                    .iter()
+                    .map(|app_id| {
+                        if app_id.is_empty() {
+                            return None;
+                        }
                         crate::apps::find_icon_for_app_id(
                             &data.state.apps,
                             &data.state.app_icons,
-                            &app_id,
+                            app_id,
                         )
                         .cloned()
                     })
@@ -351,6 +363,16 @@ pub fn init_winit(
                     &minimized,
                     workspace_count,
                 );
+                // H33.taskbar.4: pre-gera buffers de fallback (quadrado
+                // colorido por hash do nome) pros apps sem ícone do
+                // `.desktop` resolvido. Cacheia no TaskbarState pra reuso.
+                let taskbar_fallbacks: Vec<MemoryRenderBuffer> = taskbar_app_ids
+                    .iter()
+                    .map(|app_id| {
+                        let key: &str = if app_id.is_empty() { "?" } else { app_id };
+                        crate::taskbar::fallback_icon_for(&mut data.state.taskbar, key)
+                    })
+                    .collect();
                 // Clone do gradient bg pra evitar borrow conflict com
                 // renderer durante o render (Arc internamente, cheap).
                 let taskbar_bg = data.state.taskbar.background.clone();
@@ -1667,11 +1689,13 @@ pub fn init_winit(
                             }
                         }
 
-                        // H33.taskbar.1: window list legada (pílulas com título)
-                        // desativada. Substituída por quadrados KDE-style 44×44
-                        // com tooltip em B.4-B.6. Mantemos o cálculo pra não
-                        // quebrar o resto do frame; o render fica sob `if false`.
-                        let theme = crate::theme::current();
+                        // H33.taskbar.4: quadrados KDE-style 44×44. Cada app
+                        // aberto é um botão; ícone 32px centralizado dentro.
+                        // App ativo recebe bg `active_bg`, hover recebe
+                        // `hover_bg`, inativo não tem bg. Minimizado fica
+                        // com alpha reduzido. Indicador âmbar do ativo
+                        // (linha 24×3) vem em B.5 via render_solid_elements.
+                        let _ = &taskbar_titles; // título inline saiu, vai virar tooltip em B.6
                         let start_x = crate::taskbar::blocks_start_x_with_pager(
                             data.state.workspaces.count(),
                         );
@@ -1680,94 +1704,71 @@ pub fn init_winit(
                         let bh = crate::taskbar::block_height();
                         let bsp = crate::taskbar::block_spacing();
                         let block_top = bar_y + (crate::taskbar::taskbar_height() - bh) / 2;
-                        let icon_size_px: i32 = theme.window_button.icon_size;
-                        let icon_y_offset = (bh - icon_size_px) / 2;
-                        let _ = (&taskbar_icons, &taskbar_titles, &block_states,
-                                 &block_inactive, &block_hover, &block_active,
-                                 &block_minimized, start_x, bw, bh, bsp, block_top,
-                                 icon_size_px, icon_y_offset);
-                        if false {
-                        // Ícones primeiro (vão em cima das pílulas no z-stack
-                        // pq são pushed antes — Smithay renderiza fim→começo).
-                        // H32.5.8: alpha 0.5 quando minimizado (default 1.0).
-                        for (i, slot) in taskbar_icons.iter().enumerate() {
-                            let Some((icon, src_size)) = slot else { continue };
-                            let alpha = match block_states.get(i) {
-                                Some(crate::taskbar::BlockState::Minimized) => Some(0.5),
+                        let icon_size_px: i32 = crate::taskbar::app_icon_size();
+                        let icon_inset = (bw - icon_size_px) / 2;
+                        // Ícones primeiro (z-stack fim→começo: ícone na frente).
+                        for (i, st) in block_states.iter().enumerate() {
+                            let alpha = match st {
+                                crate::taskbar::BlockState::Minimized => Some(0.5),
                                 _ => None,
                             };
                             let block_x = start_x + i as i32 * (bw + bsp);
-                            let icon_x = block_x + 8;
-                            let icon_y = block_top + icon_y_offset;
-                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                            let icon_x = block_x + icon_inset;
+                            let icon_y = block_top + icon_inset;
+                            let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 smithay::utils::Point::<i32, smithay::utils::Logical>::from((
                                     icon_x, icon_y,
                                 ))
                                 .to_physical_precise_round(1.0);
-                            let src_rect = smithay::utils::Rectangle::<
-                                f64,
-                                smithay::utils::Logical,
-                            >::from_size(
-                                smithay::utils::Size::<f64, smithay::utils::Logical>::from((
-                                    src_size.w as f64,
-                                    src_size.h as f64,
-                                )),
-                            );
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer,
-                                loc.to_f64(),
-                                icon,
-                                alpha,
-                                Some(src_rect),
-                                Some(smithay::utils::Size::from((icon_size_px, icon_size_px))),
-                                Kind::Unspecified,
-                            ) {
-                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            if let Some((icon_buf, src_size)) = taskbar_icons.get(i).and_then(|o| o.as_ref()) {
+                                // Ícone real escalado pra 32×32.
+                                let src_rect = smithay::utils::Rectangle::<
+                                    f64,
+                                    smithay::utils::Logical,
+                                >::from_size(
+                                    smithay::utils::Size::<f64, smithay::utils::Logical>::from((
+                                        src_size.w as f64,
+                                        src_size.h as f64,
+                                    )),
+                                );
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    iloc.to_f64(),
+                                    icon_buf,
+                                    alpha,
+                                    Some(src_rect),
+                                    Some(smithay::utils::Size::from((icon_size_px, icon_size_px))),
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                            } else if let Some(fb) = taskbar_fallbacks.get(i) {
+                                // Fallback colorido por hash do nome do app.
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    iloc.to_f64(),
+                                    fb,
+                                    alpha,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
                             }
                         }
-                        // Títulos das janelas, à direita do ícone (8px de gap).
-                        // Pushed antes das pílulas pra ficar em CIMA delas.
-                        // H32.5.8: alpha 0.4 quando minimizado.
-                        let icon_text_gap = theme.window_button.icon_text_gap;
-                        for (i, slot) in taskbar_titles.iter().enumerate() {
-                            let Some(cache) = slot else { continue };
-                            let alpha = match block_states.get(i) {
-                                Some(crate::taskbar::BlockState::Minimized) => Some(0.4),
-                                _ => None,
-                            };
-                            let block_x = start_x + i as i32 * (bw + bsp);
-                            let title_x = block_x + 8 + icon_size_px + icon_text_gap;
-                            let title_y =
-                                block_top + (bh - cache.size.h) / 2;
-                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                    title_x, title_y,
-                                ))
-                                .to_physical_precise_round(1.0);
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer,
-                                loc.to_f64(),
-                                &cache.buffer,
-                                alpha,
-                                None,
-                                None,
-                                Kind::Unspecified,
-                            ) {
-                                custom_elements.push(LumaRenderElement::Memory(elem));
-                            }
-                        }
-
-                        // Pílulas dos blocos (depois dos ícones = atrás deles).
-                        // Estado define qual das 4 texturas usar.
+                        // Bg dos botões (atrás dos ícones). Pula Inactive
+                        // (sem bg). Hover e Active têm texturas próprias;
+                        // Minimized usa block_minimized.
                         for (i, st) in block_states.iter().enumerate() {
                             let block_tex = match st {
-                                crate::taskbar::BlockState::Inactive => &block_inactive,
+                                crate::taskbar::BlockState::Inactive => continue,
                                 crate::taskbar::BlockState::Hover => &block_hover,
                                 crate::taskbar::BlockState::Active => &block_active,
                                 crate::taskbar::BlockState::Minimized => &block_minimized,
                             };
                             let block_x = start_x + i as i32 * (bw + bsp);
-                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                            let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 smithay::utils::Point::<i32, smithay::utils::Logical>::from((
                                     block_x, block_top,
                                 ))
@@ -1783,7 +1784,7 @@ pub fn init_winit(
                             );
                             if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
                                 renderer,
-                                loc.to_f64(),
+                                bloc.to_f64(),
                                 block_tex,
                                 None,
                                 Some(src_rect),
@@ -1793,7 +1794,7 @@ pub fn init_winit(
                                 custom_elements.push(LumaRenderElement::Memory(elem));
                             }
                         }
-                        } // fim do `if false` da H33.taskbar.1 (window list legada)
+                        let _ = &block_inactive; // unused após H33.taskbar.4
 
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));

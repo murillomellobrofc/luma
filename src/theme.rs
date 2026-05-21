@@ -263,6 +263,31 @@ pub struct TaskbarTokens {
     pub border_top_height: i32,
     /// Sub-tokens do launcher (zona A). H33.taskbar.3.
     pub launcher: TaskbarLauncherTokens,
+    /// Sub-tokens da zona C (apps abertos). H33.taskbar.4.
+    pub apps: TaskbarAppsTokens,
+}
+
+/// Sub-tokens da zona C (apps abertos) — botões quadrados KDE-style.
+/// H33.taskbar.4.
+///
+/// Cada app aberto vira um quadrado 44×44 com ícone 32px do `.desktop`
+/// dentro (ou fallback colorido por hash do nome quando o `.desktop` Icon
+/// não pôde ser resolvido). App ativo recebe bg `active_bg` + linha âmbar
+/// 24×3 embaixo (commit B.5).
+#[derive(Debug, Clone)]
+pub struct TaskbarAppsTokens {
+    pub button_size: i32,
+    pub button_corner_radius: i32,
+    pub icon_size: i32,
+    pub icon_corner_radius: i32,
+    pub gap: i32,
+    pub active_bg: Color32F,
+    pub hover_bg: Color32F,
+    pub indicator_color: Color32F,
+    pub indicator_width: i32,
+    pub indicator_height: i32,
+    /// Delay (ms) antes do tooltip aparecer no hover (commit B.6).
+    pub tooltip_delay_ms: u32,
 }
 
 /// Sub-tokens da zona A (launcher) na taskbar v5. H33.taskbar.3.
@@ -1172,6 +1197,28 @@ impl Default for TaskbarTokens {
             applet_corner_radius: 9,
             border_top_height: 2,
             launcher: TaskbarLauncherTokens::default(),
+            apps: TaskbarAppsTokens::default(),
+        }
+    }
+}
+
+impl Default for TaskbarAppsTokens {
+    fn default() -> Self {
+        Self {
+            button_size: 44,
+            button_corner_radius: 9,
+            icon_size: 32,
+            icon_corner_radius: 6,
+            gap: 8,
+            // #3D2520 — applet_bg_active.
+            active_bg: hex_color("#3D2520", 1.0),
+            // #2A1F1A — applet_bg.
+            hover_bg: hex_color("#2A1F1A", 1.0),
+            // Âmbar Golden Hour.
+            indicator_color: hex_color("#E89B3D", 1.0),
+            indicator_width: 24,
+            indicator_height: 3,
+            tooltip_delay_ms: 500,
         }
     }
 }
@@ -1682,6 +1729,22 @@ struct TaskbarTokensFile {
     applet_corner_radius: Option<i32>,
     border_top_height: Option<i32>,
     launcher: Option<TaskbarLauncherTokensFile>,
+    apps: Option<TaskbarAppsTokensFile>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct TaskbarAppsTokensFile {
+    button_size: Option<i32>,
+    button_corner_radius: Option<i32>,
+    icon_size: Option<i32>,
+    icon_corner_radius: Option<i32>,
+    gap: Option<i32>,
+    active_bg: Option<String>,
+    hover_bg: Option<String>,
+    indicator_color: Option<String>,
+    indicator_width: Option<i32>,
+    indicator_height: Option<i32>,
+    tooltip_delay_ms: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2226,6 +2289,10 @@ impl TaskbarTokensFile {
             .launcher
             .map(|l| l.into_tokens(&def.launcher))
             .unwrap_or_else(|| def.launcher.clone());
+        let apps = self
+            .apps
+            .map(|a| a.into_tokens(&def.apps))
+            .unwrap_or_else(|| def.apps.clone());
         TaskbarTokens {
             height: self.height.unwrap_or(def.height),
             padding_left: self.padding_left.unwrap_or(def.padding_left),
@@ -2238,6 +2305,41 @@ impl TaskbarTokensFile {
                 .unwrap_or(def.applet_corner_radius),
             border_top_height: self.border_top_height.unwrap_or(def.border_top_height),
             launcher,
+            apps,
+        }
+    }
+}
+
+impl TaskbarAppsTokensFile {
+    fn into_tokens(self, def: &TaskbarAppsTokens) -> TaskbarAppsTokens {
+        TaskbarAppsTokens {
+            button_size: self.button_size.unwrap_or(def.button_size),
+            button_corner_radius: self
+                .button_corner_radius
+                .unwrap_or(def.button_corner_radius),
+            icon_size: self.icon_size.unwrap_or(def.icon_size),
+            icon_corner_radius: self
+                .icon_corner_radius
+                .unwrap_or(def.icon_corner_radius),
+            gap: self.gap.unwrap_or(def.gap),
+            active_bg: self
+                .active_bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.active_bg),
+            hover_bg: self
+                .hover_bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.hover_bg),
+            indicator_color: self
+                .indicator_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.indicator_color),
+            indicator_width: self.indicator_width.unwrap_or(def.indicator_width),
+            indicator_height: self.indicator_height.unwrap_or(def.indicator_height),
+            tooltip_delay_ms: self.tooltip_delay_ms.unwrap_or(def.tooltip_delay_ms),
         }
     }
 }
