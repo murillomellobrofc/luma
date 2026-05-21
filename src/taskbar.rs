@@ -55,9 +55,6 @@ pub fn gap_between_applets() -> i32 {
     crate::theme::current().taskbar.gap_between_applets
 }
 
-/// Espaço vertical livre de cada lado do bloco dentro da barra.
-pub const BLOCK_PADDING: i32 = 4;
-
 /// Largura máxima do botão de janela na taskbar (pílula). Default 220.
 pub fn block_width() -> i32 {
     crate::theme::current().taskbar.apps.button_size
@@ -83,12 +80,6 @@ pub fn app_icon_corner_radius() -> i32 {
     crate::theme::current().taskbar.apps.icon_corner_radius
 }
 
-/// Border-radius (px) dos applets — pílula do window button, container do
-/// launcher, etc. Default 9 (era 6 pré-H33).
-pub fn applet_corner_radius() -> i32 {
-    crate::theme::current().taskbar.applet_corner_radius
-}
-
 /// Espaçamento horizontal entre botões de app. H33.taskbar.4.
 pub fn block_spacing() -> i32 {
     crate::theme::current().taskbar.apps.gap
@@ -96,12 +87,6 @@ pub fn block_spacing() -> i32 {
 
 /// Tamanho da fonte do relógio (HH:MM no canto direito).
 const CLOCK_LABEL_SIZE: f32 = 16.0;
-
-/// Margem direita do relógio dentro da taskbar (espaço entre fim do
-/// relógio e show-desktop).
-pub fn clock_padding_right() -> i32 {
-    crate::theme::current().clock.padding_right
-}
 
 /// Largura do botão "Mostrar área de trabalho" no canto direito.
 /// H33.taskbar.F.16: botão quadrado `size` (default 44). Antes era
@@ -112,35 +97,6 @@ pub fn show_desktop_width() -> i32 {
 }
 
 // Cores agora vêm de `crate::theme::current()`.
-
-/// 6 zonas da taskbar v5 (H33.taskbar.2). Layout:
-///
-/// ```text
-/// [A]│[B B B]│[C C C C ...]          [D][E][F]
-///  ^---- grupo ESQUERDO ----^         ^-- DIREITO --^
-/// ```
-///
-/// - Grupo esquerdo ancora em `padding_left`, cresce pra direita.
-/// - Grupo direito (D/E/F) ancora na borda direita, cresce pra esquerda,
-///   3 zonas grudadas (`right_group.gap_between_zones`).
-///
-/// As funções `zone_bounds_*` em `taskbar.rs` (commits A.3+) calculam
-/// posição e tamanho de cada zona dinamicamente.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TaskbarZone {
-    /// A — Launcher (logo Luma). 44×44.
-    Launcher,
-    /// B — Workspaces pager. Quadrados 32×32 numerados (escondido se 1 ws).
-    Workspaces,
-    /// C — Apps abertos. Quadrados 44×44 com ícone 32px.
-    Apps,
-    /// D — System tray (battery, wifi, volume, notifications).
-    SystemTray,
-    /// E — Clock (hora Fraunces + data Manrope).
-    Clock,
-    /// F — Show desktop (botão 44×44).
-    ShowDesktop,
-}
 
 /// Resultado do hit-test na taskbar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,7 +119,6 @@ pub struct TitleCache {
 /// rasterizado + tamanho do bg (pra posicionar). H33.taskbar.6.
 #[derive(Debug, Clone)]
 pub struct TooltipCache {
-    pub text: String,
     pub bg: MemoryRenderBuffer,
     pub label: MemoryRenderBuffer,
     pub bg_size: Size<i32, Logical>,
@@ -637,7 +592,6 @@ pub fn ensure_tooltip(
     state.tooltip_cache.insert(
         text.to_string(),
         TooltipCache {
-            text: text.to_string(),
             bg,
             label,
             bg_size: Size::from((bg_w, bg_h)),

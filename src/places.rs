@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tracing::{info, warn};
+use tracing::info;
 
 /// Atalho da coluna direita do menu (Documentos / Downloads / etc).
 #[derive(Debug, Clone)]
@@ -44,12 +44,3 @@ pub fn load() -> Vec<Place> {
     places
 }
 
-/// Abre o `target` via xdg-open em background. Spawn falha (xdg-open
-/// não instalado, sem permissão) só loga warn.
-pub fn open(target: &str) {
-    info!("xdg-open {target}");
-    let _ = std::process::Command::new("xdg-open")
-        .arg(target)
-        .spawn()
-        .map_err(|e| warn!("erro xdg-open {target}: {e}"));
-}

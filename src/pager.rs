@@ -187,8 +187,3 @@ pub fn hit_test(
     None
 }
 
-/// Tamanho do item do pager (uso externo, ex.: hit-tests). H33.taskbar.7.
-pub fn item_size() -> Size<i32, Logical> {
-    let t = &crate::theme::current().workspaces;
-    Size::from((t.pager_item_size, t.pager_item_size))
-}

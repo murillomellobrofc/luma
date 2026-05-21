@@ -28,13 +28,11 @@ pub mod layout {
     /// Search bar (centro): pill 64×500 com margin_top do topo.
     pub const SEARCH_W: i32 = 500;
     pub const SEARCH_H: i32 = 64;
-    pub const SEARCH_MARGIN_TOP: i32 = 130;
 
     /// Grid de favoritos: 5 cols × 2 rows × 80px + gaps 60px + label 32.
     /// Total ≈ 5*80 + 4*60 = 640 wide, 2*80 + 60 + 2*32 = 284 alto.
     pub const FAV_GRID_W: i32 = 640;
     pub const FAV_GRID_H: i32 = 284;
-    pub const FAV_GRID_MARGIN_TOP: i32 = 240;
 
     /// Link "TODOS OS APPS →": entre grid e session bar.
     pub const ALL_APPS_LINK_W: i32 = 280;
