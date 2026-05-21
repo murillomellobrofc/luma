@@ -1,0 +1,119 @@
+<svg viewBox="0 0 1280 1180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="taskbarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3A4A5C"/>
+      <stop offset="100%" stop-color="#5C6B7A"/>
+    </linearGradient>
+    <linearGradient id="artGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D97757"/>
+      <stop offset="100%" stop-color="#E89B3D"/>
+    </linearGradient>
+    <filter id="osdShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1180" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Media OSD</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Shown when a media key is pressed. Different layout: now playing + controls.</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — SCREEN POSITION (centered, same as volume/brightness OSD)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="420" fill="url(#wallGrad)" rx="12"/>
+
+    <!-- media OSD card, centered. card 360x108, center 580,200 -> x=400,y=146 -->
+    <g transform="translate(400, 146)" filter="url(#osdShadow)">
+      <rect width="360" height="108" fill="#1F1611" rx="18"/>
+
+      <!-- album art -->
+      <rect x="16" y="16" width="76" height="76" rx="10" fill="url(#artGrad)"/>
+      <path d="M 44 64 a 7 7 0 1 0 0.1 0 M 51 57 L 51 38 L 66 34 L 66 52" fill="none" stroke="#1F1611" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- track info -->
+      <text x="108" y="42" font-family="system-ui, sans-serif" font-size="14" fill="#FBF6EE" font-weight="600">Midnight City</text>
+      <text x="108" y="62" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92">M83</text>
+
+      <!-- controls -->
+      <g transform="translate(108, 74)">
+        <!-- previous -->
+        <g transform="translate(0, 0)">
+          <path d="M 12 4 L 4 11 L 12 18 Z M 3 4 L 3 18" fill="#FBF6EE" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        </g>
+        <!-- play/pause (highlighted) -->
+        <g transform="translate(36, 0)">
+          <circle cx="11" cy="11" r="15" fill="#E89B3D"/>
+          <rect x="6" y="4" width="4" height="14" rx="1" fill="#1F1611"/>
+          <rect x="13" y="4" width="4" height="14" rx="1" fill="#1F1611"/>
+        </g>
+        <!-- next -->
+        <g transform="translate(82, 0)">
+          <path d="M 3 4 L 11 11 L 3 18 Z M 12 4 L 12 18" fill="#FBF6EE" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        </g>
+      </g>
+
+      <!-- progress bar -->
+      <rect x="200" y="80" width="144" height="4" rx="2" fill="#3D2520"/>
+      <rect x="200" y="80" width="86" height="4" rx="2" fill="#E89B3D"/>
+    </g>
+
+    <g transform="translate(0, 356)">
+      <rect width="1160" height="64" fill="url(#taskbarGrad)"/>
+      <rect width="1160" height="2" fill="#E89B3D" opacity="0.5"/>
+      <circle cx="34" cy="32" r="14" fill="#3D2520"/>
+    </g>
+
+    <text x="580" y="300" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.85">centered, same position as the volume/brightness OSD</text>
+  </g>
+
+  <text x="60" y="636" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — ANATOMY</text>
+
+  <g transform="translate(60, 660)">
+    <rect width="1160" height="220" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="42" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Card ~360x108. Not a percentage bar — a "now playing" panel.</text>
+
+    <text x="30" y="80" font-family="monospace" font-size="12" fill="#E89B3D" font-weight="700">ALBUM ART</text>
+    <text x="200" y="80" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">76x76, left side. Real cover if available, else a music-note placeholder.</text>
+
+    <text x="30" y="114" font-family="monospace" font-size="12" fill="#D97757" font-weight="700">TRACK INFO</text>
+    <text x="200" y="114" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Title (cream, bold) + artist (grey). Truncate with ellipsis if long.</text>
+
+    <text x="30" y="148" font-family="monospace" font-size="12" fill="#6B8E7F" font-weight="700">CONTROLS</text>
+    <text x="200" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Previous, play/pause (amber circle, highlighted), next. All clickable.</text>
+
+    <text x="30" y="182" font-family="monospace" font-size="12" fill="#E89B3D" font-weight="700">PROGRESS</text>
+    <text x="200" y="182" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Thin bar showing track position. Amber fill. Not draggable for now.</text>
+
+    <text x="30" y="210" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Play/pause icon swaps to a play triangle when paused.</text>
+  </g>
+
+  <text x="60" y="926" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — BEHAVIOR & TOKENS</text>
+
+  <g transform="translate(60, 950)">
+    <rect width="560" height="180" fill="#2A2520" rx="8"/>
+    <text x="28" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Appears on a media key (play/pause, next, previous)</text>
+    <text x="28" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Reads track info via MPRIS (the Linux media standard)</text>
+    <text x="28" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Buttons are clickable, not just display</text>
+    <text x="28" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Stays ~3s (longer than vol/bright — there is more to read)</text>
+    <text x="28" y="152" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Smooth fade-out, no focus steal, no click block</text>
+  </g>
+
+  <g transform="translate(660, 950)">
+    <rect width="560" height="180" fill="#1F1611" rx="8"/>
+    <text x="28" y="36" font-family="monospace" font-size="11" fill="#A89D92">[osd.media]</text>
+    <text x="28" y="58" font-family="monospace" font-size="11" fill="#FBF6EE">width          = <tspan fill="#E89B3D">360</tspan></text>
+    <text x="28" y="76" font-family="monospace" font-size="11" fill="#FBF6EE">height         = <tspan fill="#E89B3D">108</tspan></text>
+    <text x="28" y="94" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius  = <tspan fill="#E89B3D">18</tspan></text>
+    <text x="28" y="112" font-family="monospace" font-size="11" fill="#FBF6EE">art_size       = <tspan fill="#E89B3D">76</tspan></text>
+    <text x="28" y="130" font-family="monospace" font-size="11" fill="#FBF6EE">timeout_ms     = <tspan fill="#E89B3D">3000</tspan></text>
+    <text x="28" y="148" font-family="monospace" font-size="11" fill="#FBF6EE">play_btn_bg    = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="28" y="166" font-family="monospace" font-size="11" fill="#FBF6EE">progress_fill  = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+  </g>
+</svg>
