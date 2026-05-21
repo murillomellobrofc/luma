@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/branding/luma-logo.svg" alt="Luma" width="480">
+  <img src="assets/branding/luma-logo.svg" alt="Luma" width="640">
 </div>
 
 # Luma
