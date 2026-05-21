@@ -112,6 +112,8 @@ pub struct Theme {
     pub popup: PopupTokens,
     /// Layout/cores do OSD centralizado (volume + brilho). H45.osd.
     pub osd: OsdTokens,
+    /// Layout/cores do OSD de mídia (now playing). H46.osd-media.
+    pub osd_media: OsdMediaTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -970,6 +972,7 @@ impl Default for Theme {
             clock: ClockTokens::default(),
             popup: PopupTokens::default(),
             osd: OsdTokens::default(),
+            osd_media: OsdMediaTokens::default(),
         }
     }
 }
@@ -1562,6 +1565,42 @@ impl Default for PopupSliderTokens {
     }
 }
 
+/// Tokens do OSD de mídia (now playing card). H46.osd-media.
+///
+/// Card 360×108 com arte à esquerda, título/artista + 3 controles
+/// + barra de progresso à direita. Fade-out suave nos últimos
+/// `fade_ms` antes do dismiss.
+#[derive(Debug, Clone)]
+pub struct OsdMediaTokens {
+    pub width: i32,
+    pub height: i32,
+    pub corner_radius: i32,
+    pub bg: Color32F,
+    /// Lado do quadrado de arte de álbum.
+    pub art_size: i32,
+    /// Padding interno em volta de tudo.
+    pub padding: i32,
+    pub title_color: Color32F,
+    pub title_size: f32,
+    pub artist_color: Color32F,
+    pub artist_size: f32,
+    /// Cor de fundo do botão play/pause (highlight do controle central).
+    pub play_btn_bg: Color32F,
+    /// Diâmetro do círculo do botão play/pause.
+    pub play_btn_size: i32,
+    /// Diâmetro dos botões prev/next (sem fundo, só icone).
+    pub side_btn_size: i32,
+    /// Cor dos ícones dos controles (todos: prev, play, pause, next).
+    pub control_color: Color32F,
+    pub progress_bg: Color32F,
+    pub progress_fill: Color32F,
+    pub progress_height: i32,
+    /// Duração total de visibilidade em ms (timeout).
+    pub timeout_ms: u64,
+    /// Janela de fade-out dentro do timeout (últimos `fade_ms` em ms).
+    pub fade_ms: u64,
+}
+
 impl Default for OsdTokens {
     fn default() -> Self {
         Self {
@@ -1580,6 +1619,32 @@ impl Default for OsdTokens {
             text_color: hex_color("#FBF6EE", 1.0),      // cream
             text_size: 13.0,
             dismiss_ms: 1500,
+        }
+    }
+}
+
+impl Default for OsdMediaTokens {
+    fn default() -> Self {
+        Self {
+            width: 360,
+            height: 108,
+            corner_radius: 18,
+            bg: hex_color("#1F1611", 0.95),
+            art_size: 76,
+            padding: 12,
+            title_color: hex_color("#FBF6EE", 1.0),       // cream
+            title_size: 14.0,
+            artist_color: hex_color("#A89D92", 1.0),      // text_secondary
+            artist_size: 11.0,
+            play_btn_bg: hex_color("#E89B3D", 1.0),       // accent_amber
+            play_btn_size: 30,
+            side_btn_size: 22,
+            control_color: hex_color("#FBF6EE", 1.0),     // cream
+            progress_bg: hex_color("#3D2520", 1.0),       // applet_bg_active
+            progress_fill: hex_color("#E89B3D", 1.0),     // accent_amber
+            progress_height: 3,
+            timeout_ms: 3000,
+            fade_ms: 200,
         }
     }
 }
@@ -2347,6 +2412,7 @@ impl ThemeFile {
             clock,
             popup: default.popup.clone(),
             osd: default.osd.clone(),
+            osd_media: default.osd_media.clone(),
         }
     }
 }
