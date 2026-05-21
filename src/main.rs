@@ -6,6 +6,7 @@ mod backends;
 mod context_menu;
 mod cursor;
 mod decoration;
+mod desktop_icons;
 mod gfx;
 mod handlers;
 mod input;

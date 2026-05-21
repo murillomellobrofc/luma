@@ -1,0 +1,139 @@
+<svg viewBox="0 0 1280 1240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#3D2520"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="1240" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Ícones de Arquivo no Desktop</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Fase 1: ler a pasta ~/Desktop e desenhar cada arquivo como ícone</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <!-- ===== 1. RESULTADO ===== -->
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — RESULTADO (ícones aparecem na área de trabalho)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="440" fill="url(#wall)" rx="12"/>
+
+    <!-- grid de ícones, canto superior esquerdo -->
+    <g transform="translate(40, 40)">
+      <!-- icone 1: pasta -->
+      <g transform="translate(0, 0)">
+        <rect x="6" y="0" width="84" height="84" rx="10" fill="#FBF6EE" opacity="0.06"/>
+        <g transform="translate(24, 22)">
+          <path d="M 0 6 L 0 38 L 48 38 L 48 12 L 22 12 L 16 6 Z" fill="#E89B3D"/>
+          <path d="M 0 6 L 16 6 L 22 12 L 0 12 Z" fill="#F5D5A8"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">Documentos</text>
+      </g>
+      <!-- icone 2: imagem -->
+      <g transform="translate(120, 0)">
+        <g transform="translate(24, 18)">
+          <rect x="0" y="0" width="48" height="40" rx="4" fill="#6B8E7F"/>
+          <circle cx="14" cy="13" r="5" fill="#F5D5A8"/>
+          <path d="M 4 36 L 18 22 L 28 30 L 40 16 L 44 36 Z" fill="#1F1611" opacity="0.4"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">foto.png</text>
+      </g>
+      <!-- icone 3: arquivo de texto -->
+      <g transform="translate(240, 0)">
+        <g transform="translate(28, 14)">
+          <path d="M 0 0 L 28 0 L 40 12 L 40 52 L 0 52 Z" fill="#FBF6EE"/>
+          <path d="M 28 0 L 28 12 L 40 12 Z" fill="#A89D92"/>
+          <line x1="8" y1="22" x2="32" y2="22" stroke="#8B7D72" stroke-width="2"/>
+          <line x1="8" y1="30" x2="32" y2="30" stroke="#8B7D72" stroke-width="2"/>
+          <line x1="8" y1="38" x2="24" y2="38" stroke="#8B7D72" stroke-width="2"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">notas.txt</text>
+      </g>
+      <!-- icone 4: arquivo generico -->
+      <g transform="translate(0, 120)">
+        <g transform="translate(28, 14)">
+          <path d="M 0 0 L 28 0 L 40 12 L 40 52 L 0 52 Z" fill="#C9BDB0"/>
+          <path d="M 28 0 L 28 12 L 40 12 Z" fill="#8B7D72"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">arquivo.zip</text>
+      </g>
+      <!-- icone 5: app/executavel -->
+      <g transform="translate(120, 120)">
+        <g transform="translate(26, 16)">
+          <circle cx="22" cy="22" r="22" fill="#D97757"/>
+          <path d="M 14 14 L 32 22 L 14 30 Z" fill="#FBF6EE"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">jogo</text>
+      </g>
+      <!-- icone 6: nome longo -->
+      <g transform="translate(240, 120)">
+        <g transform="translate(24, 22)">
+          <path d="M 0 6 L 0 38 L 48 38 L 48 12 L 22 12 L 16 6 Z" fill="#E89B3D"/>
+          <path d="M 0 6 L 16 6 L 22 12 L 0 12 Z" fill="#F5D5A8"/>
+        </g>
+        <text x="48" y="100" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" text-anchor="middle">projeto-mui…</text>
+      </g>
+    </g>
+
+    <text x="580" y="416" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.7">os ícones ocupam um grid no canto superior esquerdo, alinhados</text>
+  </g>
+
+  <!-- ===== 2. ANATOMIA DE UM ICONE ===== -->
+  <text x="60" y="656" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — ANATOMIA DE UM ÍCONE</text>
+
+  <g transform="translate(60, 680)">
+    <rect width="1160" height="220" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <!-- icone ampliado -->
+    <g transform="translate(60, 40)">
+      <rect width="140" height="140" rx="12" fill="#3D2520"/>
+      <g transform="translate(38, 30)">
+        <path d="M 0 10 L 0 56 L 64 56 L 64 18 L 30 18 L 22 10 Z" fill="#E89B3D"/>
+        <path d="M 0 10 L 22 10 L 30 18 L 0 18 Z" fill="#F5D5A8"/>
+      </g>
+      <text x="70" y="118" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle">Documentos</text>
+    </g>
+
+    <!-- linhas guia -->
+    <g stroke="#D97757" stroke-width="1" stroke-dasharray="3 3">
+      <line x1="200" y1="70" x2="320" y2="70"/>
+      <line x1="200" y1="118" x2="320" y2="118"/>
+      <line x1="200" y1="158" x2="320" y2="158"/>
+    </g>
+    <text x="335" y="74" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Ícone 64x64</text>
+    <text x="335" y="92" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">tipo do arquivo decide a imagem (pasta, png, txt, genérico…)</text>
+    <text x="335" y="122" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Nome do arquivo</text>
+    <text x="335" y="140" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">cor cream, centralizado abaixo. Nome longo corta com reticências</text>
+    <text x="335" y="162" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Célula da grade</text>
+    <text x="335" y="180" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">cada ícone ocupa uma célula fixa (~110x120), alinhado em grid</text>
+
+    <text x="720" y="50" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Tipos de arquivo (Fase 1):</text>
+    <text x="720" y="74" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Pasta → ícone de pasta âmbar</text>
+    <text x="720" y="94" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Imagem (png/jpg) → ícone de imagem</text>
+    <text x="720" y="114" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Texto (txt/md) → ícone de documento</text>
+    <text x="720" y="134" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">Resto → ícone genérico</text>
+    <text x="720" y="160" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Pode reusar o resolvedor de ícones que já existe</text>
+    <text x="720" y="176" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">(o mesmo dos apps) pra achar o ícone por tipo MIME.</text>
+  </g>
+
+  <!-- ===== 3. ESCOPO ===== -->
+  <text x="60" y="946" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — ESCOPO DESTA FASE</text>
+
+  <g transform="translate(60, 970)">
+    <rect width="565" height="200" fill="#EFEAE0" rx="8"/>
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">✓ FAZ NESTA FASE</text>
+    <text x="30" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Ler os arquivos da pasta ~/Desktop</text>
+    <text x="30" y="94" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Desenhar cada um como ícone + nome</text>
+    <text x="30" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Organizar em grid no canto sup. esquerdo</text>
+    <text x="30" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Escolher o ícone certo pelo tipo do arquivo</text>
+    <text x="30" y="166" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Atualizar se a pasta muda (arquivo novo aparece)</text>
+
+    <rect x="595" width="565" height="200" fill="#2A1F1A" rx="8"/>
+    <text x="625" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#F5D5A8" font-weight="700">✗ FICA PRAS PRÓXIMAS FASES</text>
+    <text x="625" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Selecionar ícone (clique, caixa de seleção)</text>
+    <text x="625" y="94" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Arrastar / mover ícone</text>
+    <text x="625" y="118" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Duplo clique pra abrir</text>
+    <text x="625" y="142" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Criar / colar / recortar</text>
+    <text x="625" y="166" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Estas acendem os 4 itens dim do menu de contexto</text>
+  </g>
+</svg>
