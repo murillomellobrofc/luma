@@ -2242,6 +2242,23 @@ pub fn init_winit(
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));
 
+                        // H44.volume.17: live refresh -- enquanto popup aberto,
+                        // re-lista devices/streams a cada 1s pra refletir
+                        // mudanças externas (ex: outro app mudando volume).
+                        if data.state.applet_popup.is_some() {
+                            let stale = data
+                                .state
+                                .audio_last_refresh
+                                .map(|t| t.elapsed() >= std::time::Duration::from_secs(1))
+                                .unwrap_or(true);
+                            if stale {
+                                let (sinks, sources) = crate::audio::list_devices();
+                                data.state.audio_sinks = sinks;
+                                data.state.audio_sources = sources;
+                                data.state.audio_streams = crate::audio::list_streams();
+                                data.state.audio_last_refresh = Some(std::time::Instant::now());
+                            }
+                        }
                         // H44.volume.1-4: applet popup com bg gradient +
                         // tabs + slider. Tokens vêm de theme.popup.
                         // Z-stack: insert(0, ...) coloca cada item NO TOPO.
