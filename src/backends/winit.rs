@@ -481,6 +481,9 @@ pub fn init_winit(
                         _ => None,
                     }
                 };
+                // H33.taskbar.10: wifi + volume icons (placeholders visuais).
+                let wifi_render = crate::tray::ensure_wifi_icon(&mut data.state.tray);
+                let volume_render = crate::tray::ensure_volume_icon(&mut data.state.tray);
 
 
                 match backend.bind() {
@@ -1612,60 +1615,108 @@ pub fn init_winit(
                         }
 
                         // Clock 2 linhas (H32.5.10): hora 13pt cor primary
-                        // H33.taskbar.9: battery icon + label "%" antes do
-                        // clock. Posicionamento provisório (à esquerda do
-                        // clock atual com gap fixo); D.12 vai re-ancorar
-                        // no grupo direito real.
-                        if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
+                        // H33.taskbar.9-10: system tray (battery + wifi + volume).
+                        // Ordem da DIREITA pra ESQUERDA: battery[+%] | volume | wifi.
+                        // Posicionamento provisório (à esquerda do clock);
+                        // D.12 reforma pro grupo direito real.
+                        {
                             let t_sys = &crate::theme::current().taskbar.system_tray;
                             let bar_y_local =
                                 output_size_logical.h - crate::taskbar::taskbar_height();
-                            let icon_y =
-                                bar_y_local + (crate::taskbar::taskbar_height() - bat_sz.h) / 2;
-                            // Posiciona à esquerda do clock atual: clock vive
-                            // em `output_w - show_desktop_width - clock_padding_right`.
-                            // Pra D.9 jogo battery_x = clock_anchor - 80 (espaço
-                            // pra label %). Vai ser reformulado em D.12.
+                            let center_y_for = |h: i32| {
+                                bar_y_local + (crate::taskbar::taskbar_height() - h) / 2
+                            };
                             let clock_anchor_x = output_size_logical.w
                                 - crate::taskbar::show_desktop_width()
                                 - crate::taskbar::clock_padding_right();
-                            let label_x = clock_anchor_x - 90;
-                            let icon_x = label_x - bat_sz.w - 4;
-                            let icon_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                    icon_x, icon_y,
-                                ))
-                                .to_physical_precise_round(1.0);
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer,
-                                icon_loc.to_f64(),
-                                bat_buf,
-                                None,
-                                None,
-                                None,
-                                Kind::Unspecified,
-                            ) {
-                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            // cursor_x começa na borda direita do tray (antes do clock).
+                            let mut cursor_x = clock_anchor_x - 16;
+                            // Battery + %: pinta label, depois ícone, ambos à esquerda do cursor.
+                            if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
+                                let label_x = cursor_x - lbl_sz.w;
+                                let label_y = center_y_for(lbl_sz.h);
+                                let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                        label_x, label_y,
+                                    ))
+                                    .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    label_loc.to_f64(),
+                                    lbl_buf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                                cursor_x = label_x - 4;
+                                let icon_x = cursor_x - bat_sz.w;
+                                let icon_y = center_y_for(bat_sz.h);
+                                let icon_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                        icon_x, icon_y,
+                                    ))
+                                    .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    icon_loc.to_f64(),
+                                    bat_buf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                                cursor_x = icon_x - t_sys.gap;
                             }
-                            let label_y =
-                                bar_y_local + (crate::taskbar::taskbar_height() - lbl_sz.h) / 2;
-                            let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
-                                    label_x, label_y,
-                                ))
-                                .to_physical_precise_round(1.0);
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer,
-                                label_loc.to_f64(),
-                                lbl_buf,
-                                None,
-                                None,
-                                None,
-                                Kind::Unspecified,
-                            ) {
-                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            // Volume.
+                            {
+                                let (vbuf, vsz) = &volume_render;
+                                let vx = cursor_x - vsz.w;
+                                let vy = center_y_for(vsz.h);
+                                let vloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                        vx, vy,
+                                    ))
+                                    .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    vloc.to_f64(),
+                                    vbuf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                                cursor_x = vx - t_sys.gap;
                             }
-                            let _ = t_sys;
+                            // Wifi.
+                            {
+                                let (wbuf, wsz) = &wifi_render;
+                                let wx = cursor_x - wsz.w;
+                                let wy = center_y_for(wsz.h);
+                                let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                        wx, wy,
+                                    ))
+                                    .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    wloc.to_f64(),
+                                    wbuf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                            }
                         }
                         // alpha 1.0 + data 9pt cor secondary alpha 0.65.
                         // Posições calculadas juntas pra alinhamento right.

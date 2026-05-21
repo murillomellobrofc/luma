@@ -598,6 +598,117 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Ícone WiFi estilo outline: 3 arcos concêntricos centrados em (cx, cy)
+/// na metade inferior, + ponto sólido na base. `size × size`. H33.taskbar.10.
+pub fn make_wifi_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let cx = size / 2;
+    let cy = size * 3 / 4;
+    // 3 raios: outer ~55%, mid ~38%, inner ~22%.
+    let radii = [(size as f32 * 0.55) as i32, (size as f32 * 0.38) as i32, (size as f32 * 0.22) as i32];
+    let stroke_max = 2;
+    for r in radii {
+        let r_sq = r * r;
+        // Arco: ângulos de ~225° a ~315° (parte SUPERIOR do círculo centrado).
+        for y in 0..size {
+            for x in 0..size {
+                let dx = x - cx;
+                let dy = y - cy;
+                // Só pinta na METADE SUPERIOR do círculo: dy <= 0.
+                if dy > 0 {
+                    continue;
+                }
+                let d_sq = dx * dx + dy * dy;
+                let r_outer = r + stroke_max / 2;
+                let r_inner = (r - stroke_max / 2).max(0);
+                if d_sq <= r_outer * r_outer && d_sq >= r_inner * r_inner {
+                    put_pixel_premul(&mut pixels, x, y, size, color);
+                }
+            }
+        }
+    }
+    // Dot central sólido (raio 1.5px).
+    let dot_r = 2;
+    let dot_r_sq = dot_r * dot_r;
+    for y in (cy - dot_r).max(0)..=(cy + dot_r).min(size - 1) {
+        for x in (cx - dot_r).max(0)..=(cx + dot_r).min(size - 1) {
+            let dx = x - cx;
+            let dy = y - cy;
+            if dx * dx + dy * dy <= dot_r_sq {
+                put_pixel_premul(&mut pixels, x, y, size, color);
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
+/// Ícone de volume estilo outline: speaker trapezoidal à esquerda + 2
+/// arcos de onda à direita. `size × size`. H33.taskbar.10.
+pub fn make_volume_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let mid_y = size / 2;
+    // Speaker (trapézio sólido): retângulo central + triângulo lateral.
+    // Body: x=4..8, y=mid-2..mid+2 (cubo).
+    let body_x_left = (size as f32 * 0.2) as i32;
+    let body_x_right = (size as f32 * 0.4) as i32;
+    let body_h = size / 5;
+    for y in (mid_y - body_h)..=(mid_y + body_h) {
+        for x in body_x_left..=body_x_right {
+            put_pixel_premul(&mut pixels, x, y, size, color);
+        }
+    }
+    // Triângulo: do canto direito do body abrindo até x_tri_end.
+    let tri_x_right = (size as f32 * 0.55) as i32;
+    let tri_h_max = (size as f32 * 0.32) as i32;
+    let tri_w = tri_x_right - body_x_right;
+    for i in 0..=tri_w {
+        let x = body_x_right + i;
+        let h = (i as f32 / tri_w as f32 * tri_h_max as f32) as i32;
+        for y in (mid_y - h)..=(mid_y + h) {
+            put_pixel_premul(&mut pixels, x, y, size, color);
+        }
+    }
+    // 2 arcos à direita (estilo som saindo).
+    let arc_cx = tri_x_right;
+    let arc_cy = mid_y;
+    let arc_radii = [(size as f32 * 0.30) as i32, (size as f32 * 0.45) as i32];
+    let stroke_max = 2;
+    for r in arc_radii {
+        let r_sq = r * r;
+        for y in 0..size {
+            for x in 0..size {
+                let dx = x - arc_cx;
+                let dy = y - arc_cy;
+                // Só pinta à DIREITA do centro (dx > 0).
+                if dx <= 0 {
+                    continue;
+                }
+                let d_sq = dx * dx + dy * dy;
+                let r_outer = r + stroke_max / 2;
+                let r_inner = (r - stroke_max / 2).max(0);
+                if d_sq <= r_outer * r_outer && d_sq >= r_inner * r_inner {
+                    put_pixel_premul(&mut pixels, x, y, size, color);
+                }
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Ícone de bateria em pixel art simples (`size × size`). Desenha:
 /// - corpo retangular (outline 1px na cor `frame`)
 /// - tampa pequena à direita

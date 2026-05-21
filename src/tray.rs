@@ -31,6 +31,10 @@ pub struct TrayState {
     pub icon_cache: HashMap<String, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Cache do label "%" rasterizado por % (key = "<pct>").
     pub pct_label_cache: HashMap<u8, (MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Buffer do ícone wifi (lazy, H33.taskbar.10).
+    pub wifi_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Buffer do ícone volume (lazy, H33.taskbar.10).
+    pub volume_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
 }
 
 impl TrayState {
@@ -109,6 +113,45 @@ pub fn ensure_battery_icon(state: &mut TrayState, capacity: u8) -> Option<(Memor
     let size = Size::from((t.icon_size, t.icon_size));
     state.icon_cache.insert(key, (buf.clone(), size));
     Some((buf, size))
+}
+
+/// Gera (ou pega cacheado) o ícone wifi 20px. Cor base = `icon_color`
+/// com `icon_alpha`. H33.taskbar.10.
+pub fn ensure_wifi_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = &state.wifi_icon {
+        return (entry.0.clone(), entry.1);
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let color = smithay::backend::renderer::Color32F::new(
+        t.icon_color.r(),
+        t.icon_color.g(),
+        t.icon_color.b(),
+        t.icon_alpha,
+    );
+    let buf = crate::gfx::make_wifi_icon(t.icon_size, color);
+    let size = Size::from((t.icon_size, t.icon_size));
+    state.wifi_icon = Some((buf.clone(), size));
+    (buf, size)
+}
+
+/// Gera (ou pega cacheado) o ícone volume 20px. H33.taskbar.10.
+pub fn ensure_volume_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = &state.volume_icon {
+        return (entry.0.clone(), entry.1);
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let color = smithay::backend::renderer::Color32F::new(
+        t.icon_color.r(),
+        t.icon_color.g(),
+        t.icon_color.b(),
+        t.icon_alpha,
+    );
+    let buf = crate::gfx::make_volume_icon(t.icon_size, color);
+    let size = Size::from((t.icon_size, t.icon_size));
+    state.volume_icon = Some((buf.clone(), size));
+    (buf, size)
 }
 
 /// Rasteriza (ou pega cacheado) o label "<pct>%" pra mostrar ao lado da
