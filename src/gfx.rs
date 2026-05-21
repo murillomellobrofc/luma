@@ -604,6 +604,55 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
 // show-desktop vêm de assets/branding/icons/*.svg via menu::icon_loader.
 
 
+/// Header da janela: gradient vertical w×h com os 2 cantos TOPO
+/// arredondados (sup-esq + sup-dir) raio `radius`. Pixels fora dos
+/// arcos ficam alpha 0. Base reta. H_deco.9.
+pub fn make_titlebar_bg(
+    w: i32,
+    h: i32,
+    radius: i32,
+    top: Color32F,
+    bottom: Color32F,
+) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (w * h * 4) as usize];
+    let r_sq = radius * radius;
+    let h1 = (h - 1).max(1) as f32;
+    for y in 0..h {
+        let t = y as f32 / h1;
+        let r = top.r() + (bottom.r() - top.r()) * t;
+        let g = top.g() + (bottom.g() - top.g()) * t;
+        let b = top.b() + (bottom.b() - top.b()) * t;
+        let a = top.a() + (bottom.a() - top.a()) * t;
+        let color = Color32F::new(r, g, b, a);
+        for x in 0..w {
+            let inside = if y >= radius {
+                true
+            } else if x < radius {
+                let dx = radius - 1 - x;
+                let dy = radius - 1 - y;
+                dx * dx + dy * dy <= r_sq
+            } else if x >= w - radius {
+                let dx = x - (w - radius);
+                let dy = radius - 1 - y;
+                dx * dx + dy * dy <= r_sq
+            } else {
+                true
+            };
+            if inside {
+                put_pixel_premul(&mut pixels, x, y, w, color);
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Painel arredondado com borda 1px na cor `border_color` + alpha
 /// `border_alpha`, e interior preenchido com `bg`. Usado pelo tooltip
 /// da taskbar (H33.taskbar.6). Pixels fora do round-rect ficam alpha 0.

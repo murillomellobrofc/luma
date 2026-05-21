@@ -35,11 +35,13 @@ pub enum HeaderRegion {
 }
 
 pub struct WindowDecoration {
-    /// Background da titlebar — gradient vertical Coffee→Black do
-    /// `theme.window.titlebar_bg_top/bottom`. Memory texture
-    /// pré-renderizada uma vez (H_deco.4), esticada na largura via
-    /// dst_size no render.
+    /// Background da titlebar — gradient vertical + cantos arredondados
+    /// no topo (`make_titlebar_bg`). Re-gerado quando a largura muda
+    /// (cantos round precisam de buffer w×h, não 1×h esticado).
+    /// H_deco.4 + H_deco.9.
     pub background: MemoryRenderBuffer,
+    /// Última largura usada pra gerar `background`. Re-gera se diferir.
+    pub background_width: i32,
     /// Linha 1px no topo do header (Amber alpha 0.4 default). Continuidade
     /// visual com a taskbar e o menu (H32.6.4).
     pub header_top_accent: SolidColorBuffer,
@@ -75,10 +77,14 @@ pub struct TitleCache {
 impl WindowDecoration {
     fn new() -> Self {
         let theme = crate::theme::current();
-        // H_deco.4: bg da titlebar vira gradient vertical 1xHEADER pre-renderizado,
-        // esticado na largura no render.
-        let background = crate::gfx::make_vertical_gradient(
+        // H_deco.9: bg da titlebar agora é gradient w×h com cantos round
+        // no TOPO. Largura inicial 256 (placeholder); re-gerado pelo
+        // `header_bg_at` quando a janela muda de tamanho.
+        let initial_w = 256;
+        let background = crate::gfx::make_titlebar_bg(
+            initial_w,
             HEADER_HEIGHT,
+            theme.window.corner_radius,
             theme.window.titlebar_bg_top,
             theme.window.titlebar_bg_bottom,
         );
@@ -101,6 +107,7 @@ impl WindowDecoration {
         );
         Self {
             background,
+            background_width: 256,
             header_top_accent: SolidColorBuffer::new((0, 1), top_accent),
             left_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
             right_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
@@ -477,18 +484,28 @@ where
     R::TextureId: Send + Clone + 'static,
 {
     let width = full_width.max(1);
-    let deco = decoration_for(window);
-    let src = smithay::utils::Rectangle::<f64, Logical>::from_size(
-        Size::<f64, Logical>::from((1.0, HEADER_HEIGHT as f64)),
-    );
-    let dst = Some(Size::<i32, Logical>::from((width, HEADER_HEIGHT)));
+    let mut deco = decoration_for(window);
+    // H_deco.9: re-gera bg quando a largura muda (cantos arredondados
+    // não escalam corretamente esticando 1×h — precisam de buffer w×h
+    // com os cantos rasterizados na resolução real).
+    if deco.background_width != width {
+        let theme = crate::theme::current();
+        deco.background = crate::gfx::make_titlebar_bg(
+            width,
+            HEADER_HEIGHT,
+            theme.window.corner_radius,
+            theme.window.titlebar_bg_top,
+            theme.window.titlebar_bg_bottom,
+        );
+        deco.background_width = width;
+    }
     MemoryRenderBufferRenderElement::from_buffer(
         renderer,
         origin.to_f64(),
         &deco.background,
         None,
-        Some(src),
-        dst,
+        None,
+        None,
         Kind::Unspecified,
     )
     .ok()
