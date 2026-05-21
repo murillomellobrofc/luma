@@ -1,0 +1,129 @@
+<svg viewBox="0 0 1280 1400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="titlebarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A1F1A"/>
+      <stop offset="100%" stop-color="#1F1611"/>
+    </linearGradient>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A6FA5"/>
+      <stop offset="100%" stop-color="#B5D0E8"/>
+    </linearGradient>
+    <filter id="winShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="winShadowInactive" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1400" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Decoração de Janela v3</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Sem borda · sombra suave · titlebar escura · botões Golden Hour à direita</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — JANELA ATIVA (em foco)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="340" fill="url(#bgSky)" rx="12"/>
+    <g transform="translate(230, 50)" filter="url(#winShadow)">
+      <rect width="700" height="240" fill="#FBF6EE" rx="12"/>
+      <path d="M 0 12 a 12 12 0 0 1 12 -12 h 676 a 12 12 0 0 1 12 12 v 28 h -700 z" fill="url(#titlebarGrad)"/>
+      <text x="350" y="26" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle" font-weight="500">Documento.txt — Editor</text>
+      <g transform="translate(610, 8)">
+        <rect width="24" height="24" rx="6" fill="transparent"/>
+        <line x1="7" y1="13" x2="17" y2="13" stroke="#F5D5A8" stroke-width="2" stroke-linecap="round"/>
+        <g transform="translate(30, 0)">
+          <rect width="24" height="24" rx="6" fill="transparent"/>
+          <rect x="7" y="7" width="10" height="10" rx="2" fill="none" stroke="#6B8E7F" stroke-width="2"/>
+        </g>
+        <g transform="translate(60, 0)">
+          <rect width="24" height="24" rx="6" fill="transparent"/>
+          <line x1="8" y1="8" x2="16" y2="16" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+          <line x1="16" y1="8" x2="8" y2="16" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+        </g>
+      </g>
+      <text x="24" y="80" font-family="monospace" font-size="12" fill="#4A3933">conteúdo da janela...</text>
+    </g>
+    <text x="580" y="320" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.8">sombra forte · sem borda · cantos 12px arredondados</text>
+  </g>
+
+  <text x="60" y="556" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — JANELA INATIVA (fora de foco)</text>
+
+  <g transform="translate(60, 580)">
+    <rect width="1160" height="300" fill="url(#bgSky)" rx="12"/>
+    <g transform="translate(230, 40)" filter="url(#winShadowInactive)">
+      <rect width="700" height="200" fill="#FBF6EE" rx="12" opacity="0.97"/>
+      <path d="M 0 12 a 12 12 0 0 1 12 -12 h 676 a 12 12 0 0 1 12 12 v 28 h -700 z" fill="#1F1611"/>
+      <text x="350" y="26" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Documento.txt — Editor</text>
+      <g transform="translate(610, 8)">
+        <line x1="7" y1="13" x2="17" y2="13" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <rect x="37" y="7" width="10" height="10" rx="2" fill="none" stroke="#8B7D72" stroke-width="2"/>
+        <line x1="68" y1="8" x2="76" y2="16" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <line x1="76" y1="8" x2="68" y2="16" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+    <text x="580" y="280" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.8">sombra mais fraca · título e botões apagados (cinza)</text>
+  </g>
+
+  <text x="60" y="926" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — BOTÕES (ícones Golden Hour, à direita)</text>
+
+  <g transform="translate(60, 950)">
+    <rect width="1160" height="180" fill="#1F1611" rx="12"/>
+    <g transform="translate(120, 50)">
+      <rect width="80" height="80" rx="10" fill="#2A1F1A"/>
+      <line x1="26" y1="40" x2="54" y2="40" stroke="#F5D5A8" stroke-width="3" stroke-linecap="round"/>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92" text-anchor="middle">Minimizar</text>
+      <text x="40" y="128" font-family="system-ui, sans-serif" font-size="9" fill="#F5D5A8" text-anchor="middle">honey</text>
+    </g>
+    <g transform="translate(320, 50)">
+      <rect width="80" height="80" rx="10" fill="#2A1F1A"/>
+      <rect x="27" y="27" width="26" height="26" rx="4" fill="none" stroke="#6B8E7F" stroke-width="3"/>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92" text-anchor="middle">Maximizar</text>
+      <text x="40" y="128" font-family="system-ui, sans-serif" font-size="9" fill="#6B8E7F" text-anchor="middle">sage</text>
+    </g>
+    <g transform="translate(520, 50)">
+      <rect width="80" height="80" rx="10" fill="#2A1F1A"/>
+      <line x1="28" y1="28" x2="52" y2="52" stroke="#D97757" stroke-width="3" stroke-linecap="round"/>
+      <line x1="52" y1="28" x2="28" y2="52" stroke="#D97757" stroke-width="3" stroke-linecap="round"/>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92" text-anchor="middle">Fechar</text>
+      <text x="40" y="128" font-family="system-ui, sans-serif" font-size="9" fill="#D97757" text-anchor="middle">coral</text>
+    </g>
+    <g transform="translate(760, 50)">
+      <rect width="80" height="80" rx="10" fill="#D97757"/>
+      <line x1="28" y1="28" x2="52" y2="52" stroke="#FBF6EE" stroke-width="3" stroke-linecap="round"/>
+      <line x1="52" y1="28" x2="28" y2="52" stroke="#FBF6EE" stroke-width="3" stroke-linecap="round"/>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92" text-anchor="middle">Hover (fechar)</text>
+      <text x="40" y="128" font-family="system-ui, sans-serif" font-size="9" fill="#D97757" text-anchor="middle">bg coral · X cream</text>
+    </g>
+    <text x="950" y="80" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">No hover, o botão ganha</text>
+    <text x="950" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">bg na cor do ícone, e</text>
+    <text x="950" y="116" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">o ícone vira cream.</text>
+  </g>
+
+  <text x="60" y="1176" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 1200)">
+    <rect width="1160" height="160" fill="#1F1611" rx="12"/>
+    <text x="30" y="36" font-family="monospace" font-size="11" fill="#A89D92">[window]</text>
+    <text x="30" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">border_width         = <tspan fill="#E89B3D">0</tspan></text>
+    <text x="30" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius        = <tspan fill="#E89B3D">12</tspan></text>
+    <text x="30" y="92" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_blur          = <tspan fill="#E89B3D">16</tspan></text>
+    <text x="30" y="110" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_blur_inactive = <tspan fill="#E89B3D">8</tspan></text>
+    <text x="30" y="128" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_opacity       = <tspan fill="#E89B3D">0.35</tspan></text>
+
+    <text x="420" y="36" font-family="monospace" font-size="11" fill="#A89D92">[window.titlebar]</text>
+    <text x="420" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">height         = <tspan fill="#E89B3D">40</tspan></text>
+    <text x="420" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">bg_top         = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="420" y="92" font-family="monospace" font-size="11" fill="#FBF6EE">bg_bottom      = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="420" y="110" font-family="monospace" font-size="11" fill="#FBF6EE">title_color    = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="420" y="128" font-family="monospace" font-size="11" fill="#FBF6EE">title_inactive = <tspan fill="#6B8E7F">"#A89D92"</tspan></text>
+
+    <text x="800" y="36" font-family="monospace" font-size="11" fill="#A89D92">[window.buttons]</text>
+    <text x="800" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">size           = <tspan fill="#E89B3D">24</tspan></text>
+    <text x="800" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">minimize_color = <tspan fill="#6B8E7F">"#F5D5A8"</tspan></text>
+    <text x="800" y="92" font-family="monospace" font-size="11" fill="#FBF6EE">maximize_color = <tspan fill="#6B8E7F">"#6B8E7F"</tspan></text>
+    <text x="800" y="110" font-family="monospace" font-size="11" fill="#FBF6EE">close_color    = <tspan fill="#6B8E7F">"#D97757"</tspan></text>
+    <text x="800" y="128" font-family="monospace" font-size="11" fill="#FBF6EE">inactive_color = <tspan fill="#6B8E7F">"#8B7D72"</tspan></text>
+  </g>
+</svg>

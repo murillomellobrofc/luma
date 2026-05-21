@@ -11,7 +11,7 @@ use smithay::{
 
 use crate::{
     decoration::{
-        border_elements_at, header_elements_at, title_data, window_control_elements_at,
+        header_elements_at, title_data, window_control_elements_at,
         BORDER_THICKNESS, HEADER_HEIGHT,
     },
     render::LumaRenderElement,
@@ -128,11 +128,12 @@ where
         let content_size = SpaceElement::geometry(&self.0).size;
         let full_width_logical = content_size.w + 2 * BORDER_THICKNESS;
 
-        // Header cobre toda a largura (incluindo as bordas laterais).
+        // Header cobre toda a largura (incluindo as 3px laterais que
+        // continuam reservadas pra hit-test de resize mas SEM render).
         let header = header_elements_at(&self.0, location, full_width_logical);
-        // Bordas laterais e inferior.
-        let borders =
-            border_elements_at(&self.0, location, full_width_logical, content_size.h);
+        // H_deco.1: bordas L/R/Bottom NÃO renderizadas mais — visual
+        // limpo, sem o contorno laranja. BORDER_THICKNESS=3 continua só
+        // pra geometry/input/resize hit-test.
 
         // Título PRIMEIRO no vec — z-order do render_output é "primeiro no
         // array = topo da pilha". Se header for antes, ele tampa o título.
@@ -177,7 +178,6 @@ where
         out.extend(
             header
                 .into_iter()
-                .chain(borders.into_iter())
                 .map(|e| C::from(LumaRenderElement::Solid(e))),
         );
 
