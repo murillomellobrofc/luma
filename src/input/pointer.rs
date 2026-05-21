@@ -226,6 +226,27 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             p.volume_tab = tab;
                         }
                     }
+                    // H44.volume.15: toggle de boost (canto inferior).
+                    if let Some(popup) = popup_clone.as_ref() {
+                        let toggle = popup.boost_toggle_rect(output);
+                        if toggle.to_f64().contains(pointer_pos) {
+                            if let Some(p) = state.applet_popup.as_mut() {
+                                p.boost = !p.boost;
+                            }
+                            // Consume o click — não cai no dispatch de devices.
+                            pointer.button(
+                                state,
+                                &ButtonEvent {
+                                    button,
+                                    state: button_state,
+                                    serial,
+                                    time: event.time_msec(),
+                                },
+                            );
+                            pointer.frame(state);
+                            return;
+                        }
+                    }
                     // H44.volume.6-13: dispatch dentro do popup.
                     if let Some(popup) = popup_clone.as_ref() {
                         match popup.volume_tab {

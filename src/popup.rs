@@ -35,6 +35,15 @@ pub struct AppletPopup {
     pub size: Size<i32, Logical>,
     /// Aba ativa (válido pra Volume). H44.volume.2.
     pub volume_tab: VolumeTab,
+    /// Se true, sliders aceitam até 150% (boost). H44.volume.15.
+    pub boost: bool,
+}
+
+impl AppletPopup {
+    /// Max do slider conforme estado boost. H44.volume.15.
+    pub fn slider_max(&self) -> f32 {
+        if self.boost { 1.5 } else { 1.0 }
+    }
 }
 
 impl AppletPopup {
@@ -49,7 +58,23 @@ impl AppletPopup {
             anchor_x,
             size,
             volume_tab: VolumeTab::default(),
+            boost: false,
         }
+    }
+
+    /// Hit-test no toggle de boost (canto inferior-esquerdo do popup).
+    /// Retângulo `boost_w × boost_h` na posição definida. H44.volume.15.
+    pub fn boost_toggle_rect(
+        &self,
+        output_size: Size<i32, Logical>,
+    ) -> smithay::utils::Rectangle<i32, Logical> {
+        use smithay::utils::Rectangle;
+        let o = self.origin(output_size);
+        let h = 28;
+        let w = self.size.w - 32;
+        let x = o.x + 16;
+        let y = o.y + self.size.h - h - 12;
+        Rectangle::from_loc_and_size((x, y), (w, h))
     }
 
     /// Retângulos das 2 tabs (Devices/Apps) no topo do popup, em
@@ -199,7 +224,8 @@ fn hit_test_block(
                 let px = point.x as f64;
                 let tx = track_x as f64;
                 if px >= tx && px <= tx + track_w as f64 {
-                    let v = ((px - tx) / track_w as f64).clamp(0.0, 1.0) as f32;
+                    let v = ((px - tx) / track_w as f64).clamp(0.0, 1.0) as f32
+                        * popup.slider_max();
                     return Some(DeviceHit {
                         idx,
                         region: DeviceRegion::Slider(v),

@@ -2530,9 +2530,11 @@ pub fn init_winit(
                                     }
                                 }
 
-                                // Slider deste sink.
-                                let value = sink.volume.clamp(0.0, 1.0);
-                                let fill_w = ((track_w as f32) * value) as i32;
+                                // Slider deste sink. H44.volume.15: escala
+                                // pelo boost (max 1.0 ou 1.5).
+                                let smax = popup.slider_max();
+                                let value = sink.volume.clamp(0.0, smax);
+                                let fill_w = ((track_w as f32) * value / smax) as i32;
                                 let track_x = o.x + t_popup.padding;
                                 let track_y = y_cursor + 22;
                                 let track = crate::gfx::make_rounded_panel(
@@ -2669,8 +2671,9 @@ pub fn init_winit(
                                         }
                                     }
                                 }
-                                let value = sink.volume.clamp(0.0, 1.0);
-                                let fill_w = ((track_w as f32) * value) as i32;
+                                let smax = popup.slider_max();
+                                let value = sink.volume.clamp(0.0, smax);
+                                let fill_w = ((track_w as f32) * value / smax) as i32;
                                 let track_x = o.x + t_popup.padding;
                                 let track_y = y_cursor + 22;
                                 let track = crate::gfx::make_rounded_panel(
@@ -2796,8 +2799,9 @@ pub fn init_winit(
                                         }
                                     }
                                 }
-                                let value = stream.volume.clamp(0.0, 1.0);
-                                let fill_w = ((track_w as f32) * value) as i32;
+                                let smax = popup.slider_max();
+                                let value = stream.volume.clamp(0.0, smax);
+                                let fill_w = ((track_w as f32) * value / smax) as i32;
                                 let track_x = o.x + t_popup.padding;
                                 let track_y = y_cursor + 22;
                                 let track = crate::gfx::make_rounded_panel(
@@ -2839,6 +2843,93 @@ pub fn init_winit(
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                                 y_cursor += entry_h;
+                            }
+
+                            // H44.volume.15-16: toggle "Permitir > 100%" no
+                            // canto inferior do popup + aviso coral se algum
+                            // device tem volume > 1.0.
+                            let toggle_rect = popup.boost_toggle_rect(output_size_logical);
+                            let toggle_color = if popup.boost {
+                                theme.colors.accent_amber
+                            } else {
+                                theme.colors.applet_bg_hover
+                            };
+                            let toggle_bg = crate::gfx::make_rounded_panel(
+                                toggle_rect.size.w,
+                                toggle_rect.size.h,
+                                toggle_rect.size.h / 2,
+                                toggle_color,
+                            );
+                            if let Some(elem) = mk_mem(
+                                &toggle_bg,
+                                toggle_rect.loc.x,
+                                toggle_rect.loc.y,
+                                renderer,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(text) = data.state.text.as_ref() {
+                                let label = if popup.boost {
+                                    "★ permitir > 100%"
+                                } else {
+                                    "  permitir > 100%"
+                                };
+                                let color = if popup.boost {
+                                    theme.colors.taskbar_bg_top
+                                } else {
+                                    theme.colors.text_primary
+                                };
+                                let (px, w, h) = text.rasterize_colored(label, 11.0, color);
+                                if w > 0 && h > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (w as i32, h as i32),
+                                        1,
+                                        Transform::Normal,
+                                        None,
+                                    );
+                                    let lx = toggle_rect.loc.x
+                                        + (toggle_rect.size.w - w as i32) / 2;
+                                    let ly = toggle_rect.loc.y
+                                        + (toggle_rect.size.h - h as i32) / 2;
+                                    if let Some(elem) = mk_mem(&buf, lx, ly, renderer) {
+                                        custom_elements
+                                            .insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                            }
+
+                            // Aviso coral se algum device/stream > 100%.
+                            let any_over = data
+                                .state
+                                .audio_sinks
+                                .iter()
+                                .any(|d| d.volume > 1.0)
+                                || data.state.audio_sources.iter().any(|d| d.volume > 1.0)
+                                || data.state.audio_streams.iter().any(|s| s.volume > 1.0);
+                            if any_over {
+                                if let Some(text) = data.state.text.as_ref() {
+                                    let msg = "Volume acima de 100% pode danificar";
+                                    let (px, w, h) =
+                                        text.rasterize_colored(msg, 10.0, theme.colors.hover_close);
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = o.x + (popup.size.w - w as i32) / 2;
+                                        let ly = toggle_rect.loc.y - h as i32 - 4;
+                                        if let Some(elem) = mk_mem(&buf, lx, ly, renderer) {
+                                            custom_elements
+                                                .insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
                             }
                         }
 
