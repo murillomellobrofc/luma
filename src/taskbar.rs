@@ -869,6 +869,24 @@ pub fn clock_labels_location(
     (time_pt, date_pt)
 }
 
+/// Retângulo lógico do ícone de volume no tray, pra hit-test e
+/// ancoragem do popup. Usa a posição CACHEADA pelo render no
+/// `tray.last_volume_x`. Se ainda não foi renderizado, devolve None.
+/// H44.volume.1.
+pub fn tray_volume_zone(
+    output_size: Size<i32, Logical>,
+    tray: &crate::tray::TrayState,
+) -> Option<smithay::utils::Rectangle<i32, Logical>> {
+    use smithay::utils::Rectangle;
+    let theme = crate::theme::current();
+    let t_sys = &theme.taskbar.system_tray;
+    let bar_y = output_size.h - taskbar_height();
+    let icon = t_sys.icon_size;
+    let center_y = bar_y + (taskbar_height() - icon) / 2;
+    let volume_x = tray.last_volume_x?;
+    Some(Rectangle::from_loc_and_size((volume_x, center_y), (icon, icon)))
+}
+
 /// Hit-test: ponto está sobre launcher, sobre um bloco, ou em nenhum
 /// alvo da taskbar.
 pub fn hit_test(

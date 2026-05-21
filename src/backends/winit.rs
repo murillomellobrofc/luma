@@ -1770,6 +1770,7 @@ pub fn init_winit(
                             let bell_right_x = clock_left - t_grp.gap_between_zones;
                             let bell_x = bell_right_x - bell_w;
                             let volume_x = bell_x - t_sys.gap - volume_w;
+                            data.state.tray.last_volume_x = Some(volume_x);
                             let bt_x = volume_x - t_sys.gap - bt_w;
                             let wifi_x = bt_x - t_sys.gap - wifi_w;
                             // Battery+%: bloco icon + 4 + label, todo à esquerda do wifi.
@@ -2230,6 +2231,38 @@ pub fn init_winit(
 
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));
+
+                        // H44.volume.1: applet popup placeholder. Render como
+                        // retângulo Memory bg da titlebar (gradient escuro)
+                        // pra reuso visual. Conteúdo (tabs/sliders) entra
+                        // em A.2-D. Push EARLY (insert no início) =
+                        // sobre TODA a taskbar.
+                        if let Some(popup) = data.state.applet_popup.as_ref() {
+                            let theme = crate::theme::current();
+                            let o = popup.origin(output_size_logical);
+                            let bg = crate::gfx::make_titlebar_bg(
+                                popup.size.w,
+                                popup.size.h,
+                                12,
+                                theme.window.titlebar_bg_top,
+                                theme.window.titlebar_bg_bottom,
+                            );
+                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                    ::from((o.x, o.y))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer,
+                                loc.to_f64(),
+                                &bg,
+                                None,
+                                None,
+                                None,
+                                Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                        }
 
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).
                         // Pushed POR ÚLTIMO em custom_elements pra ficar atrás de

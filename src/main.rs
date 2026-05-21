@@ -9,6 +9,7 @@ mod input;
 mod menu;
 mod overview;
 mod pager;
+mod popup;
 mod render;
 mod search;
 mod workspace;

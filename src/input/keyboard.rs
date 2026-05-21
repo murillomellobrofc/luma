@@ -26,6 +26,9 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // num thumb / fora. Esc puro não intercepta — manter simples.
     let mut menu_action: Option<MenuKey> = None;
     let menu_open_now = state.menu_open;
+    // H44.volume.1: popup aberto intercepta Esc pra fechar.
+    let applet_popup_open = state.applet_popup.is_some();
+    let mut close_applet_popup = false;
     let _ = keyboard.input::<(), _>(
         state,
         key_code,
@@ -33,6 +36,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         serial,
         time,
         |_state, _modifiers, handle| {
+            if applet_popup_open && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    close_applet_popup = true;
+                    return FilterResult::Intercept(());
+                }
+            }
             if menu_open_now && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
@@ -92,6 +102,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             FilterResult::Forward
         },
     );
+
+    if close_applet_popup {
+        state.applet_popup = None;
+        return;
+    }
 
     if let Some(action) = menu_action {
         match action {

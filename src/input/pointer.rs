@@ -200,6 +200,37 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let pointer_pos = pointer.current_location();
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H44.volume.1: popup de applet tem prioridade. Click DENTRO
+        // do popup é consumido pelo popup; click FORA fecha.
+        if state.applet_popup.is_some() {
+            let output_size = state
+                .space
+                .output_geometry(state.output_under_cursor(pointer_pos))
+                .map(|g| g.size);
+            if let Some(output) = output_size {
+                let inside = state
+                    .applet_popup
+                    .as_ref()
+                    .map(|p| p.contains(output, pointer_pos))
+                    .unwrap_or(false);
+                if !inside {
+                    state.applet_popup = None;
+                }
+                // Em qualquer caso, o click é consumido aqui — não vai
+                // pra hit-test de janela atrás.
+                pointer.button(
+                    state,
+                    &ButtonEvent {
+                        button,
+                        state: button_state,
+                        serial,
+                        time: event.time_msec(),
+                    },
+                );
+                pointer.frame(state);
+                return;
+            }
+        }
         // Taskbar tem prioridade absoluta — fica visualmente sobre as
         // janelas, então clicar nela ativa o foco em vez de cair na janela
         // que está embaixo.
@@ -405,6 +436,27 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             state.switch_workspace(idx);
             pointer.frame(state);
             return;
+        }
+        // H44.volume.1: click no ícone de volume abre/fecha o popup.
+        if let Some(output_size) = state
+            .space
+            .output_geometry(state.output_under_cursor(pointer_pos))
+            .map(|g| g.size)
+        {
+            if let Some(zone) = crate::taskbar::tray_volume_zone(output_size, &state.tray) {
+                if zone.to_f64().contains(pointer_pos) {
+                    state.applet_popup = match state.applet_popup.as_ref() {
+                        Some(p) if p.kind == crate::popup::AppletKind::Volume => None,
+                        _ => Some(crate::popup::AppletPopup::new(
+                            crate::popup::AppletKind::Volume,
+                            zone.loc.x + zone.size.w / 2,
+                        )),
+                    };
+                    tracing::info!("volume icon clicado, popup={:?}", state.applet_popup.is_some());
+                    pointer.frame(state);
+                    return;
+                }
+            }
         }
         if let Some(hit) = taskbar_hit(state, pointer_pos) {
             // Pra Window(idx), o índice se refere apenas às janelas reais

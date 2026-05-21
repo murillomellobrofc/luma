@@ -100,6 +100,10 @@ pub struct TrayState {
     pub volume_state: VolumeState,
     /// Contador de notificações não lidas. H33 sempre 0 (H40 conecta).
     pub notif_count: usize,
+    /// X (lógico) do ícone de volume no último render. Usado pelo
+    /// hit-test do click (abrir popup). None até o primeiro render.
+    /// H44.volume.1.
+    pub last_volume_x: Option<i32>,
 }
 
 impl TrayState {

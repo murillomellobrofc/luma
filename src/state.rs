@@ -150,6 +150,8 @@ pub struct LumaState {
     /// janelas estão minimizadas. Toggle via click no botão F (zona F)
     /// ou Super+D. H33.taskbar.F.16-17.
     pub desktop_visible: bool,
+    /// Applet popup ativo (None = nenhum aberto). H44.volume.1.
+    pub applet_popup: Option<crate::popup::AppletPopup>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -562,6 +564,7 @@ impl LumaState {
             pager: crate::pager::PagerState::new(),
             tray: crate::tray::TrayState::new(),
             desktop_visible: false,
+            applet_popup: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),
