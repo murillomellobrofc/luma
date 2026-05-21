@@ -146,6 +146,9 @@ pub struct LumaState {
     pub pager: crate::pager::PagerState,
     /// State do system tray (battery, wifi, volume, notifications). H33.taskbar.9-12.
     pub tray: crate::tray::TrayState,
+    /// Lista compartilhada de itens SNI registrados, escrita pela
+    /// thread D-Bus em background. Vazia se o bus falhar. H47b.tray.
+    pub sni_list: crate::sni::SniList,
     /// True quando "Mostrar área de trabalho" foi acionado e todas as
     /// janelas estão minimizadas. Toggle via click no botão F (zona F)
     /// ou Super+D. H33.taskbar.F.16-17.
@@ -578,6 +581,7 @@ impl LumaState {
             hot_corner_dwell_start: None,
             pager: crate::pager::PagerState::new(),
             tray: crate::tray::TrayState::new(),
+            sni_list: crate::sni::spawn(),
             desktop_visible: false,
             applet_popup: None,
             audio_sinks: Vec::new(),
