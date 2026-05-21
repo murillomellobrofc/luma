@@ -255,12 +255,14 @@ pub fn hit_test_places(
 }
 
 /// Abre via xdg-open o path correspondente ao índice de places.
+/// Subdir filesystem (Documents/Pictures) é em inglês conforme XDG —
+/// labels do menu são pt-BR mas o caminho real está em inglês.
 pub fn execute_place_action(idx: usize) {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     let path = match idx {
-        0 => format!("{home}/Documentos"),
+        0 => format!("{home}/Documents"),
         1 => format!("{home}/Downloads"),
-        2 => format!("{home}/Imagens"),
+        2 => format!("{home}/Pictures"),
         3 => String::from("/"),
         _ => return,
     };
