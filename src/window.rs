@@ -11,7 +11,7 @@ use smithay::{
 
 use crate::{
     decoration::{
-        corner_masks_at, header_bg_at, header_top_accent_at, title_data,
+        header_bg_at, header_top_accent_at, title_data,
         window_control_elements_at, BORDER_THICKNESS, HEADER_HEIGHT,
     },
     render::LumaRenderElement,
@@ -149,20 +149,9 @@ where
             Some(theme.colors.window_title_unfocused_alpha)
         };
         let mut out: Vec<C> = Vec::new();
-        // H_deco.round.1: 4 anti-corner masks pintam clear nos cantos
-        // fora do quarter-circle. Push PRIMEIRO no vec = topo do z-stack
-        // (Smithay renderiza fim→começo) = na frente de TODO o resto da
-        // janela. "Recorta" o conteúdo do cliente nos 4 cantos.
-        let full_h_logical = HEADER_HEIGHT + content_size.h + BORDER_THICKNESS;
-        for elem in corner_masks_at(
-            &self.0,
-            renderer,
-            location,
-            full_width_logical,
-            full_h_logical,
-        ) {
-            out.push(C::from(LumaRenderElement::Memory(elem)));
-        }
+        // H_deco.round.revert: cantos da janela ficam RETOS. Tentativa
+        // de arredondamento via anti-masks de cor saiu (débito em
+        // docs/DEBT.md). Decoração v3 completa SEM os cantos round.
 
         if let Some((title_buffer, title_size)) = title_data(&self.0) {
             // Centraliza no eixo X dentro do full_width_logical.

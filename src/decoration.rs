@@ -42,13 +42,6 @@ pub struct WindowDecoration {
     pub background: MemoryRenderBuffer,
     /// Última largura usada pra gerar `background`. Re-gera se diferir.
     pub background_width: i32,
-    /// 4 anti-corner masks (TL/TR/BL/BR), tamanho `corner_radius`
-    /// cada. Pintam cor `theme.clear` nos pixels FORA do quarter-circle
-    /// pra "recortar" a janela nos 4 cantos. H_deco.round.1.
-    pub corner_mask_tl: MemoryRenderBuffer,
-    pub corner_mask_tr: MemoryRenderBuffer,
-    pub corner_mask_bl: MemoryRenderBuffer,
-    pub corner_mask_br: MemoryRenderBuffer,
     /// Linha 1px no topo do header (Amber alpha 0.4 default). Continuidade
     /// visual com a taskbar e o menu (H32.6.4).
     pub header_top_accent: SolidColorBuffer,
@@ -112,26 +105,14 @@ impl WindowDecoration {
             theme.colors.window_header_top_accent,
             theme.colors.window_header_top_alpha,
         );
-        // H_deco.round.fix: 4 anti-corner masks com cor que CONTRASTA
-        // com bg de aplicativos (dark E claros). theme.clear coincide
-        // com bg dark típico de terminais/editores e os cantos ficavam
-        // invisíveis. applet_bg_active (#3D2520 — coffee médio do
-        // Golden Hour) cria moldura sutil visível com qualquer cliente.
-        let radius = theme.window.corner_radius;
-        let mask_color = theme.colors.applet_bg_active;
-        let corner_mask_tl =
-            crate::gfx::make_corner_mask(radius, radius - 1, radius - 1, mask_color);
-        let corner_mask_tr = crate::gfx::make_corner_mask(radius, 0, radius - 1, mask_color);
-        let corner_mask_bl = crate::gfx::make_corner_mask(radius, radius - 1, 0, mask_color);
-        let corner_mask_br = crate::gfx::make_corner_mask(radius, 0, 0, mask_color);
-
+        // H_deco.round.revert: cantos da janela voltam a RETOS. Arredondamento
+        // real (alpha mask) precisa de reescrita do shader/backend (drm).
+        // Débito em docs/DEBT.md. Tentativas com cor sólida deixavam o
+        // canto com aparência de "remendo" em apps dark; cantos retos
+        // limpos são melhor que arredondamento feio.
         Self {
             background,
             background_width: 256,
-            corner_mask_tl,
-            corner_mask_tr,
-            corner_mask_bl,
-            corner_mask_br,
             header_top_accent: SolidColorBuffer::new((0, 1), top_accent),
             left_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
             right_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
@@ -493,51 +474,6 @@ pub fn header_top_accent_at(
         1.0,
         Kind::Unspecified,
     )
-}
-
-/// Constrói os 4 elementos das anti-corner masks (TL/TR/BL/BR) pra
-/// recortar os cantos da janela em `corner_radius` px. Pixels DENTRO
-/// do quarter-circle ficam preservados; FORA são pintados com a cor
-/// `theme.clear` (= cor de fundo do compositor). H_deco.round.1.
-pub fn corner_masks_at<R>(
-    window: &Window,
-    renderer: &mut R,
-    origin: Point<i32, Physical>,
-    full_width: i32,
-    full_height: i32,
-) -> Vec<MemoryRenderBufferRenderElement<R>>
-where
-    R: Renderer + ImportMem,
-    R::TextureId: Send + Clone + 'static,
-{
-    let theme = crate::theme::current();
-    let r = theme.window.corner_radius;
-    if r <= 0 {
-        return Vec::new();
-    }
-    let deco = decoration_for(window);
-    let positions = [
-        (&deco.corner_mask_tl, 0, 0),
-        (&deco.corner_mask_tr, full_width - r, 0),
-        (&deco.corner_mask_bl, 0, full_height - r),
-        (&deco.corner_mask_br, full_width - r, full_height - r),
-    ];
-    let mut out = Vec::with_capacity(4);
-    for (buf, dx, dy) in positions {
-        let pos = origin + Point::<i32, Physical>::from((dx, dy));
-        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-            renderer,
-            pos.to_f64(),
-            buf,
-            None,
-            None,
-            None,
-            Kind::Unspecified,
-        ) {
-            out.push(elem);
-        }
-    }
-    out
 }
 
 /// Constrói o Memory element do bg gradient da titlebar, esticado

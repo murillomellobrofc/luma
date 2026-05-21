@@ -1003,9 +1003,11 @@ impl ColorTokens {
 impl Default for WindowTokens {
     fn default() -> Self {
         Self {
-            // H_deco.v3: cantos 12 inicialmente; aumentado pra 20 em
-            // round.3 (raio mais visivel em janelas grandes).
-            corner_radius: 20,
+            // Cantos da janela RETOS (0) até a reescrita do
+            // renderer/shader pra suportar alpha mask de verdade.
+            // Tentativas de simular round com cor sólida deixavam
+            // remendo em apps dark. Débito em docs/DEBT.md.
+            corner_radius: 0,
             header_height: 40,
             title_size: 13.0,
             title_weight: 500,
