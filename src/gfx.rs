@@ -604,6 +604,45 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
 // show-desktop vêm de assets/branding/icons/*.svg via menu::icon_loader.
 
 
+/// Anti-corner mask `radius × radius`: pinta `mask_color` (premultiplicado)
+/// nos pixels FORA do quarter-circle e deixa alpha=0 DENTRO (preserva
+/// o que estiver atrás). Usado pra "recortar" os 4 cantos da janela
+/// sem shader de mask. H_deco.round.1.
+///
+/// `(cx, cy)` é o ponto do tile onde está o centro do quarter-circle:
+///   TopLeft:     (radius - 1, radius - 1)
+///   TopRight:    (0,          radius - 1)
+///   BottomLeft:  (radius - 1, 0)
+///   BottomRight: (0,          0)
+pub fn make_corner_mask(
+    radius: i32,
+    cx: i32,
+    cy: i32,
+    mask_color: Color32F,
+) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (radius * radius * 4) as usize];
+    let r_sq = radius * radius;
+    for y in 0..radius {
+        for x in 0..radius {
+            let dx = x - cx;
+            let dy = y - cy;
+            let dist_sq = dx * dx + dy * dy;
+            if dist_sq <= r_sq {
+                continue; // dentro do círculo: preserva o conteúdo abaixo
+            }
+            put_pixel_premul(&mut pixels, x, y, radius, mask_color);
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (radius, radius),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Header da janela: gradient vertical w×h com os 2 cantos TOPO
 /// arredondados (sup-esq + sup-dir) raio `radius`. Pixels fora dos
 /// arcos ficam alpha 0. Base reta. H_deco.9.
