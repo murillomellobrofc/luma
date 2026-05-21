@@ -1861,6 +1861,56 @@ pub fn init_winit(
                                          arrow_x + chev_off,
                                          arrow_y + chev_off, renderer);
                             }
+
+                            // H47a.tray.2: painel de overflow renderiza
+                            // acima da setinha quando open. Insert(0,)
+                            // pra ficar no topo do z-stack como o popup.
+                            if data.state.tray.overflow_open {
+                                if let Some(panel) = crate::taskbar::tray_overflow_panel_zone(
+                                    output_size_logical, &data.state.tray,
+                                ) {
+                                    let panel_bg = crate::gfx::make_rounded_panel(
+                                        panel.size.w,
+                                        panel.size.h,
+                                        t_ov.panel_corner,
+                                        t_ov.panel_bg,
+                                    );
+                                    // Top accent (linha âmbar 2px no topo
+                                    // do painel, marca de seleção).
+                                    let accent = crate::gfx::make_rounded_panel(
+                                        panel.size.w - 24,
+                                        2,
+                                        1,
+                                        t_ov.panel_top_accent,
+                                    );
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                            ::from((panel.loc.x, panel.loc.y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer,
+                                        loc.to_f64(),
+                                        &panel_bg,
+                                        None, None, None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let acc_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                            ::from((panel.loc.x + 12, panel.loc.y + 8))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer,
+                                        acc_loc.to_f64(),
+                                        &accent,
+                                        None, None, None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                            }
                         }
                         // H33.taskbar.F.16: botão Show Desktop 44×44 no
                         // canto direito. Bg condicional (hover/active),

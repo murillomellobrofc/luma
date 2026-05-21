@@ -249,6 +249,60 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 // NÃO fecha o OSD (timer dele resolve).
             }
         }
+        // H47a.tray.2: setinha de overflow + painel. Click na setinha
+        // toggla; click DENTRO do painel é consumido (interações virão
+        // na H47b); click FORA da setinha+painel fecha.
+        {
+            let output_size = state
+                .space
+                .output_geometry(state.output_under_cursor(pointer_pos))
+                .map(|g| g.size);
+            if let Some(output) = output_size {
+                let arrow_zone = crate::taskbar::tray_overflow_zone(output, &state.tray);
+                let arrow_hit = arrow_zone
+                    .map(|r| r.to_f64().contains(pointer_pos))
+                    .unwrap_or(false);
+                if arrow_hit {
+                    state.tray.overflow_open = !state.tray.overflow_open;
+                    pointer.button(
+                        state,
+                        &ButtonEvent {
+                            button,
+                            state: button_state,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                    return;
+                }
+                if state.tray.overflow_open {
+                    let panel_zone = crate::taskbar::tray_overflow_panel_zone(
+                        output, &state.tray,
+                    );
+                    let inside_panel = panel_zone
+                        .map(|r| r.to_f64().contains(pointer_pos))
+                        .unwrap_or(false);
+                    if !inside_panel {
+                        // Click fora: fecha o painel, sem consumir o click
+                        // (deixa propagar pra surface debaixo).
+                        state.tray.overflow_open = false;
+                    } else {
+                        // Click dentro do painel: consome, sem ação ainda
+                        // (interações com itens SNI virão na H47b).
+                        pointer.button(
+                            state,
+                            &ButtonEvent {
+                                button,
+                                state: button_state,
+                                serial,
+                                time: event.time_msec(),
+                            },
+                        );
+                        return;
+                    }
+                }
+            }
+        }
         // H44.volume.1-2: popup de applet tem prioridade. Click DENTRO
         // do popup é consumido pelo popup (e pode interagir com tabs);
         // click FORA fecha.
