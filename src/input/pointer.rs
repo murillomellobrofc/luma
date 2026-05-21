@@ -986,23 +986,33 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             // H48.ctx.1: right-click no desktop (área vazia, sem
             // janela sob o cursor) abre menu de contexto. Botão
             // esquerdo segue defocando como antes.
+            //
+            // H48.fix.1: extra guard — click na faixa da taskbar
+            // (y >= output.h - taskbar_height) NÃO abre o menu do
+            // desktop, mesmo que não tenha janela ali. A taskbar pode
+            // ter o seu próprio menu no futuro; por enquanto, só não
+            // sobrepõe o menu do desktop em cima dela.
             if button == 0x111 {
                 let output_size = state
                     .space
                     .output_geometry(state.output_under_cursor(pointer_pos))
                     .map(|g| g.size);
                 if let Some(out) = output_size {
-                    let tokens = crate::theme::current().context_menu.clone();
-                    let mut menu = crate::context_menu::ContextMenu::new_at(
-                        smithay::utils::Point::from((
-                            pointer_pos.x.round() as i32,
-                            pointer_pos.y.round() as i32,
-                        )),
-                    );
-                    menu.clamp_into(out, &tokens);
-                    state.context_menu = Some(menu);
-                    pointer.frame(state);
-                    return;
+                    let bar_top = out.h - crate::taskbar::taskbar_height();
+                    let on_taskbar = pointer_pos.y >= bar_top as f64;
+                    if !on_taskbar {
+                        let tokens = crate::theme::current().context_menu.clone();
+                        let mut menu = crate::context_menu::ContextMenu::new_at(
+                            smithay::utils::Point::from((
+                                pointer_pos.x.round() as i32,
+                                pointer_pos.y.round() as i32,
+                            )),
+                        );
+                        menu.clamp_into(out, &tokens);
+                        state.context_menu = Some(menu);
+                        pointer.frame(state);
+                        return;
+                    }
                 }
             }
             let windows: Vec<_> = state
