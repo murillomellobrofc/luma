@@ -29,7 +29,9 @@ dependência.
 3. Notificações, lock, power (mais 3 a 6 meses)
 4. File manager, settings, polimento (mais 6 a 12 meses)
 
-## Deps de sistema (Fedora 44)
+## Deps de sistema
+
+### Fedora 44
 
 ```
 sudo dnf install \
@@ -40,6 +42,46 @@ sudo dnf install \
   libdrm-devel libseat-devel \
   systemd-devel dbus-devel pixman-devel \
   xorg-x11-server-Xwayland
+```
+
+### Ubuntu / Debian
+
+```
+sudo apt install \
+  build-essential pkg-config \
+  libwayland-dev wayland-protocols \
+  libxkbcommon-dev libinput-dev \
+  libegl-dev libgbm-dev \
+  libdrm-dev libseat-dev \
+  libsystemd-dev libdbus-1-dev libpixman-1-dev \
+  xwayland \
+  fonts-dejavu-core fonts-liberation
+```
+
+Runtime do system tray usa `nmcli` (rede), `bluetoothctl` (bluetooth)
+e `wpctl` (volume PipeWire):
+
+```
+sudo apt install network-manager bluez pipewire wireplumber
+```
+
+### Arch Linux
+
+```
+sudo pacman -S --needed \
+  base-devel pkgconf \
+  wayland wayland-protocols \
+  libxkbcommon libinput \
+  mesa libdrm seatd \
+  systemd dbus pixman \
+  xorg-xwayland \
+  ttf-dejavu ttf-liberation
+```
+
+Runtime do system tray:
+
+```
+sudo pacman -S --needed networkmanager bluez bluez-utils pipewire wireplumber
 ```
 
 ## Build
