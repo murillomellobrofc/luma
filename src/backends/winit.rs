@@ -3110,6 +3110,287 @@ pub fn init_winit(
                             }
                         }
 
+                        // H46.osd-media: card now-playing. Estrutura espelha
+                        // o H45 (filter expired → snapshot → render). Diferenças:
+                        //   * polling de 500ms re-faz playerctl (live update)
+                        //   * fade-out via alpha modulation no from_buffer
+                        //   * hit-test só nos 3 botões (resto click-through)
+                        let t_media = crate::theme::current().osd_media.clone();
+                        if data
+                            .state
+                            .osd_media
+                            .as_ref()
+                            .map(|m| m.expired(t_media.timeout_ms))
+                            .unwrap_or(false)
+                        {
+                            data.state.osd_media = None;
+                        }
+                        // Polling enquanto visível.
+                        if let Some(m) = data.state.osd_media.as_mut() {
+                            if m.last_poll.elapsed() >= std::time::Duration::from_millis(500) {
+                                let fresh = crate::media::read_info();
+                                // Se trocou de track, reseta timer (re-trigger).
+                                let track_changed =
+                                    fresh.title != m.info.title || fresh.length != m.info.length;
+                                m.info = fresh;
+                                m.last_poll = std::time::Instant::now();
+                                if track_changed {
+                                    m.shown_at = std::time::Instant::now();
+                                }
+                            }
+                        }
+                        if let Some(media) = data.state.osd_media.clone() {
+                            let theme = crate::theme::current();
+                            let t = &theme.osd_media;
+                            let layout = crate::osd::MediaOsdLayout::compute(
+                                output_size_logical.w,
+                                output_size_logical.h,
+                                t,
+                            );
+                            let fade = media.alpha(t.timeout_ms, t.fade_ms);
+
+                            // Helper local com alpha modulation (fade-out).
+                            let mk_alpha = |buf: &MemoryRenderBuffer,
+                                            x: i32,
+                                            y: i32,
+                                            r: &mut GlesRenderer|
+                             -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((x, y))
+                                        .to_physical_precise_round(1.0);
+                                MemoryRenderBufferRenderElement::from_buffer(
+                                    r,
+                                    loc.to_f64(),
+                                    buf,
+                                    Some(fade),
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                )
+                                .ok()
+                            };
+
+                            // (1) Card bg (rounded).
+                            let bg = crate::gfx::make_rounded_panel(
+                                t.width,
+                                t.height,
+                                t.corner_radius,
+                                t.bg,
+                            );
+
+                            // (2) Arte: ou imagem carregada do mpris:artUrl,
+                            // ou placeholder de nota musical.
+                            let art_buf = if media.info.art_url.is_empty() {
+                                None
+                            } else {
+                                crate::media::load_art(&media.info.art_url, t.art_size)
+                            };
+                            let placeholder_buf = if art_buf.is_none() {
+                                crate::tray::ensure_icon_sized(
+                                    &mut data.state.tray,
+                                    "media-art-placeholder",
+                                    t.art_size,
+                                )
+                                .map(|(b, _)| b)
+                            } else {
+                                None
+                            };
+
+                            // (3) Texto (title + artist).
+                            let title_buf = data.state.text.as_ref().and_then(|tx| {
+                                let title = if media.info.title.is_empty() {
+                                    "—".to_string()
+                                } else {
+                                    media.info.title.clone()
+                                };
+                                let (px, w, h) =
+                                    tx.rasterize_colored(&title, t.title_size, t.title_color);
+                                if w == 0 || h == 0 {
+                                    return None;
+                                }
+                                Some((
+                                    MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (w as i32, h as i32),
+                                        1,
+                                        Transform::Normal,
+                                        None,
+                                    ),
+                                    w as i32,
+                                    h as i32,
+                                ))
+                            });
+                            let artist_buf = data.state.text.as_ref().and_then(|tx| {
+                                let artist = media.info.artist.clone();
+                                if artist.is_empty() {
+                                    return None;
+                                }
+                                let (px, w, h) =
+                                    tx.rasterize_colored(&artist, t.artist_size, t.artist_color);
+                                if w == 0 || h == 0 {
+                                    return None;
+                                }
+                                Some((
+                                    MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (w as i32, h as i32),
+                                        1,
+                                        Transform::Normal,
+                                        None,
+                                    ),
+                                    w as i32,
+                                    h as i32,
+                                ))
+                            });
+
+                            // (4) Botão play/pause: círculo amber + ícone.
+                            let play_bg = crate::gfx::make_rounded_panel(
+                                layout.play_size,
+                                layout.play_size,
+                                layout.play_size / 2,
+                                t.play_btn_bg,
+                            );
+                            // Ícone: pause se Playing, play caso contrário.
+                            let is_playing = matches!(
+                                media.info.status,
+                                Some(crate::media::PlaybackStatus::Playing)
+                            );
+                            let play_icon_name = if is_playing {
+                                "media-pause"
+                            } else {
+                                "media-play"
+                            };
+                            // Ícone do play/pause em ~60% do botão.
+                            let play_icon_size = (layout.play_size as f32 * 0.55) as i32;
+                            let play_icon = crate::tray::ensure_icon_sized(
+                                &mut data.state.tray,
+                                play_icon_name,
+                                play_icon_size,
+                            );
+                            let prev_icon = crate::tray::ensure_icon_sized(
+                                &mut data.state.tray,
+                                "media-prev",
+                                layout.prev_size,
+                            );
+                            let next_icon = crate::tray::ensure_icon_sized(
+                                &mut data.state.tray,
+                                "media-next",
+                                layout.next_size,
+                            );
+
+                            // (5) Progress bar (bg + fill se length > 0).
+                            let progress_bg = crate::gfx::make_rounded_panel(
+                                layout.progress_w,
+                                layout.progress_h,
+                                layout.progress_h / 2,
+                                t.progress_bg,
+                            );
+                            let progress_fill = if media.info.length > 0.0 {
+                                let cur = media.current_position();
+                                let frac = (cur / media.info.length).clamp(0.0, 1.0) as f32;
+                                let fw = (layout.progress_w as f32 * frac).round() as i32;
+                                if fw > 0 {
+                                    Some(crate::gfx::make_rounded_panel(
+                                        fw,
+                                        layout.progress_h,
+                                        layout.progress_h / 2,
+                                        t.progress_fill,
+                                    ))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            // Push order: bg (mais atrás) → art → texts → progress bg →
+                            // progress fill → play_bg → icons (mais à frente).
+                            if let Some(elem) =
+                                mk_alpha(&bg, layout.origin_x, layout.origin_y, renderer)
+                            {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(buf) = art_buf.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(buf, layout.art_x, layout.art_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            } else if let Some(buf) = placeholder_buf.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(buf, layout.art_x, layout.art_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((tbuf, _tw, _th)) = title_buf.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(tbuf, layout.right_col_x, layout.title_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((abuf, _aw, _ah)) = artist_buf.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(abuf, layout.right_col_x, layout.artist_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some(elem) = mk_alpha(
+                                &progress_bg,
+                                layout.progress_x,
+                                layout.progress_y,
+                                renderer,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(fbuf) = progress_fill.as_ref() {
+                                if let Some(elem) = mk_alpha(
+                                    fbuf,
+                                    layout.progress_x,
+                                    layout.progress_y,
+                                    renderer,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some(elem) =
+                                mk_alpha(&play_bg, layout.play_x, layout.controls_y, renderer)
+                            {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            // Centraliza o icon dentro do botão circular.
+                            let play_icon_off = (layout.play_size - play_icon_size) / 2;
+                            if let Some((ibuf, _isz)) = play_icon.as_ref() {
+                                if let Some(elem) = mk_alpha(
+                                    ibuf,
+                                    layout.play_x + play_icon_off,
+                                    layout.controls_y + play_icon_off,
+                                    renderer,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((ibuf, _isz)) = prev_icon.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(ibuf, layout.prev_x, layout.controls_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((ibuf, _isz)) = next_icon.as_ref() {
+                                if let Some(elem) =
+                                    mk_alpha(ibuf, layout.next_x, layout.controls_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                        }
+
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).
                         // Pushed POR ÚLTIMO em custom_elements pra ficar atrás de
                         // todos os solid elements da taskbar (blocos, launcher,
