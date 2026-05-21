@@ -6,7 +6,7 @@ use smithay::{
     desktop::{space::SpaceElement, Window},
     output::Output,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{IsAlive, Logical, Physical, Point, Rectangle, Scale},
+    utils::{IsAlive, Logical, Physical, Point, Rectangle, Scale, Size},
 };
 
 use crate::{
@@ -180,6 +180,21 @@ where
                 .into_iter()
                 .map(|e| C::from(LumaRenderElement::Solid(e))),
         );
+
+        // H_deco.2-3: drop shadow 9-slice atrás da janela. Push DEPOIS
+        // dos solids = atrás no z-stack (Smithay renderiza fim→começo).
+        let full_size = Size::<i32, Logical>::from((
+            full_width_logical,
+            HEADER_HEIGHT + content_size.h + BORDER_THICKNESS,
+        ));
+        for elem in crate::window_shadow::shadow_elements_at(
+            renderer,
+            location,
+            full_size,
+            focused,
+        ) {
+            out.push(C::from(LumaRenderElement::Memory(elem)));
+        }
 
         // Surface fica deslocada pela borda esquerda + header.
         let surface_loc = Point::<i32, Physical>::from((

@@ -382,7 +382,15 @@ pub struct WindowTokens {
     pub controls_padding_right: i32,
     pub controls_gap: i32,
     pub shadow_blur: i32,
+    /// Blur da sombra quando a janela está fora de foco. H_deco.3.
+    pub shadow_blur_inactive: i32,
     pub shadow_offset_y: i32,
+    /// Opacity da sombra da janela focada. H_deco.2.
+    pub shadow_opacity: f32,
+    /// Opacity da sombra da janela fora de foco. H_deco.3.
+    pub shadow_opacity_inactive: f32,
+    /// Cor base da sombra (Black default). H_deco.2.
+    pub shadow_color: Color32F,
 }
 
 /// Layout do menu launcher (container). H32.7.
@@ -988,16 +996,22 @@ impl ColorTokens {
 impl Default for WindowTokens {
     fn default() -> Self {
         Self {
-            corner_radius: 8,
+            // H_deco.v3: cantos 12px, header 40px, sombra mais forte (16),
+            // titles centralizados com padding maior.
+            corner_radius: 12,
             header_height: 40,
             title_size: 13.0,
             title_weight: 500,
             title_font_family: String::from("Manrope"),
             title_padding_left: 16,
-            controls_padding_right: 12,
+            controls_padding_right: 8,
             controls_gap: 6,
-            shadow_blur: 8,
-            shadow_offset_y: 4,
+            shadow_blur: 16,
+            shadow_blur_inactive: 8,
+            shadow_offset_y: 8,
+            shadow_opacity: 0.35,
+            shadow_opacity_inactive: 0.20,
+            shadow_color: hex_color("#000000", 1.0),
         }
     }
 }
@@ -1658,7 +1672,11 @@ struct WindowTokensFile {
     controls_padding_right: Option<i32>,
     controls_gap: Option<i32>,
     shadow_blur: Option<i32>,
+    shadow_blur_inactive: Option<i32>,
     shadow_offset_y: Option<i32>,
+    shadow_opacity: Option<f32>,
+    shadow_opacity_inactive: Option<f32>,
+    shadow_color: Option<String>,
     theme_detection: Option<WindowThemeDetectionFile>,
 }
 
@@ -1686,7 +1704,19 @@ impl WindowTokensFile {
                 .unwrap_or(def.controls_padding_right),
             controls_gap: self.controls_gap.unwrap_or(def.controls_gap),
             shadow_blur: self.shadow_blur.unwrap_or(def.shadow_blur),
+            shadow_blur_inactive: self
+                .shadow_blur_inactive
+                .unwrap_or(def.shadow_blur_inactive),
             shadow_offset_y: self.shadow_offset_y.unwrap_or(def.shadow_offset_y),
+            shadow_opacity: self.shadow_opacity.unwrap_or(def.shadow_opacity),
+            shadow_opacity_inactive: self
+                .shadow_opacity_inactive
+                .unwrap_or(def.shadow_opacity_inactive),
+            shadow_color: self
+                .shadow_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.shadow_color),
         }
     }
 }

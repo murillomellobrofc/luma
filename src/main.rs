@@ -20,6 +20,7 @@ mod theme;
 mod tray;
 mod wallpaper;
 mod window;
+mod window_shadow;
 
 use smithay::reexports::{
     calloop::EventLoop,
