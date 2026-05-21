@@ -877,14 +877,17 @@ pub fn tray_volume_zone(
     output_size: Size<i32, Logical>,
     tray: &crate::tray::TrayState,
 ) -> Option<smithay::utils::Rectangle<i32, Logical>> {
-    use smithay::utils::Rectangle;
+    use smithay::utils::{Point, Rectangle, Size};
     let theme = crate::theme::current();
     let t_sys = &theme.taskbar.system_tray;
     let bar_y = output_size.h - taskbar_height();
     let icon = t_sys.icon_size;
     let center_y = bar_y + (taskbar_height() - icon) / 2;
     let volume_x = tray.last_volume_x?;
-    Some(Rectangle::from_loc_and_size((volume_x, center_y), (icon, icon)))
+    Some(Rectangle::new(
+        Point::from((volume_x, center_y)),
+        Size::from((icon, icon)),
+    ))
 }
 
 /// Hit-test: ponto está sobre launcher, sobre um bloco, ou em nenhum
