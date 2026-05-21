@@ -170,6 +170,9 @@ pub struct LumaState {
     /// OSD de mídia (now playing card) ativo. H46.osd-media.
     /// Tick limpa quando expira. Polling de 500ms enquanto visível.
     pub osd_media: Option<crate::osd::MediaOsd>,
+    /// Menu de contexto do desktop ativo (right-click em área vazia).
+    /// `None` = fechado. H48.
+    pub context_menu: Option<crate::context_menu::ContextMenu>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -590,6 +593,7 @@ impl LumaState {
             audio_last_refresh: None,
             osd: None,
             osd_media: None,
+            context_menu: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

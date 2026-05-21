@@ -3,6 +3,7 @@ mod audio;
 mod brightness;
 mod places;
 mod backends;
+mod context_menu;
 mod cursor;
 mod decoration;
 mod gfx;
