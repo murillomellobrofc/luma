@@ -584,6 +584,28 @@ pub fn init_winit(
                     // H33.taskbar.SVG: refresh dos sensores se >= 3s + load
                     // dos SVGs corretos pra cada estado.
                     crate::tray::refresh_if_stale(&mut data.state.tray);
+                    // H50.icons.7: polling 2s do ~/Desktop. Re-scan e
+                    // só atualiza o layer se mudou (path/mtime). Cheap:
+                    // read_dir + sort ordena 5-50 entries em <1ms.
+                    let stale_icons = data
+                        .state
+                        .desktop_last_scan
+                        .map(|t| t.elapsed() >= std::time::Duration::from_secs(2))
+                        .unwrap_or(true);
+                    if stale_icons {
+                        let fresh = crate::desktop_icons::scan();
+                        let changed = fresh.len() != data.state.desktop_entries.len()
+                            || fresh.iter().zip(data.state.desktop_entries.iter()).any(
+                                |(a, b)| a.path != b.path || a.mtime != b.mtime,
+                            );
+                        if changed {
+                            if let Some(layer) = data.state.desktop_icons.as_ref() {
+                                layer.set_entries(fresh.clone());
+                            }
+                            data.state.desktop_entries = fresh;
+                        }
+                        data.state.desktop_last_scan = Some(std::time::Instant::now());
+                    }
                     let info = data.state.tray.battery_info;
                     match (info, data.state.text.as_ref()) {
                         (Some(b), Some(text_r)) => {
