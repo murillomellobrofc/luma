@@ -40,3 +40,67 @@ ficam arredondados pela mask de alpha sobre a textura do cliente.
   débito documentado).
 - Sombra 9-slice ainda é retangular (`src/window_shadow.rs`); volta
   a ter sentido revisitar quando os cantos voltarem a ser round.
+
+---
+
+## OSD duplicado em modo aninhado (H45.osd)
+
+**Status:** débito aceito.
+
+**Sintoma:** quando o luma roda dentro de um compositor host (KDE
+em modo winit, hoje), ao pressionar XF86_AudioRaiseVolume etc. o
+host **também** captura a tecla e mostra o OSD dele. O usuário
+vê 2 OSDs em paralelo (luma centralizado + KDE no canto).
+
+### Por quê adiou
+
+Em modo nested (winit/wayland-1), o servidor host recebe os eventos
+de input antes do luma. Não tem como interceptar XF86 antes do
+host ver. A única correção é rodar em DRM nativo, onde o luma é o
+único compositor e processa input direto do libinput.
+
+### Quando desbloqueia
+
+Migração pro backend DRM nativo (planejada). Daí o luma processa
+XF86 sem intermediário e o OSD dele é o único.
+
+### Mitigação interina
+
+Em DEV, ignora o OSD do host. O caminho de input + render do luma
+já está correto; só o host duplica.
+
+---
+
+## Brilho sem backend ativo (H45.osd)
+
+**Status:** funcional como no-op.
+
+**Sintoma:** na máquina de dev (desktop sem painel interno, sem
+`/sys/class/backlight`, sem `brightnessctl`/`ddcutil` instalados),
+XF86_MonBrightnessUp/Down não fazem nada — nem o OSD do luma
+aparece pra brilho. `brightness::available()` retorna `false` e
+`apply()` ignora a ação.
+
+### Por quê é OK
+
+Não inventa OSD sem ter dado pra mostrar. O caminho de input e o
+component compartilhado de render já estão prontos: o dia que o
+Murillo instalar `ddcutil` (DDC/CI pro monitor externo) ou
+`brightnessctl` (laptop futuro), o backend resolve sozinho e o OSD
+ligado começa a aparecer sem mudança de código.
+
+### Como ligar
+
+```bash
+# Opção 1: monitor externo via DDC/CI
+sudo apt install ddcutil
+sudo modprobe i2c-dev
+sudo usermod -a -G i2c $USER
+
+# Opção 2: laptop com backlight interno
+sudo apt install brightnessctl
+sudo usermod -a -G video $USER
+```
+
+Após reiniciar a sessão, `brightness::probe()` detecta o backend
+e o OSD de brilho passa a funcionar.

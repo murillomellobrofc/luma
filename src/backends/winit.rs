@@ -2952,17 +2952,24 @@ pub fn init_winit(
 
                         // H45.osd: overlay centralizado (volume/brilho). Render
                         // PURO — sem hit-test, sem keyboard focus. Aparece por
-                        // cima de tudo (insert(0,) por último = mais à frente)
-                        // mas continua atrás do popup de applet se ambos
-                        // estiverem ativos (popup é renderizado antes, ocupa
-                        // pos 0 → 4; OSD é inserido depois, empurra pra trás).
-                        // Filtra OSD expirado.
-                        let osd_snapshot = data
+                        // cima de TUDO (Smithay renderiza fim→começo, então
+                        // insert(0,...) por último vira o topmost). Render
+                        // depois do popup faz OSD ficar acima do popup
+                        // quando ambos estão ativos — comportamento desejado.
+                        //
+                        // Auto-dismiss: zera state.osd quando expira (evita
+                        // re-checar pra sempre). Próximo tick pula o bloco.
+                        let dismiss_ms = crate::theme::current().osd.dismiss_ms;
+                        if data
                             .state
                             .osd
                             .as_ref()
-                            .filter(|o| !o.expired(crate::theme::current().osd.dismiss_ms))
-                            .cloned();
+                            .map(|o| o.expired(dismiss_ms))
+                            .unwrap_or(false)
+                        {
+                            data.state.osd = None;
+                        }
+                        let osd_snapshot = data.state.osd.clone();
                         if let Some(osd) = osd_snapshot {
                             let theme = crate::theme::current();
                             let t_osd = &theme.osd;
