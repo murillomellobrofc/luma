@@ -2950,6 +2950,159 @@ pub fn init_winit(
                             }
                         }
 
+                        // H45.osd: overlay centralizado (volume/brilho). Render
+                        // PURO — sem hit-test, sem keyboard focus. Aparece por
+                        // cima de tudo (insert(0,) por último = mais à frente)
+                        // mas continua atrás do popup de applet se ambos
+                        // estiverem ativos (popup é renderizado antes, ocupa
+                        // pos 0 → 4; OSD é inserido depois, empurra pra trás).
+                        // Filtra OSD expirado.
+                        let osd_snapshot = data
+                            .state
+                            .osd
+                            .as_ref()
+                            .filter(|o| !o.expired(crate::theme::current().osd.dismiss_ms))
+                            .cloned();
+                        if let Some(osd) = osd_snapshot {
+                            let theme = crate::theme::current();
+                            let t_osd = &theme.osd;
+                            let layout = crate::osd::OsdLayout::compute(
+                                output_size_logical.w,
+                                output_size_logical.h,
+                                t_osd,
+                            );
+
+                            // Helper local pra evitar duplicação. Mesma forma
+                            // do mk_mem do popup.
+                            let osd_mk = |buf: &MemoryRenderBuffer,
+                                          x: i32,
+                                          y: i32,
+                                          r: &mut GlesRenderer|
+                             -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((x, y))
+                                        .to_physical_precise_round(1.0);
+                                MemoryRenderBufferRenderElement::from_buffer(
+                                    r,
+                                    loc.to_f64(),
+                                    buf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                )
+                                .ok()
+                            };
+
+                            // (1) Pill bg.
+                            let bg = crate::gfx::make_rounded_panel(
+                                layout.width,
+                                layout.height,
+                                t_osd.corner_radius,
+                                t_osd.bg,
+                            );
+
+                            // (2) Bar bg.
+                            let bar_bg = crate::gfx::make_rounded_panel(
+                                layout.bar_w,
+                                layout.bar_h,
+                                layout.bar_h / 2,
+                                t_osd.bar_bg,
+                            );
+
+                            // (3) Bar fill.
+                            let fill_color = if osd.muted {
+                                t_osd.bar_fill_muted
+                            } else if osd.is_boost() {
+                                t_osd.bar_fill_boost
+                            } else {
+                                t_osd.bar_fill
+                            };
+                            let fill_w =
+                                (layout.bar_w as f32 * osd.bar_fraction()).round() as i32;
+                            let bar_fill = if fill_w > 0 {
+                                Some(crate::gfx::make_rounded_panel(
+                                    fill_w,
+                                    layout.bar_h,
+                                    layout.bar_h / 2,
+                                    fill_color,
+                                ))
+                            } else {
+                                None
+                            };
+
+                            // (4) Icon SVG (via tray cache pra reusar fetch).
+                            let icon_pair = crate::tray::ensure_icon_sized(
+                                &mut data.state.tray,
+                                osd.icon_name(),
+                                layout.icon_size,
+                            );
+
+                            // (5) Label "N%".
+                            let label_text = format!("{}%", osd.pct());
+                            let label_color = if osd.muted {
+                                t_osd.bar_fill_muted
+                            } else if osd.is_boost() {
+                                t_osd.bar_fill_boost
+                            } else {
+                                t_osd.text_color
+                            };
+                            let label_buf = data.state.text.as_ref().and_then(|tx| {
+                                let (px, w, h) =
+                                    tx.rasterize_colored(&label_text, t_osd.text_size, label_color);
+                                if w == 0 || h == 0 {
+                                    return None;
+                                }
+                                Some((
+                                    MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (w as i32, h as i32),
+                                        1,
+                                        Transform::Normal,
+                                        None,
+                                    ),
+                                    w as i32,
+                                    h as i32,
+                                ))
+                            });
+
+                            // Push em z-stack: bg primeiro (mais atrás), depois
+                            // bar_bg, bar_fill, icon, label (mais à frente).
+                            if let Some(elem) =
+                                osd_mk(&bg, layout.origin_x, layout.origin_y, renderer)
+                            {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(elem) =
+                                osd_mk(&bar_bg, layout.bar_x, layout.bar_y, renderer)
+                            {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(buf) = bar_fill.as_ref() {
+                                if let Some(elem) =
+                                    osd_mk(buf, layout.bar_x, layout.bar_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((ibuf, _isz)) = icon_pair.as_ref() {
+                                if let Some(elem) =
+                                    osd_mk(ibuf, layout.icon_x, layout.icon_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            if let Some((lbuf, lw, lh)) = label_buf.as_ref() {
+                                let lx = layout.label_x_right - lw;
+                                let ly = layout.label_center_y - lh / 2;
+                                if let Some(elem) = osd_mk(lbuf, lx, ly, renderer) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                        }
+
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).
                         // Pushed POR ÚLTIMO em custom_elements pra ficar atrás de
                         // todos os solid elements da taskbar (blocos, launcher,
