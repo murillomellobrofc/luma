@@ -38,6 +38,14 @@ pub enum KeyAction {
     BrightnessRaise,
     /// Diminui brilho em 5% (floor 0%). No-op se backend Noop. H45.osd.
     BrightnessLower,
+    /// Toggle play/pause via MPRIS + mostra OSD. H46.osd-media.
+    MediaPlayPause,
+    /// Próxima faixa via MPRIS + mostra OSD. H46.osd-media.
+    MediaNext,
+    /// Faixa anterior via MPRIS + mostra OSD. H46.osd-media.
+    MediaPrev,
+    /// Parar reprodução via MPRIS + mostra OSD. H46.osd-media.
+    MediaStop,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -67,6 +75,15 @@ pub fn match_shortcut(
         Keysym::XF86_AudioMute => return Some(KeyAction::VolumeMute),
         Keysym::XF86_MonBrightnessUp => return Some(KeyAction::BrightnessRaise),
         Keysym::XF86_MonBrightnessDown => return Some(KeyAction::BrightnessLower),
+        // H46.osd-media: teclas de mídia. AudioPlay e AudioPause sao
+        // ambos toggle (teclados modernos mandam Play pro botão play/
+        // pause; alguns mandam Pause quando ja tocando).
+        Keysym::XF86_AudioPlay | Keysym::XF86_AudioPause => {
+            return Some(KeyAction::MediaPlayPause)
+        }
+        Keysym::XF86_AudioNext => return Some(KeyAction::MediaNext),
+        Keysym::XF86_AudioPrev => return Some(KeyAction::MediaPrev),
+        Keysym::XF86_AudioStop => return Some(KeyAction::MediaStop),
         _ => {}
     }
     if modifiers.alt && modifiers.shift && keysym == Keysym::F4 {
@@ -139,6 +156,55 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::VolumeMute => volume_mute_toggle(state),
         KeyAction::BrightnessRaise => brightness_step(state, 0.05),
         KeyAction::BrightnessLower => brightness_step(state, -0.05),
+        KeyAction::MediaPlayPause => media_action(state, MediaCmd::PlayPause),
+        KeyAction::MediaNext => media_action(state, MediaCmd::Next),
+        KeyAction::MediaPrev => media_action(state, MediaCmd::Previous),
+        KeyAction::MediaStop => media_action(state, MediaCmd::Stop),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum MediaCmd {
+    PlayPause,
+    Next,
+    Previous,
+    Stop,
+}
+
+/// Executa o comando MPRIS + mostra/atualiza o OSD de mídia. No-op
+/// silencioso se playerctl ausente ou nenhum player ativo. H46.osd-media.
+fn media_action(state: &mut LumaState, cmd: MediaCmd) {
+    if !crate::media::is_available() {
+        tracing::debug!("XF86 media sem playerctl — ignorado");
+        return;
+    }
+    match cmd {
+        MediaCmd::PlayPause => {
+            crate::media::play_pause();
+        }
+        MediaCmd::Next => {
+            crate::media::next();
+        }
+        MediaCmd::Previous => {
+            crate::media::previous();
+        }
+        MediaCmd::Stop => {
+            crate::media::stop();
+        }
+    }
+    let info = crate::media::read_info();
+    if !info.has_player() {
+        return;
+    }
+    match state.osd_media.as_mut() {
+        Some(m) => {
+            m.info = info;
+            m.last_poll = std::time::Instant::now();
+            m.touch();
+        }
+        None => {
+            state.osd_media = Some(crate::osd::MediaOsd::new(info));
+        }
     }
 }
 
