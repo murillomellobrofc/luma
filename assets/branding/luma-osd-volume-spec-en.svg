@@ -1,0 +1,118 @@
+<svg viewBox="0 0 1280 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="taskbarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3A4A5C"/>
+      <stop offset="100%" stop-color="#5C6B7A"/>
+    </linearGradient>
+    <filter id="osdShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1080" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Volume OSD</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">The small indicator shown when volume keys are pressed. Auto-dismisses.</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — SCREEN POSITION (above the taskbar, centered)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="380" fill="url(#wallGrad)" rx="12"/>
+    <g transform="translate(450, 230)" filter="url(#osdShadow)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(24, 22)">
+        <path d="M 2 7 L 8 7 L 15 1 L 15 21 L 8 15 L 2 15 Z" fill="#FBF6EE"/>
+        <path d="M 19 8 a 5 5 0 0 1 0 6" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 22 5 a 9 9 0 0 1 0 12" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="94" height="6" rx="3" fill="#E89B3D"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#F5D5A8" text-anchor="end" font-weight="600">68%</text>
+    </g>
+    <g transform="translate(0, 316)">
+      <rect width="1160" height="64" fill="url(#taskbarGrad)"/>
+      <rect width="1160" height="2" fill="#E89B3D" opacity="0.5"/>
+      <circle cx="34" cy="32" r="14" fill="#3D2520"/>
+      <g transform="translate(900, 24)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.8">
+        <rect x="0" y="2" width="20" height="11" rx="1.5"/>
+      </g>
+    </g>
+    <text x="580" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.85">appears centered, right above the taskbar</text>
+  </g>
+
+  <text x="60" y="596" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — STATES</text>
+
+  <g transform="translate(60, 620)">
+    <rect width="1160" height="180" fill="#2A2520" rx="12"/>
+
+    <g transform="translate(60, 58)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(24, 22)">
+        <path d="M 2 7 L 8 7 L 15 1 L 15 21 L 8 15 L 2 15 Z" fill="#FBF6EE"/>
+        <path d="M 19 8 a 5 5 0 0 1 0 6" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="62" height="6" rx="3" fill="#E89B3D"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#F5D5A8" text-anchor="end" font-weight="600">45%</text>
+    </g>
+    <text x="190" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">normal volume</text>
+
+    <g transform="translate(360, 58)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(24, 22)">
+        <path d="M 2 7 L 8 7 L 15 1 L 15 21 L 8 15 L 2 15 Z" fill="#A89D92"/>
+        <line x1="19" y1="7" x2="27" y2="15" stroke="#D97757" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="27" y1="7" x2="19" y2="15" stroke="#D97757" stroke-width="2.5" stroke-linecap="round"/>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="13" fill="#D97757" text-anchor="end" font-weight="600">Muted</text>
+    </g>
+    <text x="490" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">muted (empty track, coral icon)</text>
+
+    <g transform="translate(660, 58)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(24, 22)">
+        <path d="M 2 7 L 8 7 L 15 1 L 15 21 L 8 15 L 2 15 Z" fill="#FBF6EE"/>
+        <path d="M 19 8 a 5 5 0 0 1 0 6" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 22 5 a 9 9 0 0 1 0 12" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#D97757"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#D97757" text-anchor="end" font-weight="600">130%</text>
+    </g>
+    <text x="790" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">above 100% (coral fill and percentage)</text>
+
+    <text x="990" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" font-weight="600">Icon changes</text>
+    <text x="990" y="78" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">with the level:</text>
+    <text x="990" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">0 = muted · low =</text>
+    <text x="990" y="114" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">1 wave · mid = 2</text>
+    <text x="990" y="130" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">waves · high = 3</text>
+  </g>
+
+  <text x="60" y="846" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — BEHAVIOR</text>
+
+  <g transform="translate(60, 870)">
+    <rect width="560" height="160" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+    <text x="28" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Appears when a volume key is pressed (up, down, mute)</text>
+    <text x="28" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Stays visible ~1.5s after the last keypress</text>
+    <text x="28" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Each new key resets the timer (no flicker, just updates)</text>
+    <text x="28" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Dismisses with a smooth fade, no hard cut</text>
+    <text x="28" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Never steals focus, never blocks clicks underneath</text>
+  </g>
+
+  <g transform="translate(660, 870)">
+    <rect width="560" height="160" fill="#1F1611" rx="8"/>
+    <text x="28" y="36" font-family="monospace" font-size="11" fill="#A89D92">[osd]   # base, also used by the brightness OSD later</text>
+    <text x="28" y="58" font-family="monospace" font-size="11" fill="#FBF6EE">width          = <tspan fill="#E89B3D">260</tspan></text>
+    <text x="28" y="76" font-family="monospace" font-size="11" fill="#FBF6EE">height         = <tspan fill="#E89B3D">64</tspan></text>
+    <text x="28" y="94" font-family="monospace" font-size="11" fill="#FBF6EE">bg             = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="28" y="112" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius  = <tspan fill="#E89B3D">16</tspan></text>
+    <text x="28" y="130" font-family="monospace" font-size="11" fill="#FBF6EE">margin_bottom  = <tspan fill="#E89B3D">90</tspan>   <tspan fill="#A89D92"># above the taskbar</tspan></text>
+    <text x="28" y="148" font-family="monospace" font-size="11" fill="#FBF6EE">timeout_ms     = <tspan fill="#E89B3D">1500</tspan>  <tspan fill="#A89D92"># coral if &gt; 100%</tspan></text>
+  </g>
+</svg>
