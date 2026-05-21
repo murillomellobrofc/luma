@@ -141,6 +141,38 @@ pub fn read_info() -> MediaInfo {
     }
 }
 
+/// Toggle play/pause no player ativo. No-op se playerctl ausente.
+/// H46.media.3.
+pub fn play_pause() -> bool {
+    run_action(&["play-pause"])
+}
+
+/// Próxima faixa. No-op se ausente. H46.media.3.
+pub fn next() -> bool {
+    run_action(&["next"])
+}
+
+/// Faixa anterior. No-op se ausente. H46.media.3.
+pub fn previous() -> bool {
+    run_action(&["previous"])
+}
+
+/// Parar reprodução. No-op se ausente. H46.media.3.
+pub fn stop() -> bool {
+    run_action(&["stop"])
+}
+
+fn run_action(args: &[&str]) -> bool {
+    if !available() {
+        return false;
+    }
+    Command::new("playerctl")
+        .args(args)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 /// Cache de arte de álbum: chave = "<url>@<size>" pra suportar tamanhos
 /// diferentes sem re-decodificar. Lock global porque acesso vem do
 /// render path (single-threaded, contenção zero).
