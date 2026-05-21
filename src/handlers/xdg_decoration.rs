@@ -39,6 +39,9 @@ impl XdgDecorationHandler for LumaState {
 }
 
 impl LumaState {
+    /// Acessor preservado por compat com macros `delegate_xdg_decoration!`
+    /// do Smithay (alguns paths internos podem chamar via trait).
+    #[allow(dead_code)]
     pub fn xdg_decoration_state(&mut self) -> &mut XdgDecorationState {
         &mut self.xdg_decoration_state
     }

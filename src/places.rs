@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use tracing::info;
 
 /// Atalho da coluna direita do menu (Documentos / Downloads / etc).
+/// Campos preenchidos por `load()`; serão lidos quando o painel
+/// Places for renderizado/clicável.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Place {
     pub label: String,

@@ -35,9 +35,12 @@ pub enum FocusedZone {
     FavGrid,
     /// Grid de todos os apps 8×4 paginado.
     AllGrid,
-    /// Session bar embaixo (5 botões).
+    /// Session bar embaixo (5 botões). Reservada — nav atual cobre só
+    /// Search/FavGrid/AllGrid; expansão pra Session vem depois.
+    #[allow(dead_code)]
     Session,
-    /// Mini-places à direita da session bar (4 ícones).
+    /// Mini-places à direita da session bar (4 ícones). Reservada (idem).
+    #[allow(dead_code)]
     Places,
 }
 
@@ -63,6 +66,8 @@ pub enum SessionButton {
 #[derive(Debug, Clone)]
 pub struct CuratedFavorite {
     /// Posição no grid 5×2 (1..=10, esquerda→direita / topo→base).
+    /// Reservado pra reordenação manual de favoritos (drag-and-drop futuro).
+    #[allow(dead_code)]
     pub slot: usize,
     /// Label embaixo do ícone (max ~12 chars).
     pub label: String,

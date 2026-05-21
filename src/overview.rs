@@ -24,6 +24,7 @@ pub enum OverviewHit {
 pub struct OverviewState {
     /// Backdrop fullscreen Coffee alpha (legacy solid, mantido pro
     /// fallback). H36.spec.
+    #[allow(dead_code)]
     pub backdrop: SolidColorBuffer,
     /// Backdrop gradient vertical Coffee→Amber (1×1200 pre-renderizado,
     /// expandido horizontal no render). H36.spec.fix.

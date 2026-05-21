@@ -17,6 +17,9 @@ pub enum AudioKind {
 #[derive(Debug, Clone)]
 pub struct AudioDevice {
     pub id: u32,
+    /// Sink ou Source. Hoje só usado pra construir as listas separadas;
+    /// futuras features (filtro por tipo, etc) vão ler aqui.
+    #[allow(dead_code)]
     pub kind: AudioKind,
     /// Nome legível ex: "G435 Wireless Gaming Headset Digital Stereo".
     pub description: String,

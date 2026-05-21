@@ -108,6 +108,9 @@ pub enum TaskbarHit {
 
 /// Cache do título de uma janela já rasterizado: o buffer pronto pra
 /// render + tamanho lógico + o texto que gerou (pra invalidar quando muda).
+/// `buffer`/`size` reservados — usados depois quando a label do botão
+/// passar a renderizar via TitleCache em vez do path inline atual.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TitleCache {
     pub text: String,
@@ -187,10 +190,14 @@ pub struct TaskbarState {
     /// taskbar (faixinha fina estilo Win7). Default: transparente
     /// (gradient da taskbar aparece atrás). Hover: accent_amber com
     /// `show_desktop.hover_bg_alpha` (default 0.3). H32.5.11.
+    /// Buffers legacy do show-desktop antes do botão quadrado SVG —
+    /// preservados pra fallback caso o ícone SVG falhe.
+    #[allow(dead_code)]
     pub show_desktop: SolidColorBuffer,
     /// Linha 1px de divisor à esquerda do show-desktop (cor Cream com
     /// alpha `show_desktop.border_left_alpha`, default 0.15). Sempre
     /// renderizada (sem hover). H32.5.11.
+    #[allow(dead_code)]
     pub show_desktop_border_left: SolidColorBuffer,
     pub show_desktop_hovered: bool,
     /// Índice do bloco da janela sob o cursor (`None` se nenhum).

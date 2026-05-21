@@ -31,6 +31,8 @@ pub struct SessionBar {
     /// `None` se o arquivo SVG não existir ou falhou parse.
     pub icons: [Option<MemoryRenderBuffer>; 5],
     /// Bg hover por botão, pré-renderizados em cor própria (H32.10.fix).
+    /// Pré-render reservado pra hover refinado — render atual usa glow.
+    #[allow(dead_code)]
     pub hover_bgs: [MemoryRenderBuffer; 5],
     /// Glow âmbar (proxy de blur) renderizado ao redor do botão hovered.
     /// Tamanho maior que o ícone pra aparecer fora do bg integrado.
