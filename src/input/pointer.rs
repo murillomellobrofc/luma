@@ -200,6 +200,55 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let pointer_pos = pointer.current_location();
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H46.media.6: media OSD intercepta click SÓ se cair em um dos
+        // 3 botões de controle (prev/play/next). Resto da área do card
+        // é click-through — passa pra baixo, honrando "no click block".
+        if state.osd_media.is_some() {
+            let output_size = state
+                .space
+                .output_geometry(state.output_under_cursor(pointer_pos))
+                .map(|g| g.size);
+            if let Some(output) = output_size {
+                let t_media = crate::theme::current().osd_media.clone();
+                let layout = crate::osd::MediaOsdLayout::compute(output.w, output.h, &t_media);
+                if let Some(btn) =
+                    layout.hit_test_button(pointer_pos.x, pointer_pos.y)
+                {
+                    match btn {
+                        crate::osd::MediaButton::Previous => {
+                            crate::media::previous();
+                        }
+                        crate::osd::MediaButton::PlayPause => {
+                            crate::media::play_pause();
+                        }
+                        crate::osd::MediaButton::Next => {
+                            crate::media::next();
+                        }
+                    }
+                    // Re-fetch + reset timer pra refletir o novo estado
+                    // sem esperar o próximo poll de 500ms.
+                    let info = crate::media::read_info();
+                    if let Some(m) = state.osd_media.as_mut() {
+                        m.info = info;
+                        m.last_poll = std::time::Instant::now();
+                        m.touch();
+                    }
+                    // Consume — não dispatcha pra surface debaixo.
+                    pointer.button(
+                        state,
+                        &ButtonEvent {
+                            button,
+                            state: button_state,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                    return;
+                }
+                // Click fora dos botões: NÃO consome (passa pra baixo),
+                // NÃO fecha o OSD (timer dele resolve).
+            }
+        }
         // H44.volume.1-2: popup de applet tem prioridade. Click DENTRO
         // do popup é consumido pelo popup (e pode interagir com tabs);
         // click FORA fecha.
