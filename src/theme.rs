@@ -110,6 +110,8 @@ pub struct Theme {
     pub clock: ClockTokens,
     /// Layout/cores do popup de applet. H44.volume.4.
     pub popup: PopupTokens,
+    /// Layout/cores do OSD centralizado (volume + brilho). H45.osd.
+    pub osd: OsdTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -860,6 +862,33 @@ pub struct PopupSliderTokens {
     pub handle_color: Color32F,
 }
 
+/// Tokens do OSD centralizado de volume/brilho. H45.osd.
+///
+/// Componente compartilhado: muda só o ícone + a fonte de dados.
+/// Pill escuro 260×64 centralizado em ambos eixos, auto-dismiss 1.5s.
+#[derive(Debug, Clone)]
+pub struct OsdTokens {
+    pub width: i32,
+    pub height: i32,
+    pub corner_radius: i32,
+    pub bg: Color32F,
+    pub icon_size: i32,
+    pub icon_padding_left: i32,
+    pub bar_height: i32,
+    pub bar_padding_right: i32,
+    pub bar_bg: Color32F,
+    /// Cor da barra em modo normal (0..100%).
+    pub bar_fill: Color32F,
+    /// Cor da barra quando volume > 100% (boost). Coral.
+    pub bar_fill_boost: Color32F,
+    /// Cor da barra quando muted. Cinza desbotado.
+    pub bar_fill_muted: Color32F,
+    pub text_color: Color32F,
+    pub text_size: f32,
+    /// Tempo de auto-dismiss em milissegundos. Default 1500.
+    pub dismiss_ms: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct ClockTokens {
     /// Tamanho da hora (HH:MM). Default 17 (Fraunces no spec H33; hoje
@@ -940,6 +969,7 @@ impl Default for Theme {
             show_desktop: ShowDesktopTokens::default(),
             clock: ClockTokens::default(),
             popup: PopupTokens::default(),
+            osd: OsdTokens::default(),
         }
     }
 }
@@ -1528,6 +1558,28 @@ impl Default for PopupSliderTokens {
             fill_color: hex_color("#E89B3D", 1.0),   // accent_amber
             handle_radius: 10,
             handle_color: hex_color("#F5D5A8", 1.0), // honey
+        }
+    }
+}
+
+impl Default for OsdTokens {
+    fn default() -> Self {
+        Self {
+            width: 260,
+            height: 64,
+            corner_radius: 32,                          // pill
+            bg: hex_color("#1F1611", 0.92),             // coffee + alpha
+            icon_size: 32,
+            icon_padding_left: 16,
+            bar_height: 6,
+            bar_padding_right: 16,
+            bar_bg: hex_color("#2A1F1A", 1.0),          // applet_bg
+            bar_fill: hex_color("#E89B3D", 1.0),        // accent_amber
+            bar_fill_boost: hex_color("#D97757", 1.0),  // coral (hover_close)
+            bar_fill_muted: hex_color("#A89D92", 1.0),  // text_secondary
+            text_color: hex_color("#FBF6EE", 1.0),      // cream
+            text_size: 13.0,
+            dismiss_ms: 1500,
         }
     }
 }
@@ -2294,6 +2346,7 @@ impl ThemeFile {
             show_desktop,
             clock,
             popup: default.popup.clone(),
+            osd: default.osd.clone(),
         }
     }
 }
