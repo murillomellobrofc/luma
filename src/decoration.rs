@@ -112,21 +112,18 @@ impl WindowDecoration {
             theme.colors.window_header_top_accent,
             theme.colors.window_header_top_alpha,
         );
-        // H_deco.round.1: 4 anti-corner masks pra recortar os cantos
-        // da janela. Cor = theme.clear (pinta-se sobre o que está
-        // atrás c/ a cor de fundo do compositor).
+        // H_deco.round.fix: 4 anti-corner masks com cor que CONTRASTA
+        // com bg de aplicativos (dark E claros). theme.clear coincide
+        // com bg dark típico de terminais/editores e os cantos ficavam
+        // invisíveis. applet_bg_active (#3D2520 — coffee médio do
+        // Golden Hour) cria moldura sutil visível com qualquer cliente.
         let radius = theme.window.corner_radius;
-        let clear = smithay::backend::renderer::Color32F::new(
-            theme.clear[0],
-            theme.clear[1],
-            theme.clear[2],
-            theme.clear[3],
-        );
+        let mask_color = theme.colors.applet_bg_active;
         let corner_mask_tl =
-            crate::gfx::make_corner_mask(radius, radius - 1, radius - 1, clear);
-        let corner_mask_tr = crate::gfx::make_corner_mask(radius, 0, radius - 1, clear);
-        let corner_mask_bl = crate::gfx::make_corner_mask(radius, radius - 1, 0, clear);
-        let corner_mask_br = crate::gfx::make_corner_mask(radius, 0, 0, clear);
+            crate::gfx::make_corner_mask(radius, radius - 1, radius - 1, mask_color);
+        let corner_mask_tr = crate::gfx::make_corner_mask(radius, 0, radius - 1, mask_color);
+        let corner_mask_bl = crate::gfx::make_corner_mask(radius, radius - 1, 0, mask_color);
+        let corner_mask_br = crate::gfx::make_corner_mask(radius, 0, 0, mask_color);
 
         Self {
             background,
