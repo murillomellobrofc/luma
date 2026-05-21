@@ -2056,6 +2056,52 @@ pub fn init_winit(
                                 }
                             }
                         }
+
+                        // H48.ctx: menu de contexto do desktop. Render
+                        // estilo popup — insert(0, ...) pra ficar na
+                        // frente, bg arredondado + linha accent no topo.
+                        // Items reais em ctx.2.
+                        if let Some(menu) = data.state.context_menu.clone() {
+                            let theme = crate::theme::current();
+                            let t_ctx = &theme.context_menu;
+                            let rect = menu.rect(t_ctx);
+                            let bg = crate::gfx::make_rounded_panel(
+                                rect.size.w,
+                                rect.size.h,
+                                t_ctx.corner_radius,
+                                t_ctx.bg,
+                            );
+                            // Top accent (linha 2px na primeira linha
+                            // do painel — marca visual igual ao tray).
+                            let accent = crate::gfx::make_rounded_panel(
+                                rect.size.w - 24,
+                                2,
+                                1,
+                                t_ctx.top_accent,
+                            );
+                            let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                    ::from((rect.loc.x, rect.loc.y))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, bg_loc.to_f64(), &bg,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            let acc_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                    ::from((rect.loc.x + 12, rect.loc.y + 4))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, acc_loc.to_f64(), &accent,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            let _ = menu;
+                        }
+
                         // H33.taskbar.F.16: botão Show Desktop 44×44 no
                         // canto direito. Bg condicional (hover/active),
                         // ícone SVG centralizado. Toggle vem em F.17.

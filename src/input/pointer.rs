@@ -200,6 +200,74 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let pointer_pos = pointer.current_location();
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H48.ctx.1: context menu aberto tem prioridade absoluta.
+        // Click dentro do menu/submenu = ação; click fora = fecha.
+        if state.context_menu.is_some() {
+            let output_size = state
+                .space
+                .output_geometry(state.output_under_cursor(pointer_pos))
+                .map(|g| g.size);
+            if let Some(output) = output_size {
+                let tokens = crate::theme::current().context_menu.clone();
+                let menu_snapshot = state.context_menu.clone();
+                let inside_main = menu_snapshot
+                    .as_ref()
+                    .map(|m| m.rect(&tokens).to_f64().contains(pointer_pos))
+                    .unwrap_or(false);
+                let inside_sub = menu_snapshot
+                    .as_ref()
+                    .and_then(|m| m.submenu_rect(&tokens, output))
+                    .map(|r| r.to_f64().contains(pointer_pos))
+                    .unwrap_or(false);
+                if !inside_main && !inside_sub {
+                    state.context_menu = None;
+                } else {
+                    // Dispatch ação se hit num item habilitado. ctx.5-7
+                    // ligam as ações de fato — por enquanto só fecha.
+                    if let Some(menu) = menu_snapshot.as_ref() {
+                        if inside_sub {
+                            if let Some(sub_idx) =
+                                menu.submenu_hit_test(&tokens, output, pointer_pos)
+                            {
+                                if let Some(parent) = menu
+                                    .open_submenu
+                                    .and_then(|i| menu.items.get(i))
+                                {
+                                    if let crate::context_menu::ItemKind::Submenu(entries) =
+                                        &parent.kind
+                                    {
+                                        if let Some(sub) = entries.get(sub_idx) {
+                                            if sub.interactive() {
+                                                dispatch_context_action(state, sub);
+                                                state.context_menu = None;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let Some(idx) = menu.hit_test(&tokens, pointer_pos) {
+                            if let Some(item) = menu.items.get(idx) {
+                                if item.interactive() {
+                                    dispatch_context_action(state, item);
+                                    state.context_menu = None;
+                                }
+                            }
+                        }
+                    }
+                    pointer.button(
+                        state,
+                        &ButtonEvent {
+                            button,
+                            state: button_state,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                    return;
+                }
+            }
+        }
+
         // H46.media.6: media OSD intercepta click SÓ se cair em um dos
         // 3 botões de controle (prev/play/next). Resto da área do card
         // é click-through — passa pra baixo, honrando "no click block".
@@ -869,6 +937,28 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 t.send_pending_configure();
             }
         } _ => {
+            // H48.ctx.1: right-click no desktop (área vazia, sem
+            // janela sob o cursor) abre menu de contexto. Botão
+            // esquerdo segue defocando como antes.
+            if button == 0x111 {
+                let output_size = state
+                    .space
+                    .output_geometry(state.output_under_cursor(pointer_pos))
+                    .map(|g| g.size);
+                if let Some(out) = output_size {
+                    let tokens = crate::theme::current().context_menu.clone();
+                    let mut menu = crate::context_menu::ContextMenu::new_at(
+                        smithay::utils::Point::from((
+                            pointer_pos.x.round() as i32,
+                            pointer_pos.y.round() as i32,
+                        )),
+                    );
+                    menu.clamp_into(out, &tokens);
+                    state.context_menu = Some(menu);
+                    pointer.frame(state);
+                    return;
+                }
+            }
             let windows: Vec<_> = state
                 .space
                 .elements()
@@ -894,6 +984,26 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         },
     );
     pointer.frame(state);
+}
+
+/// Dispatcha ação clicada num item do context menu. H48.ctx.5-7
+/// preenchem as actions de fato. Por enquanto só loga.
+fn dispatch_context_action(
+    _state: &mut LumaState,
+    item: &crate::context_menu::ContextItem,
+) {
+    use crate::context_menu::{ContextAction, ItemKind};
+    let action = match &item.kind {
+        ItemKind::Action(a) => *a,
+        _ => return,
+    };
+    match action {
+        ContextAction::OpenTerminal => tracing::info!("ctx menu: open terminal (stub)"),
+        ContextAction::ChangeWallpaper => tracing::info!("ctx menu: change wallpaper (stub)"),
+        ContextAction::OpenLumaSettings => tracing::info!("ctx menu: open settings (stub)"),
+        ContextAction::ConfigureDisplay => tracing::info!("ctx menu: configure display (dim)"),
+        ContextAction::Disabled => {}
+    }
 }
 
 fn cursor_name_for_resize_edge(edge: crate::input::grabs::resize_grab::ResizeEdge) -> &'static str {

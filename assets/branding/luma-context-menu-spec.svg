@@ -1,0 +1,152 @@
+<svg viewBox="0 0 1280 1280" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3A4A5C"/>
+      <stop offset="100%" stop-color="#5C6B7A"/>
+    </linearGradient>
+    <filter id="menuShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1280" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Menu de Contexto do Desktop</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Botão direito na área de trabalho abre este menu, estilo KDE</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <!-- ===== 1. O MENU ===== -->
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — O MENU (aparece onde o cursor clicou)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="500" fill="url(#wallGrad)" rx="12"/>
+
+    <!-- menu -->
+    <g transform="translate(420, 50)" filter="url(#menuShadow)">
+      <rect width="320" height="400" fill="#1F1611" rx="12"/>
+      <rect width="320" height="2" fill="#E89B3D" opacity="0.5"/>
+
+      <!-- Criar Novo (submenu) -->
+      <g transform="translate(0, 18)">
+        <rect x="8" y="0" width="304" height="40" rx="8" fill="#3D2520"/>
+        <rect x="20" y="13" width="14" height="14" rx="2" fill="none" stroke="#F5D5A8" stroke-width="2"/>
+        <text x="50" y="26" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Criar novo</text>
+        <path d="M 290 14 L 296 20 L 290 26" fill="none" stroke="#A89D92" stroke-width="2" stroke-linecap="round"/>
+      </g>
+
+      <!-- Colar -->
+      <g transform="translate(0, 64)">
+        <rect x="20" y="11" width="14" height="16" rx="2" fill="none" stroke="#6B8E7F" stroke-width="2"/>
+        <text x="50" y="26" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Colar</text>
+        <text x="296" y="26" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72" text-anchor="end">Ctrl+V</text>
+      </g>
+
+      <!-- separador -->
+      <line x1="20" y1="108" x2="300" y2="108" stroke="#3D2520"/>
+
+      <!-- Organizar ícones -->
+      <g transform="translate(0, 120)">
+        <circle cx="27" cy="19" r="3" fill="#E89B3D"/>
+        <circle cx="37" cy="19" r="3" fill="#E89B3D"/>
+        <circle cx="27" cy="29" r="3" fill="#E89B3D"/>
+        <circle cx="37" cy="29" r="3" fill="#E89B3D"/>
+        <text x="50" y="29" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Organizar ícones</text>
+        <path d="M 290 17 L 296 23 L 290 29" fill="none" stroke="#A89D92" stroke-width="2" stroke-linecap="round"/>
+      </g>
+
+      <!-- Modo de edição -->
+      <g transform="translate(0, 160)">
+        <path d="M 22 32 L 22 27 L 35 14 L 40 19 L 27 32 Z" fill="none" stroke="#D97757" stroke-width="2" stroke-linejoin="round"/>
+        <text x="50" y="29" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Modo de edição</text>
+      </g>
+
+      <!-- separador -->
+      <line x1="20" y1="208" x2="300" y2="208" stroke="#3D2520"/>
+
+      <!-- Mudar papel de parede -->
+      <g transform="translate(0, 220)">
+        <rect x="20" y="13" width="20" height="15" rx="2" fill="none" stroke="#6B8E7F" stroke-width="2"/>
+        <circle cx="27" cy="19" r="2" fill="#6B8E7F"/>
+        <path d="M 22 26 L 28 21 L 33 25 L 38 19" fill="none" stroke="#6B8E7F" stroke-width="1.5"/>
+        <text x="50" y="29" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Mudar papel de parede</text>
+      </g>
+
+      <!-- Configurar tela -->
+      <g transform="translate(0, 260)">
+        <rect x="20" y="12" width="20" height="14" rx="2" fill="none" stroke="#F5D5A8" stroke-width="2"/>
+        <line x1="26" y1="30" x2="34" y2="30" stroke="#F5D5A8" stroke-width="2" stroke-linecap="round"/>
+        <text x="50" y="29" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Configurar tela</text>
+      </g>
+
+      <!-- separador -->
+      <line x1="20" y1="308" x2="300" y2="308" stroke="#3D2520"/>
+
+      <!-- Abrir terminal -->
+      <g transform="translate(0, 320)">
+        <rect x="20" y="12" width="20" height="16" rx="2" fill="none" stroke="#A89D92" stroke-width="2"/>
+        <path d="M 24 17 L 28 20 L 24 23" fill="none" stroke="#A89D92" stroke-width="1.5" stroke-linecap="round"/>
+        <text x="50" y="29" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Abrir terminal aqui</text>
+      </g>
+
+      <!-- Configurações do Luma -->
+      <g transform="translate(0, 356)">
+        <circle cx="30" cy="20" r="8" fill="none" stroke="#A89D92" stroke-width="2"/>
+        <circle cx="30" cy="20" r="3" fill="#A89D92"/>
+        <text x="50" y="26" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE">Configurações do Luma</text>
+      </g>
+    </g>
+
+    <!-- cursor -->
+    <path d="M 420 50 l 0 18 l 5 -4 l 3 7 l 3 -1 l -3 -7 l 6 0 z" fill="#FBF6EE" stroke="#1F1611" stroke-width="1"/>
+
+    <text x="580" y="478" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.85">menu aparece exatamente onde o botão direito foi clicado</text>
+  </g>
+
+  <!-- ===== 2. STATUS DE CADA ITEM ===== -->
+  <text x="60" y="716" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — STATUS DE CADA ITEM</text>
+
+  <g transform="translate(60, 740)">
+    <rect width="1160" height="280" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">FUNCIONA JÁ (não depende de outras features):</text>
+    <text x="30" y="66" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Mudar papel de parede · Configurar tela · Abrir terminal aqui · Configurações do Luma</text>
+
+    <text x="30" y="104" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">DEPENDE DE "ÍCONES NO DESKTOP" (feature que o Luma ainda não tem):</text>
+    <text x="30" y="130" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Criar novo (arquivo/pasta) · Colar · Organizar ícones · Modo de edição</text>
+    <text x="30" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Esses itens criam/movem ARQUIVOS na área de trabalho. Pra terem efeito visível,</text>
+    <text x="30" y="168" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">o Luma precisa primeiro saber desenhar ícones de arquivos no desktop.</text>
+
+    <text x="30" y="206" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">RECOMENDAÇÃO:</text>
+    <text x="30" y="230" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Fase 1: o menu inteiro + os 4 itens que já funcionam ativos.</text>
+    <text x="30" y="250" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Os 4 itens que dependem de ícones no desktop aparecem no menu mas desativados (dim),</text>
+    <text x="30" y="268" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">com nota em DEBT.md. Eles "acendem" quando a feature de ícones no desktop existir.</text>
+  </g>
+
+  <!-- ===== 3. TOKENS ===== -->
+  <text x="60" y="1066" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 1090)">
+    <rect width="1160" height="150" fill="#1F1611" rx="12"/>
+
+    <text x="30" y="36" font-family="monospace" font-size="11" fill="#A89D92">[context_menu]</text>
+    <text x="30" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">width          = <tspan fill="#E89B3D">320</tspan></text>
+    <text x="30" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">bg             = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="30" y="92" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius  = <tspan fill="#E89B3D">12</tspan></text>
+    <text x="30" y="110" font-family="monospace" font-size="11" fill="#FBF6EE">top_accent     = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="30" y="128" font-family="monospace" font-size="11" fill="#FBF6EE">item_height    = <tspan fill="#E89B3D">40</tspan></text>
+
+    <text x="420" y="36" font-family="monospace" font-size="11" fill="#A89D92"># cores dos items</text>
+    <text x="420" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">item_text      = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="420" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">item_hover_bg  = <tspan fill="#6B8E7F">"#3D2520"</tspan></text>
+    <text x="420" y="92" font-family="monospace" font-size="11" fill="#FBF6EE">item_disabled  = <tspan fill="#6B8E7F">"#8B7D72"</tspan></text>
+    <text x="420" y="110" font-family="monospace" font-size="11" fill="#FBF6EE">shortcut_color = <tspan fill="#6B8E7F">"#8B7D72"</tspan></text>
+    <text x="420" y="128" font-family="monospace" font-size="11" fill="#FBF6EE">separator      = <tspan fill="#6B8E7F">"#3D2520"</tspan></text>
+
+    <text x="800" y="36" font-family="monospace" font-size="11" fill="#A89D92"># comportamento</text>
+    <text x="800" y="56" font-family="monospace" font-size="11" fill="#FBF6EE">shadow_blur    = <tspan fill="#E89B3D">16</tspan></text>
+    <text x="800" y="74" font-family="monospace" font-size="11" fill="#FBF6EE">icon_size      = <tspan fill="#E89B3D">16</tspan></text>
+    <text x="800" y="100" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72"># abre no cursor, fecha no Esc</text>
+    <text x="800" y="116" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72"># ou clique fora. Submenu abre</text>
+    <text x="800" y="132" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72"># ao lado (Criar novo, Organizar)</text>
+  </g>
+</svg>

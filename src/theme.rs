@@ -119,6 +119,8 @@ pub struct Theme {
     pub osd: OsdTokens,
     /// Layout/cores do OSD de mídia (now playing). H46.osd-media.
     pub osd_media: OsdMediaTokens,
+    /// Layout/cores do menu de contexto do desktop. H48.
+    pub context_menu: ContextMenuTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1030,6 +1032,7 @@ impl Default for Theme {
             popup: PopupTokens::default(),
             osd: OsdTokens::default(),
             osd_media: OsdMediaTokens::default(),
+            context_menu: ContextMenuTokens::default(),
         }
     }
 }
@@ -1718,6 +1721,36 @@ impl Default for OsdTokens {
     }
 }
 
+/// Tokens do menu de contexto do desktop. H48.
+///
+/// Abre no botão direito sobre área vazia do desktop, posicionado no
+/// cursor. Lista vertical de items 40px, separadores 1px, ícones 16px
+/// à esquerda do label, atalho à direita (cinza). Items desabilitados
+/// renderizam em `item_disabled` color.
+#[derive(Debug, Clone)]
+pub struct ContextMenuTokens {
+    pub width: i32,
+    pub bg: Color32F,
+    pub corner_radius: i32,
+    pub top_accent: Color32F,
+    pub item_height: i32,
+    pub item_text: Color32F,
+    pub item_text_size: f32,
+    pub item_hover_bg: Color32F,
+    pub item_disabled: Color32F,
+    pub shortcut_color: Color32F,
+    pub separator: Color32F,
+    pub icon_size: i32,
+    /// Padding horizontal interno em cada item.
+    pub item_padding_horizontal: i32,
+    /// Gap entre ícone e label.
+    pub icon_text_gap: i32,
+    /// Altura do separator (linha horizontal entre grupos).
+    pub separator_height: i32,
+    /// Margem vertical do separator dentro do "slot" alocado.
+    pub separator_padding: i32,
+}
+
 impl Default for OsdMediaTokens {
     fn default() -> Self {
         Self {
@@ -1740,6 +1773,29 @@ impl Default for OsdMediaTokens {
             progress_height: 3,
             timeout_ms: 3000,
             fade_ms: 200,
+        }
+    }
+}
+
+impl Default for ContextMenuTokens {
+    fn default() -> Self {
+        Self {
+            width: 320,
+            bg: hex_color("#1F1611", 0.97),
+            corner_radius: 12,
+            top_accent: hex_color("#E89B3D", 1.0),
+            item_height: 40,
+            item_text: hex_color("#FBF6EE", 1.0),
+            item_text_size: 13.0,
+            item_hover_bg: hex_color("#3D2520", 1.0),
+            item_disabled: hex_color("#8B7D72", 1.0),
+            shortcut_color: hex_color("#8B7D72", 1.0),
+            separator: hex_color("#3D2520", 1.0),
+            icon_size: 16,
+            item_padding_horizontal: 14,
+            icon_text_gap: 12,
+            separator_height: 1,
+            separator_padding: 7,
         }
     }
 }
@@ -2508,6 +2564,7 @@ impl ThemeFile {
             popup: default.popup.clone(),
             osd: default.osd.clone(),
             osd_media: default.osd_media.clone(),
+            context_menu: default.context_menu.clone(),
         }
     }
 }
