@@ -796,9 +796,29 @@ pub struct WindowControlsTokens {
 
 #[derive(Debug, Clone)]
 pub struct ShowDesktopTokens {
+    /// Largura legacy da faixinha (10px Win7-style). H33.taskbar.F.16:
+    /// substituído pelo `size` 44, mas o campo continua usado por
+    /// `show_desktop_width()` por compat (= alias pra size).
     pub width: i32,
     pub border_left_alpha: f32,
     pub hover_bg_alpha: f32,
+    /// Tamanho do botão (44 default). H33.taskbar.F.16.
+    pub size: i32,
+    pub corner_radius: i32,
+    /// Alpha da borda 1px à esquerda do botão. H33.taskbar.F.16.
+    pub border_alpha: f32,
+    /// Alpha default do ícone (0.5 = sutil). H33.taskbar.F.16.
+    pub icon_alpha_default: f32,
+    pub hover_bg: Color32F,
+    pub active_bg: Color32F,
+    /// Tamanho (px) do ícone dentro do botão 44×44 (centralizado).
+    pub icon_size: i32,
+    /// Nome do SVG mostrado por default (janelas visíveis).
+    /// Default `show-desktop`. H33.taskbar.F.16.
+    pub icon_normal_name: String,
+    /// Nome do SVG mostrado quando desktop está visível (todas
+    /// janelas minimizadas). Default `show-desktop-active`. H33.taskbar.F.16.
+    pub icon_active_name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1413,9 +1433,19 @@ impl Default for WindowControlsTokens {
 impl Default for ShowDesktopTokens {
     fn default() -> Self {
         Self {
-            width: 10,
+            // H33.taskbar.F.16: width legacy = size pra compat.
+            width: 44,
             border_left_alpha: 0.15,
             hover_bg_alpha: 0.3,
+            size: 44,
+            corner_radius: 9,
+            border_alpha: 0.15,
+            icon_alpha_default: 0.5,
+            hover_bg: hex_color("#3D2520", 1.0),
+            active_bg: hex_color("#E89B3D", 1.0),
+            icon_size: 24,
+            icon_normal_name: "show-desktop".to_string(),
+            icon_active_name: "show-desktop-active".to_string(),
         }
     }
 }
@@ -1948,6 +1978,15 @@ struct ShowDesktopTokensFile {
     width: Option<i32>,
     border_left_alpha: Option<f32>,
     hover_bg_alpha: Option<f32>,
+    size: Option<i32>,
+    corner_radius: Option<i32>,
+    border_alpha: Option<f32>,
+    icon_alpha_default: Option<f32>,
+    hover_bg: Option<String>,
+    active_bg: Option<String>,
+    icon_size: Option<i32>,
+    icon_normal_name: Option<String>,
+    icon_active_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2612,6 +2651,27 @@ impl ShowDesktopTokensFile {
                 .border_left_alpha
                 .unwrap_or(def.border_left_alpha),
             hover_bg_alpha: self.hover_bg_alpha.unwrap_or(def.hover_bg_alpha),
+            size: self.size.unwrap_or(def.size),
+            corner_radius: self.corner_radius.unwrap_or(def.corner_radius),
+            border_alpha: self.border_alpha.unwrap_or(def.border_alpha),
+            icon_alpha_default: self.icon_alpha_default.unwrap_or(def.icon_alpha_default),
+            hover_bg: self
+                .hover_bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.hover_bg),
+            active_bg: self
+                .active_bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.active_bg),
+            icon_size: self.icon_size.unwrap_or(def.icon_size),
+            icon_normal_name: self
+                .icon_normal_name
+                .unwrap_or_else(|| def.icon_normal_name.clone()),
+            icon_active_name: self
+                .icon_active_name
+                .unwrap_or_else(|| def.icon_active_name.clone()),
         }
     }
 }

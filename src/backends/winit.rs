@@ -499,6 +499,24 @@ pub fn init_winit(
                     .clock_date_label
                     .as_ref()
                     .map(|(b, s)| (b.clone(), *s));
+                // H33.taskbar.F.16: carrega SVG do show desktop conforme
+                // estado (normal/active). Bg colorido vem do hover/active.
+                let show_desktop_render: Option<(
+                    MemoryRenderBuffer,
+                    smithay::utils::Size<i32, smithay::utils::Logical>,
+                )> = {
+                    let t_sd = crate::theme::current().show_desktop.clone();
+                    let name = if data.state.desktop_visible {
+                        &t_sd.icon_active_name
+                    } else {
+                        &t_sd.icon_normal_name
+                    };
+                    crate::tray::ensure_icon_sized(
+                        &mut data.state.tray, name, t_sd.icon_size,
+                    )
+                };
+                let show_desktop_hovered = data.state.taskbar.show_desktop_hovered;
+                let desktop_visible = data.state.desktop_visible;
                 // H33.taskbar.9: battery icon + label %, gerados aqui pra
                 // evitar borrow conflict no render. Posicionamento final
                 // (grupo direito colado ao clock) vem em D.12.
@@ -1770,6 +1788,76 @@ pub fn init_winit(
                             }
                             // Notif dot reservado pra H40 (count sempre 0 hoje).
                             let _ = notif_dot_render;
+                        }
+                        // H33.taskbar.F.16: botão Show Desktop 44×44 no
+                        // canto direito. Bg condicional (hover/active),
+                        // ícone SVG centralizado. Toggle vem em F.17.
+                        {
+                            let theme = crate::theme::current();
+                            let t_sd = &theme.show_desktop;
+                            let t_grp = &theme.taskbar.right_group;
+                            let bar_y_local =
+                                output_size_logical.h - crate::taskbar::taskbar_height();
+                            let size = t_sd.size;
+                            let sd_x =
+                                output_size_logical.w - t_grp.margin_right - size;
+                            let sd_y = bar_y_local
+                                + (crate::taskbar::taskbar_height() - size) / 2;
+                            // Bg: prioridade ACTIVE > HOVER > sem bg.
+                            let bg_color = if desktop_visible {
+                                Some(t_sd.active_bg)
+                            } else if show_desktop_hovered {
+                                Some(t_sd.hover_bg)
+                            } else {
+                                None
+                            };
+                            // Ícone PRIMEIRO (push antes = na frente no z-stack
+                            // do Smithay, que renderiza fim→começo).
+                            if let Some((buf, isz)) = show_desktop_render.as_ref() {
+                                let ix = sd_x + (size - isz.w) / 2;
+                                let iy = sd_y + (size - isz.h) / 2;
+                                let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((ix, iy))
+                                        .to_physical_precise_round(1.0);
+                                let alpha = if desktop_visible || show_desktop_hovered {
+                                    None
+                                } else {
+                                    Some(t_sd.icon_alpha_default)
+                                };
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    iloc.to_f64(),
+                                    buf,
+                                    alpha,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            // Bg depois do ícone (= atrás no z-stack).
+                            if let Some(c) = bg_color {
+                                let bg = crate::gfx::make_rounded_panel(
+                                    size, size, t_sd.corner_radius, c,
+                                );
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((sd_x, sd_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    loc.to_f64(),
+                                    &bg,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                            }
                         }
                         // alpha 1.0 + data 9pt cor secondary alpha 0.65.
                         // Posições calculadas juntas pra alinhamento right.

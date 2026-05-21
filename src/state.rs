@@ -146,6 +146,10 @@ pub struct LumaState {
     pub pager: crate::pager::PagerState,
     /// State do system tray (battery, wifi, volume, notifications). H33.taskbar.9-12.
     pub tray: crate::tray::TrayState,
+    /// True quando "Mostrar área de trabalho" foi acionado e todas as
+    /// janelas estão minimizadas. Toggle via click no botão F (zona F)
+    /// ou Super+D. H33.taskbar.F.16-17.
+    pub desktop_visible: bool,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -525,6 +529,7 @@ impl LumaState {
             hot_corner_dwell_start: None,
             pager: crate::pager::PagerState::new(),
             tray: crate::tray::TrayState::new(),
+            desktop_visible: false,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

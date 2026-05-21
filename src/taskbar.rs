@@ -103,10 +103,12 @@ pub fn clock_padding_right() -> i32 {
     crate::theme::current().clock.padding_right
 }
 
-/// Largura da faixinha "Mostrar área de trabalho" no canto direito.
-/// Default 10 (Win7-style fininho).
+/// Largura do botão "Mostrar área de trabalho" no canto direito.
+/// H33.taskbar.F.16: botão quadrado `size` (default 44). Antes era
+/// faixa fininha 10px (`width`). Mantemos `width` no token por compat
+/// mas o cálculo agora usa `size`.
 pub fn show_desktop_width() -> i32 {
-    crate::theme::current().show_desktop.width
+    crate::theme::current().show_desktop.size
 }
 
 // Cores agora vêm de `crate::theme::current()`.
@@ -748,39 +750,11 @@ pub fn render_solid_elements(
         ));
     }
 
-    // Show-desktop (faixinha no canto direito). Default transparente:
-    // só renderiza no hover, com cor accent_amber alpha 0.3 (Golden Hour
-    // H32.5.11). Borda 1px Cream sempre fica à esquerda como divisor.
-    let sdw = show_desktop_width();
-    let sd_x = output_size.w - sdw;
-    if state.show_desktop_hovered {
-        let amber_alpha = smithay::backend::renderer::Color32F::new(
-            theme.colors.accent_amber.r(),
-            theme.colors.accent_amber.g(),
-            theme.colors.accent_amber.b(),
-            theme.show_desktop.hover_bg_alpha,
-        );
-        state.show_desktop.set_color(amber_alpha);
-        let loc =
-            Point::<i32, Logical>::from((sd_x, bar_y)).to_physical_precise_round(1.0);
-        elements.push(SolidColorRenderElement::from_buffer(
-            &state.show_desktop,
-            loc,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ));
-    }
-    // Borda esquerda do show-desktop (sempre visível, divisor sutil).
-    let border_left_loc =
-        Point::<i32, Logical>::from((sd_x - 1, bar_y)).to_physical_precise_round(1.0);
-    elements.push(SolidColorRenderElement::from_buffer(
-        &state.show_desktop_border_left,
-        border_left_loc,
-        1.0,
-        1.0,
-        Kind::Unspecified,
-    ));
+    // H33.taskbar.F.16: render do botão 44×44 do show-desktop é feito
+    // em winit.rs (Memory texture do SVG + bg condicional via
+    // make_rounded_panel). Legacy da faixinha 10px + borda divisora
+    // saíram nesse commit.
+    let _ = bar_y; // ainda usado pelo launcher_divider acima
 
     // Launcher agora é Memory texture (H32.5.9) — renderizado em winit.rs.
 

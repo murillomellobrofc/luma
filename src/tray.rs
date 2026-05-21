@@ -415,21 +415,33 @@ pub fn bell_icon_name(_count: usize) -> &'static str {
 // ────────────────────────── Cache + load ──────────────────────────
 
 /// Carrega (ou pega cacheado) o SVG `icon-<name>.svg` do `icons_path`
-/// do tema, em `icon_size`. Retorna `None` se o arquivo não existe ou
-/// se houve erro de parse. H33.taskbar.13.
+/// do tema, no tamanho default do tray (`system_tray.icon_size`).
+/// H33.taskbar.13.
 pub fn ensure_icon(
     state: &mut TrayState,
     name: &str,
 ) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
-    if let Some(entry) = state.icon_cache.get(name) {
+    let size = crate::theme::current().taskbar.system_tray.icon_size;
+    ensure_icon_sized(state, name, size)
+}
+
+/// Como `ensure_icon` mas no tamanho `size_px` (px). Útil pro show
+/// desktop e outros ícones em tamanhos diferentes do tray. Cache key
+/// inclui o tamanho. H33.taskbar.F.16.
+pub fn ensure_icon_sized(
+    state: &mut TrayState,
+    name: &str,
+    size_px: i32,
+) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
+    let key = format!("{}@{}", name, size_px);
+    if let Some(entry) = state.icon_cache.get(&key) {
         return Some((entry.0.clone(), entry.1));
     }
-    let theme = crate::theme::current();
-    let t = &theme.taskbar.system_tray;
-    let path = format!("{}/icon-{}.svg", t.icons_path, name);
-    let buf = crate::menu::icon_loader::load_svg_file(&path, t.icon_size as u32)?;
-    let size = Size::from((t.icon_size, t.icon_size));
-    state.icon_cache.insert(name.to_string(), (buf.clone(), size));
+    let icons_path = crate::theme::current().taskbar.system_tray.icons_path.clone();
+    let path = format!("{}/icon-{}.svg", icons_path, name);
+    let buf = crate::menu::icon_loader::load_svg_file(&path, size_px as u32)?;
+    let size = Size::from((size_px, size_px));
+    state.icon_cache.insert(key, (buf.clone(), size));
     Some((buf, size))
 }
 
