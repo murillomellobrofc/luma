@@ -104,3 +104,64 @@ sudo usermod -a -G video $USER
 
 Após reiniciar a sessão, `brightness::probe()` detecta o backend
 e o OSD de brilho passa a funcionar.
+
+---
+
+## OSD de mídia sem `playerctl` (H46.osd-media)
+
+**Status:** funcional como no-op.
+
+**Sintoma:** XF86_AudioPlay / Next / Prev / Stop não fazem nada
+e o card de "now playing" não aparece quando `playerctl` não está
+instalado. Mesmo padrão da degradação do brilho.
+
+### Por quê é OK
+
+Mesmo argumento de [[Brilho sem backend ativo]]: caminho de input
++ render já está pronto, só falta o binário userland. Instalar
+desbloqueia sem mudança de código.
+
+### Como ligar
+
+```bash
+sudo apt install playerctl
+```
+
+Sem grupo extra, sem udev rule — `playerctl` fala D-Bus com o
+usuário da sessão.
+
+---
+
+## Arte de álbum via HTTPS (H46.osd-media)
+
+**Status:** débito aceito.
+
+**Sintoma:** quando o player MPRIS expõe `mpris:artUrl` como
+`https://...` (alguns web players), o luma renderiza o
+placeholder de nota musical em vez de baixar a imagem.
+
+### Por quê adiou
+
+Adicionar HTTP client (reqwest, ureq) puxa ~30-60 deps + TLS
+(rustls/native-tls). Pesa demais pra um nice-to-have.
+
+A maioria dos players relevantes (Spotify desktop, Brave Music,
+Strawberry, mpv, audacious, rhythmbox) escreve arte em cache
+local e expõe `file://` — o caminho rápido já cobre.
+
+### Quando desbloqueia
+
+Quando algum player que o Murillo usa regularmente expor só HTTP
+e a falta da arte virar incômodo real. Aí pesa instalar `ureq`
+(menor dos clientes HTTP, ~15 deps sem TLS).
+
+---
+
+## OSD de mídia duplicado em modo aninhado (H46.osd-media)
+
+**Status:** débito aceito (mesma natureza do volume/brilho).
+
+**Sintoma:** em modo winit, o KDE host também captura XF86 media
+keys e mostra o OSD dele. 2 OSDs em paralelo. Some no DRM nativo.
+
+Ver [[OSD duplicado em modo aninhado]] (H45) — mesma causa.
