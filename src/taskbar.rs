@@ -448,14 +448,22 @@ impl TaskbarState {
         if self.clock_time_text != time_str {
             self.clock_time_text.clear();
             self.clock_time_text.push_str(time_str);
-            self.clock_time_label =
-                rasterize_text(renderer, time_str, theme.clock.time_size);
+            self.clock_time_label = rasterize_text_colored(
+                renderer,
+                time_str,
+                theme.clock.time_size,
+                theme.clock.time_color,
+            );
         }
         if self.clock_date_text != date_str {
             self.clock_date_text.clear();
             self.clock_date_text.push_str(date_str);
-            self.clock_date_label =
-                rasterize_text(renderer, date_str, theme.clock.date_size);
+            self.clock_date_label = rasterize_text_colored(
+                renderer,
+                date_str,
+                theme.clock.date_size,
+                theme.clock.date_color,
+            );
         }
     }
 
@@ -577,12 +585,15 @@ pub fn ensure_tooltip(
 
 /// Helper genérico pra rasterizar texto e empacotar em (buffer, size).
 /// `None` se o renderer devolveu buffer vazio (texto vazio ou erro).
-fn rasterize_text(
+/// Rasteriza `text` no `renderer` na cor `color` e empacota em
+/// (buffer, size). Some=ok, None=text vazio. H33.taskbar.E.14.
+fn rasterize_text_colored(
     renderer: &crate::text::TextRenderer,
     text: &str,
     size: f32,
+    color: smithay::backend::renderer::Color32F,
 ) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
-    let (pixels, w, h) = renderer.rasterize(text, size);
+    let (pixels, w, h) = renderer.rasterize_colored(text, size, color);
     if w == 0 || h == 0 {
         return None;
     }
@@ -804,16 +815,18 @@ pub fn launcher_location(output_size: Size<i32, Logical>) -> Point<i32, Logical>
 }
 
 /// Posições lógicas dos 2 labels do relógio (hora em cima, data embaixo).
-/// Ambos alinhados à direita do mesmo `right_edge` (= borda esquerda do
-/// show-desktop − padding_right do clock). Vertical: empilhados centralizados
-/// na altura da taskbar com 1px de respiro entre as linhas.
+/// Ambos alinhados à direita do mesmo `right_edge`. H33.taskbar.12:
+/// right_edge agora vem do grupo direito da taskbar — `output_w
+/// - margin_right - show_desktop_width - gap_between_zones`.
 pub fn clock_labels_location(
     output_size: Size<i32, Logical>,
     time_size: Size<i32, Logical>,
     date_size: Size<i32, Logical>,
 ) -> (Point<i32, Logical>, Point<i32, Logical>) {
     let bar_y = output_size.h - taskbar_height();
-    let right_edge = output_size.w - show_desktop_width() - clock_padding_right();
+    let g = &crate::theme::current().taskbar.right_group;
+    let right_edge =
+        output_size.w - g.margin_right - show_desktop_width() - g.gap_between_zones;
     let total_h = time_size.h + date_size.h + 1;
     let top_y = bar_y + (taskbar_height() - total_h) / 2;
     let time_pt = Point::from((right_edge - time_size.w, top_y));

@@ -803,9 +803,29 @@ pub struct ShowDesktopTokens {
 
 #[derive(Debug, Clone)]
 pub struct ClockTokens {
+    /// Tamanho da hora (HH:MM). Default 17 (Fraunces no spec H33; hoje
+    /// renderizado com a sans-serif do sistema — TextRenderer ainda é
+    /// 1 fonte só, débito documentado).
     pub time_size: f32,
+    /// Tamanho da data. Default 10 (Manrope no spec H33).
     pub date_size: f32,
+    /// Padding direito legacy. Posicionamento real do clock vem do
+    /// `right_group`. H33.taskbar.E.14.
     pub padding_right: i32,
+    /// Cor da hora (Cream).
+    pub time_color: Color32F,
+    /// Cor da data (Cream desbotado).
+    pub date_color: Color32F,
+    /// Strftime da hora. Default `%H:%M` (24h).
+    pub time_format: String,
+    /// Strftime da data. Default `%a · %d %b` (pt-BR map em winit.rs).
+    pub date_format: String,
+    /// Family da fonte da hora. Default "Fraunces" (debt: 1 fonte só).
+    #[allow(dead_code)]
+    pub font_family: String,
+    /// Peso da fonte da hora (não aplicado: fontdue sem variable fonts).
+    #[allow(dead_code)]
+    pub time_weight: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1403,9 +1423,16 @@ impl Default for ShowDesktopTokens {
 impl Default for ClockTokens {
     fn default() -> Self {
         Self {
-            time_size: 13.0,
-            date_size: 9.0,
+            // H33.taskbar.E.14: 17 / 10 (era 13 / 9).
+            time_size: 17.0,
+            date_size: 10.0,
             padding_right: 16,
+            time_color: hex_color("#FBF6EE", 1.0),
+            date_color: hex_color("#A89D92", 1.0),
+            time_format: "%H:%M".to_string(),
+            date_format: "%a · %d %b".to_string(),
+            font_family: "Fraunces".to_string(),
+            time_weight: 600,
         }
     }
 }
@@ -1928,6 +1955,12 @@ struct ClockTokensFile {
     time_size: Option<f32>,
     date_size: Option<f32>,
     padding_right: Option<i32>,
+    time_color: Option<String>,
+    date_color: Option<String>,
+    time_format: Option<String>,
+    date_format: Option<String>,
+    font_family: Option<String>,
+    time_weight: Option<u16>,
 }
 
 impl ThemeFile {
@@ -2589,6 +2622,20 @@ impl ClockTokensFile {
             time_size: self.time_size.unwrap_or(def.time_size),
             date_size: self.date_size.unwrap_or(def.date_size),
             padding_right: self.padding_right.unwrap_or(def.padding_right),
+            time_color: self
+                .time_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.time_color),
+            date_color: self
+                .date_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.date_color),
+            time_format: self.time_format.unwrap_or_else(|| def.time_format.clone()),
+            date_format: self.date_format.unwrap_or_else(|| def.date_format.clone()),
+            font_family: self.font_family.unwrap_or_else(|| def.font_family.clone()),
+            time_weight: self.time_weight.unwrap_or(def.time_weight),
         }
     }
 }

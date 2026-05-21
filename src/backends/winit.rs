@@ -53,6 +53,51 @@ fn month_pt_br(m: u32) -> &'static str {
     }
 }
 
+/// Abrev pt-BR do dia da semana (3 chars). H33.taskbar.E.14.
+fn weekday_pt_br(d: u32) -> &'static str {
+    match d {
+        1 => "seg",
+        2 => "ter",
+        3 => "qua",
+        4 => "qui",
+        5 => "sex",
+        6 => "sáb",
+        7 => "dom",
+        _ => "?",
+    }
+}
+
+/// Strftime localizado pt-BR. Substitui %a (weekday) e %b (month) pelos
+/// abrevs pt-BR; resto passa pelo chrono. H33.taskbar.E.14.
+fn strftime_pt_br(fmt: &str, now: &chrono::DateTime<chrono::Local>) -> String {
+    use chrono::Datelike;
+    let mut out = String::with_capacity(fmt.len());
+    let mut iter = fmt.chars().peekable();
+    while let Some(c) = iter.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        match iter.next() {
+            Some('a') => out.push_str(weekday_pt_br(now.weekday().number_from_monday())),
+            Some('b') => out.push_str(month_pt_br(now.month())),
+            Some('H') => out.push_str(&now.format("%H").to_string()),
+            Some('M') => out.push_str(&now.format("%M").to_string()),
+            Some('d') => out.push_str(&now.format("%d").to_string()),
+            Some('m') => out.push_str(&now.format("%m").to_string()),
+            Some('Y') => out.push_str(&now.format("%Y").to_string()),
+            Some('y') => out.push_str(&now.format("%y").to_string()),
+            Some('%') => out.push('%'),
+            Some(other) => {
+                out.push('%');
+                out.push(other);
+            }
+            None => out.push('%'),
+        }
+    }
+    out
+}
+
 pub fn init_winit(
     event_loop: &mut EventLoop<'static, CalloopData>,
     data: &mut CalloopData,
@@ -301,12 +346,9 @@ pub fn init_winit(
                 }
                 if let Some(text) = data.state.text.as_ref() {
                     let now = chrono::Local::now();
-                    let time_str = format!("{:02}:{:02}", now.format("%H"), now.format("%M"));
-                    let date_str = format!(
-                        "{} {}",
-                        now.format("%d"),
-                        month_pt_br(now.format("%m").to_string().parse::<u32>().unwrap_or(1))
-                    );
+                    let t_clock = &crate::theme::current().clock;
+                    let time_str = strftime_pt_br(&t_clock.time_format, &now);
+                    let date_str = strftime_pt_br(&t_clock.date_format, &now);
                     data.state.taskbar.ensure_clock(text, &time_str, &date_str);
                     data.state.taskbar.ensure_title_labels(text);
                     data.state.pager.ensure_labels(text, 9);
@@ -1754,11 +1796,13 @@ pub fn init_winit(
                             }
                             let date_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 date_pt.to_physical_precise_round(1.0);
+                            // H33.taskbar.E.14: cor da data já vem do
+                            // token `clock.date_color`, sem alpha extra.
                             if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
                                 renderer,
                                 date_loc.to_f64(),
                                 date_buf,
-                                Some(0.65),
+                                None,
                                 None,
                                 None,
                                 Kind::Unspecified,
