@@ -7,9 +7,12 @@ use fontdue::{
 use smithay::backend::renderer::Color32F;
 use tracing::warn;
 
-/// Caminhos comuns onde uma fonte sans-serif decente pode estar instalada
-/// no Fedora. Tenta na ordem; primeiro que existe vai.
+/// Caminhos comuns onde uma fonte sans-serif decente pode estar instalada.
+/// Cobre Fedora (`/usr/share/fonts/<pkg>/...`), Ubuntu/Debian
+/// (`/usr/share/fonts/truetype/...`) e Arch (`/usr/share/fonts/TTF/...`).
+/// Tenta na ordem; primeiro que existe vai.
 const FONT_CANDIDATES: &[&str] = &[
+    // Fedora paths
     "/usr/share/fonts/google-noto-sans-vf-fonts/NotoSans[wdth,wght].ttf",
     "/usr/share/fonts/google-noto/NotoSans-Regular.ttf",
     "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
@@ -17,6 +20,13 @@ const FONT_CANDIDATES: &[&str] = &[
     "/usr/share/fonts/adwaita-sans-fonts/AdwaitaSans-Regular.ttf",
     "/usr/share/fonts/google-carlito-fonts/Carlito-Regular.ttf",
     "/usr/share/fonts/abattis-cantarell-fonts/Cantarell-Regular.otf",
+    // Ubuntu/Debian paths
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    // Arch paths
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/usr/share/fonts/noto/NotoSans-Regular.ttf",
 ];
 
 pub struct TextRenderer {
