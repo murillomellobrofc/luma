@@ -1,0 +1,405 @@
+<svg viewBox="0 0 1280 3400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="taskbarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#9F4A35"/>
+      <stop offset="100%" stop-color="#F5D5A8"/>
+    </linearGradient>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A6FA5"/>
+      <stop offset="100%" stop-color="#B5D0E8"/>
+    </linearGradient>
+    <filter id="taskbarShadow">
+      <feGaussianBlur stdDeviation="6"/>
+      <feOffset dx="0" dy="-3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="amberGlow">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="3400" fill="#FBF6EE"/>
+
+  <!-- ============ HEADER ============ -->
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma Taskbar v5 — Spec Completa</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">6 zonas · altura 64px · KDE-style apps · workspaces ao lado do launcher · sem avatar</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <!-- ============ 1. VISÃO GERAL ============ -->
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — VISÃO GERAL EM CONTEXTO</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="340" fill="url(#bgSky)" rx="12"/>
+
+    <g transform="translate(220, 60)">
+      <rect width="500" height="180" fill="#FBF6EE" rx="8" opacity="0.95"/>
+      <rect width="500" height="32" fill="#2A1F1A" rx="8 8 0 0"/>
+      <text x="250" y="22" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle">Documento.txt</text>
+    </g>
+
+    <g transform="translate(0, 276)" filter="url(#taskbarShadow)">
+      <rect width="1160" height="64" fill="url(#taskbarGrad)"/>
+      <rect width="1160" height="2" fill="#E89B3D" opacity="0.5"/>
+
+      <!-- A LAUNCHER -->
+      <g transform="translate(12, 10)">
+        <rect width="44" height="44" fill="#3D2520" rx="9"/>
+        <g transform="translate(14, 10)">
+          <rect x="0" y="0" width="7" height="24" fill="url(#logoBeam)" rx="3.5"/>
+          <rect x="0" y="17" width="24" height="7" fill="#F5D5A8" rx="3.5"/>
+        </g>
+      </g>
+      <line x1="68" y1="14" x2="68" y2="50" stroke="#FBF6EE" stroke-opacity="0.1"/>
+
+      <!-- B WORKSPACES -->
+      <g transform="translate(82, 16)">
+        <rect x="0" y="0" width="32" height="32" fill="#E89B3D" rx="9" filter="url(#amberGlow)"/>
+        <rect x="0" y="0" width="32" height="32" fill="#E89B3D" rx="9"/>
+        <text x="16" y="22" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#1F1611" text-anchor="middle">1</text>
+        <rect x="40" y="0" width="32" height="32" fill="transparent" rx="9"/>
+        <text x="56" y="22" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#FBF6EE" text-anchor="middle" opacity="0.45">2</text>
+        <rect x="80" y="0" width="32" height="32" fill="transparent" rx="9"/>
+        <text x="96" y="22" font-family="system-ui, sans-serif" font-size="13" font-weight="500" fill="#FBF6EE" text-anchor="middle" opacity="0.45">3</text>
+      </g>
+      <line x1="206" y1="14" x2="206" y2="50" stroke="#FBF6EE" stroke-opacity="0.1"/>
+
+      <!-- C APPS -->
+      <g transform="translate(222, 10)">
+        <g transform="translate(0, 0)">
+          <rect width="44" height="44" fill="#3D2520" rx="9"/>
+          <rect x="6" y="6" width="32" height="32" fill="#D97757" rx="6"/>
+          <rect x="10" y="42" width="24" height="3" fill="#E89B3D" rx="1.5" filter="url(#amberGlow)"/>
+          <rect x="10" y="42" width="24" height="3" fill="#E89B3D" rx="1.5"/>
+        </g>
+        <g transform="translate(52, 0)"><rect x="6" y="6" width="32" height="32" fill="#6B8E7F" rx="6"/></g>
+        <g transform="translate(104, 0)">
+          <rect x="6" y="6" width="32" height="32" fill="#1F1611" rx="6"/>
+          <rect x="11" y="11" width="22" height="22" fill="#E89B3D" rx="4"/>
+        </g>
+        <g transform="translate(156, 0)">
+          <rect x="6" y="6" width="32" height="32" fill="#5865F2" rx="6"/>
+          <circle cx="38" cy="10" r="8" fill="#E89B3D"/>
+          <text x="38" y="14" font-family="system-ui, sans-serif" font-size="10" font-weight="700" fill="#1F1611" text-anchor="middle">3</text>
+        </g>
+        <g transform="translate(208, 0)"><rect x="6" y="6" width="32" height="32" fill="#FBF6EE" rx="6"/></g>
+      </g>
+
+      <!-- D SYSTEM TRAY -->
+      <g transform="translate(780, 22)">
+        <g transform="translate(0, 0)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85">
+          <rect x="0" y="2" width="22" height="12" rx="1.5"/>
+          <line x1="23" y1="7" x2="25" y2="9" stroke-linecap="round"/>
+          <rect x="2" y="4" width="13" height="8" fill="#6B8E7F" stroke="none"/>
+        </g>
+        <text x="32" y="14" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">73%</text>
+        <g transform="translate(80, 2)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85" stroke-linecap="round">
+          <path d="M 2 10 a 9 7 0 0 1 14 0"/>
+          <path d="M 5 13 a 6 5 0 0 1 8 0"/>
+          <circle cx="9" cy="15" r="1.3" fill="#FBF6EE" stroke="none"/>
+        </g>
+        <g transform="translate(116, 2)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 1 8 L 5 8 L 10 3 V 15 L 5 11 H 1 Z"/>
+          <path d="M 13 6 a 4 4 0 0 1 0 6"/>
+        </g>
+        <g transform="translate(152, 2)" stroke="#FBF6EE" stroke-width="1.5" fill="none" opacity="0.85" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 2 13 V 8 a 7 7 0 0 1 14 0 v 5 z"/>
+          <line x1="0" y1="13" x2="18" y2="13"/>
+          <path d="M 7 16 a 2 2 0 0 0 4 0"/>
+          <circle cx="15" cy="3" r="3" fill="#D97757" stroke="none"/>
+        </g>
+      </g>
+
+      <!-- E CLOCK -->
+      <g transform="translate(1040, 14)">
+        <text x="0" y="16" font-family="Fraunces, Georgia, serif" font-size="17" font-weight="600" fill="#FBF6EE">14:23</text>
+        <text x="0" y="32" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92">qui · 15 mai</text>
+      </g>
+
+      <!-- F SHOW DESKTOP -->
+      <g transform="translate(1104, 10)">
+        <rect width="44" height="44" fill="transparent" rx="9" stroke="#FBF6EE" stroke-opacity="0.15"/>
+        <g transform="translate(11, 12)" fill="none" stroke="#FBF6EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65">
+          <rect x="0" y="0" width="14" height="11" rx="1"/>
+          <rect x="6" y="4" width="14" height="11" rx="1" fill="#0F0A07" stroke="#FBF6EE"/>
+          <line x1="11" y1="18" x2="11" y2="22" stroke="#FBF6EE"/>
+          <path d="M 8 20 L 11 22 L 14 20" stroke="#FBF6EE"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Labels das zonas -->
+    <g font-family="system-ui, sans-serif" font-size="11" font-weight="700">
+      <text x="34" y="332" fill="#FBF6EE" text-anchor="middle">A</text>
+      <text x="140" y="332" fill="#FBF6EE" text-anchor="middle">B</text>
+      <text x="370" y="332" fill="#FBF6EE" text-anchor="middle">C</text>
+      <text x="870" y="332" fill="#FBF6EE" text-anchor="middle">D</text>
+      <text x="1055" y="332" fill="#FBF6EE" text-anchor="middle">E</text>
+      <text x="1126" y="332" fill="#FBF6EE" text-anchor="middle">F</text>
+    </g>
+  </g>
+
+  <!-- ============ 2. AS 6 ZONAS ============ -->
+  <text x="60" y="566" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — AS 6 ZONAS DETALHADAS</text>
+
+  <g transform="translate(60, 590)">
+    <rect width="1160" height="280" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#D97757" font-weight="700">ESQUERDA — Navegação</text>
+
+    <text x="30" y="70" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">A · Launcher</text>
+    <text x="160" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Botão 44×44 com logo Luma. Click abre o menu fullscreen. Super tambem abre.</text>
+
+    <text x="30" y="98" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">B · Workspaces</text>
+    <text x="160" y="98" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">3 quadrados 32×32 numerados. Ativo = pill âmbar. Click troca workspace.</text>
+    <text x="160" y="116" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Esconde se só houver 1 workspace. (H33: placeholder · H36 conecta de verdade)</text>
+
+    <text x="30" y="144" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">C · Apps abertos</text>
+    <text x="160" y="144" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Quadrados 44×44 com ícone 32px (KDE-style). Linha âmbar embaixo se ativo.</text>
+    <text x="160" y="162" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Tooltip no hover. Badge âmbar se múltiplas instâncias.</text>
+
+    <text x="30" y="196" font-family="system-ui, sans-serif" font-size="13" fill="#6B8E7F" font-weight="700">DIREITA — Sistema</text>
+
+    <text x="30" y="224" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">D · System tray</text>
+    <text x="160" y="224" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Bateria (+%), WiFi, Volume, Notificações. Ícones 20px. (H33: só renderiza)</text>
+
+    <text x="30" y="250" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">E · Clock</text>
+    <text x="160" y="250" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Hora Fraunces 17px + data Manrope 10px. Locale pt-BR.</text>
+
+    <text x="30" y="270" font-family="monospace" font-size="12" fill="#1F1611" font-weight="700">F · Show Desktop</text>
+    <text x="160" y="270" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Botão 44×44. Click minimiza tudo. Super+D faz o mesmo. Âmbar quando ativo.</text>
+  </g>
+
+  <!-- ============ 3. ESTADOS DOS APPS ============ -->
+  <text x="60" y="926" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — ESTADOS DOS APPS (zona C)</text>
+
+  <g transform="translate(60, 950)">
+    <rect width="1160" height="300" fill="#1F1611" rx="12"/>
+
+    <text x="150" y="44" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">DEFAULT</text>
+    <text x="400" y="44" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">HOVER</text>
+    <text x="650" y="44" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">ATIVO (focado)</text>
+    <text x="920" y="44" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#A89D92" text-anchor="middle">MÚLTIPLAS INSTÂNCIAS</text>
+
+    <!-- Default -->
+    <g transform="translate(106, 80)">
+      <rect width="88" height="88" fill="transparent" rx="9" stroke="#FBF6EE" stroke-opacity="0.05"/>
+      <rect x="20" y="20" width="48" height="48" fill="#D97757" rx="9"/>
+      <text x="44" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">sem bg · sem indicador</text>
+    </g>
+
+    <!-- Hover -->
+    <g transform="translate(356, 80)">
+      <rect width="88" height="88" fill="#2A1F1A" rx="9" stroke="#E89B3D" stroke-width="1" stroke-opacity="0.4"/>
+      <rect x="20" y="20" width="48" height="48" fill="#D97757" rx="9"/>
+      <g transform="translate(14, -34)">
+        <rect width="60" height="24" fill="#1F1611" rx="6" stroke="#E89B3D" stroke-opacity="0.3"/>
+        <text x="30" y="16" font-family="system-ui, sans-serif" font-size="10" fill="#FBF6EE" text-anchor="middle">Editor</text>
+      </g>
+      <text x="44" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">bg sutil + tooltip 500ms</text>
+    </g>
+
+    <!-- Ativo -->
+    <g transform="translate(606, 80)">
+      <rect width="88" height="88" fill="#3D2520" rx="9"/>
+      <rect x="20" y="16" width="48" height="48" fill="#D97757" rx="9"/>
+      <rect x="26" y="78" width="36" height="4" fill="#E89B3D" rx="2" filter="url(#amberGlow)"/>
+      <rect x="26" y="78" width="36" height="4" fill="#E89B3D" rx="2"/>
+      <text x="44" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">bg + linha âmbar embaixo</text>
+    </g>
+
+    <!-- Múltiplas -->
+    <g transform="translate(876, 80)">
+      <rect width="88" height="88" fill="#3D2520" rx="9"/>
+      <rect x="20" y="16" width="48" height="48" fill="#5865F2" rx="9"/>
+      <circle cx="68" cy="20" r="12" fill="#E89B3D"/>
+      <text x="68" y="25" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#1F1611" text-anchor="middle">3</text>
+      <rect x="26" y="78" width="36" height="4" fill="#E89B3D" rx="2"/>
+      <text x="44" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#A89D92" text-anchor="middle">badge no canto sup direito</text>
+    </g>
+
+    <!-- Interações -->
+    <text x="40" y="240" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" font-weight="700">Interações:</text>
+    <text x="40" y="262" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">Click foca janela · Click de novo minimiza · Right-click menu (Fechar, Pinar) · Scroll alterna instâncias · Hover tooltip após 500ms</text>
+  </g>
+
+  <!-- ============ 4. TOKENS THEME.TOML ============ -->
+  <text x="60" y="1306" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 1330)">
+    <rect width="1160" height="900" fill="#1F1611" rx="12"/>
+
+    <!-- Coluna esquerda -->
+    <text x="30" y="40" font-family="monospace" font-size="11" fill="#A89D92">[taskbar]</text>
+    <text x="30" y="60" font-family="monospace" font-size="11" fill="#FBF6EE">position              = <tspan fill="#6B8E7F">"bottom"</tspan></text>
+    <text x="30" y="78" font-family="monospace" font-size="11" fill="#FBF6EE">height                = <tspan fill="#E89B3D">64</tspan></text>
+    <text x="30" y="96" font-family="monospace" font-size="11" fill="#FBF6EE">bg_gradient_top       = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="30" y="114" font-family="monospace" font-size="11" fill="#FBF6EE">bg_gradient_bottom    = <tspan fill="#6B8E7F">"#0F0A07"</tspan></text>
+    <text x="30" y="132" font-family="monospace" font-size="11" fill="#FBF6EE">top_accent_color      = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="30" y="150" font-family="monospace" font-size="11" fill="#FBF6EE">top_accent_alpha      = <tspan fill="#E89B3D">0.5</tspan></text>
+    <text x="30" y="168" font-family="monospace" font-size="11" fill="#FBF6EE">top_accent_height     = <tspan fill="#E89B3D">2</tspan></text>
+    <text x="30" y="186" font-family="monospace" font-size="11" fill="#FBF6EE">padding_left          = <tspan fill="#E89B3D">12</tspan></text>
+    <text x="30" y="204" font-family="monospace" font-size="11" fill="#FBF6EE">padding_right         = <tspan fill="#E89B3D">12</tspan></text>
+
+    <text x="30" y="240" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.launcher]   # zona A</text>
+    <text x="30" y="260" font-family="monospace" font-size="11" fill="#FBF6EE">size                  = <tspan fill="#E89B3D">44</tspan></text>
+    <text x="30" y="278" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius         = <tspan fill="#E89B3D">9</tspan></text>
+    <text x="30" y="296" font-family="monospace" font-size="11" fill="#FBF6EE">bg                    = <tspan fill="#6B8E7F">"#3D2520"</tspan></text>
+    <text x="30" y="314" font-family="monospace" font-size="11" fill="#FBF6EE">active_bg             = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="30" y="332" font-family="monospace" font-size="11" fill="#FBF6EE">divider_after         = <tspan fill="#E89B3D">true</tspan></text>
+    <text x="30" y="350" font-family="monospace" font-size="11" fill="#FBF6EE">divider_alpha         = <tspan fill="#E89B3D">0.1</tspan></text>
+
+    <text x="30" y="386" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.workspaces]   # zona B</text>
+    <text x="30" y="406" font-family="monospace" font-size="11" fill="#FBF6EE">item_size             = <tspan fill="#E89B3D">32</tspan></text>
+    <text x="30" y="424" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius         = <tspan fill="#E89B3D">9</tspan></text>
+    <text x="30" y="442" font-family="monospace" font-size="11" fill="#FBF6EE">gap                   = <tspan fill="#E89B3D">8</tspan></text>
+    <text x="30" y="460" font-family="monospace" font-size="11" fill="#FBF6EE">margin_left           = <tspan fill="#E89B3D">14</tspan></text>
+    <text x="30" y="478" font-family="monospace" font-size="11" fill="#FBF6EE">hide_if_single        = <tspan fill="#E89B3D">true</tspan></text>
+    <text x="30" y="496" font-family="monospace" font-size="11" fill="#FBF6EE">active_bg             = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="30" y="514" font-family="monospace" font-size="11" fill="#FBF6EE">active_text           = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="30" y="532" font-family="monospace" font-size="11" fill="#FBF6EE">active_text_weight    = <tspan fill="#E89B3D">700</tspan></text>
+    <text x="30" y="550" font-family="monospace" font-size="11" fill="#FBF6EE">inactive_bg           = <tspan fill="#6B8E7F">"transparent"</tspan></text>
+    <text x="30" y="568" font-family="monospace" font-size="11" fill="#FBF6EE">inactive_text         = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="30" y="586" font-family="monospace" font-size="11" fill="#FBF6EE">inactive_text_alpha   = <tspan fill="#E89B3D">0.45</tspan></text>
+    <text x="30" y="604" font-family="monospace" font-size="11" fill="#FBF6EE">text_size             = <tspan fill="#E89B3D">13</tspan></text>
+    <text x="30" y="622" font-family="monospace" font-size="11" fill="#FBF6EE">divider_after         = <tspan fill="#E89B3D">true</tspan></text>
+
+    <text x="30" y="658" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.apps]   # zona C</text>
+    <text x="30" y="678" font-family="monospace" font-size="11" fill="#FBF6EE">mode                  = <tspan fill="#6B8E7F">"kde_squares"</tspan></text>
+    <text x="30" y="696" font-family="monospace" font-size="11" fill="#FBF6EE">button_size           = <tspan fill="#E89B3D">44</tspan></text>
+    <text x="30" y="714" font-family="monospace" font-size="11" fill="#FBF6EE">button_corner_radius  = <tspan fill="#E89B3D">9</tspan></text>
+    <text x="30" y="732" font-family="monospace" font-size="11" fill="#FBF6EE">icon_size             = <tspan fill="#E89B3D">32</tspan></text>
+    <text x="30" y="750" font-family="monospace" font-size="11" fill="#FBF6EE">icon_corner_radius    = <tspan fill="#E89B3D">6</tspan></text>
+    <text x="30" y="768" font-family="monospace" font-size="11" fill="#FBF6EE">gap                   = <tspan fill="#E89B3D">8</tspan></text>
+    <text x="30" y="786" font-family="monospace" font-size="11" fill="#FBF6EE">active_bg             = <tspan fill="#6B8E7F">"#3D2520"</tspan></text>
+    <text x="30" y="804" font-family="monospace" font-size="11" fill="#FBF6EE">indicator_color       = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="30" y="822" font-family="monospace" font-size="11" fill="#FBF6EE">indicator_width       = <tspan fill="#E89B3D">24</tspan></text>
+    <text x="30" y="840" font-family="monospace" font-size="11" fill="#FBF6EE">indicator_height      = <tspan fill="#E89B3D">3</tspan></text>
+    <text x="30" y="858" font-family="monospace" font-size="11" fill="#FBF6EE">hover_bg              = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="30" y="876" font-family="monospace" font-size="11" fill="#FBF6EE">tooltip_delay_ms      = <tspan fill="#E89B3D">500</tspan></text>
+
+    <!-- Coluna direita -->
+    <text x="600" y="40" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.apps.badge]   # múltiplas instâncias</text>
+    <text x="600" y="60" font-family="monospace" font-size="11" fill="#FBF6EE">bg                    = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="600" y="78" font-family="monospace" font-size="11" fill="#FBF6EE">text_color            = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="600" y="96" font-family="monospace" font-size="11" fill="#FBF6EE">size                  = <tspan fill="#E89B3D">14</tspan></text>
+    <text x="600" y="114" font-family="monospace" font-size="11" fill="#FBF6EE">position              = <tspan fill="#6B8E7F">"top_right"</tspan></text>
+
+    <text x="600" y="150" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.apps.tooltip]</text>
+    <text x="600" y="170" font-family="monospace" font-size="11" fill="#FBF6EE">bg                    = <tspan fill="#6B8E7F">"#1F1611"</tspan></text>
+    <text x="600" y="188" font-family="monospace" font-size="11" fill="#FBF6EE">border_color          = <tspan fill="#6B8E7F">"#E89B3D"</tspan></text>
+    <text x="600" y="206" font-family="monospace" font-size="11" fill="#FBF6EE">border_alpha          = <tspan fill="#E89B3D">0.3</tspan></text>
+    <text x="600" y="224" font-family="monospace" font-size="11" fill="#FBF6EE">text_size             = <tspan fill="#E89B3D">11</tspan></text>
+    <text x="600" y="242" font-family="monospace" font-size="11" fill="#FBF6EE">position              = <tspan fill="#6B8E7F">"above"</tspan></text>
+
+    <text x="600" y="278" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.system_tray]   # zona D</text>
+    <text x="600" y="298" font-family="monospace" font-size="11" fill="#FBF6EE">icon_size             = <tspan fill="#E89B3D">20</tspan></text>
+    <text x="600" y="316" font-family="monospace" font-size="11" fill="#FBF6EE">icon_stroke_width     = <tspan fill="#E89B3D">1.5</tspan></text>
+    <text x="600" y="334" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color            = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="600" y="352" font-family="monospace" font-size="11" fill="#FBF6EE">icon_alpha            = <tspan fill="#E89B3D">0.85</tspan></text>
+    <text x="600" y="370" font-family="monospace" font-size="11" fill="#FBF6EE">gap                   = <tspan fill="#E89B3D">16</tspan></text>
+    <text x="600" y="388" font-family="monospace" font-size="11" fill="#FBF6EE">margin_right          = <tspan fill="#E89B3D">220</tspan></text>
+    <text x="600" y="406" font-family="monospace" font-size="11" fill="#A89D92"># items: battery, wifi, volume, bell</text>
+    <text x="600" y="424" font-family="monospace" font-size="11" fill="#FBF6EE">battery_fill_high     = <tspan fill="#6B8E7F">"#6B8E7F"</tspan>  <tspan fill="#A89D92"># >50%</tspan></text>
+    <text x="600" y="442" font-family="monospace" font-size="11" fill="#FBF6EE">battery_fill_med      = <tspan fill="#6B8E7F">"#F5D5A8"</tspan>  <tspan fill="#A89D92"># 20-50%</tspan></text>
+    <text x="600" y="460" font-family="monospace" font-size="11" fill="#FBF6EE">battery_fill_low      = <tspan fill="#6B8E7F">"#D97757"</tspan>  <tspan fill="#A89D92"># <20%</tspan></text>
+    <text x="600" y="478" font-family="monospace" font-size="11" fill="#FBF6EE">notif_dot_color       = <tspan fill="#6B8E7F">"#D97757"</tspan></text>
+
+    <text x="600" y="514" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.clock]   # zona E</text>
+    <text x="600" y="534" font-family="monospace" font-size="11" fill="#FBF6EE">font_family           = <tspan fill="#6B8E7F">"Fraunces"</tspan></text>
+    <text x="600" y="552" font-family="monospace" font-size="11" fill="#FBF6EE">time_size             = <tspan fill="#E89B3D">17</tspan></text>
+    <text x="600" y="570" font-family="monospace" font-size="11" fill="#FBF6EE">time_weight           = <tspan fill="#E89B3D">600</tspan></text>
+    <text x="600" y="588" font-family="monospace" font-size="11" fill="#FBF6EE">time_color            = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="600" y="606" font-family="monospace" font-size="11" fill="#FBF6EE">time_format           = <tspan fill="#6B8E7F">"%H:%M"</tspan></text>
+    <text x="600" y="624" font-family="monospace" font-size="11" fill="#FBF6EE">date_size             = <tspan fill="#E89B3D">10</tspan></text>
+    <text x="600" y="642" font-family="monospace" font-size="11" fill="#FBF6EE">date_color            = <tspan fill="#6B8E7F">"#A89D92"</tspan></text>
+    <text x="600" y="660" font-family="monospace" font-size="11" fill="#FBF6EE">date_format           = <tspan fill="#6B8E7F">"%a · %d %b"</tspan></text>
+    <text x="600" y="678" font-family="monospace" font-size="11" fill="#FBF6EE">margin_right          = <tspan fill="#E89B3D">130</tspan></text>
+
+    <text x="600" y="714" font-family="monospace" font-size="11" fill="#A89D92">[taskbar.show_desktop]   # zona F</text>
+    <text x="600" y="734" font-family="monospace" font-size="11" fill="#FBF6EE">size                  = <tspan fill="#E89B3D">44</tspan></text>
+    <text x="600" y="752" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius         = <tspan fill="#E89B3D">9</tspan></text>
+    <text x="600" y="770" font-family="monospace" font-size="11" fill="#FBF6EE">border_alpha          = <tspan fill="#E89B3D">0.15</tspan></text>
+    <text x="600" y="788" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color            = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="600" y="806" font-family="monospace" font-size="11" fill="#FBF6EE">icon_alpha_default    = <tspan fill="#E89B3D">0.5</tspan></text>
+    <text x="600" y="824" font-family="monospace" font-size="11" fill="#FBF6EE">hover_bg              = <tspan fill="#6B8E7F">"#3D2520"</tspan></text>
+    <text x="600" y="842" font-family="monospace" font-size="11" fill="#FBF6EE">active_bg             = <tspan fill="#6B8E7F">"#E89B3D"</tspan>  <tspan fill="#A89D92"># desktop visível</tspan></text>
+    <text x="600" y="860" font-family="monospace" font-size="11" fill="#FBF6EE">shortcut              = <tspan fill="#6B8E7F">"Super+D"</tspan></text>
+    <text x="600" y="878" font-family="monospace" font-size="11" fill="#FBF6EE">margin_right          = <tspan fill="#E89B3D">12</tspan></text>
+  </g>
+
+  <!-- ============ 5. POSICIONAMENTO ============ -->
+  <text x="60" y="2286" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">5 — POSICIONAMENTO (coordenadas dentro da taskbar 1160×64)</text>
+
+  <g transform="translate(60, 2310)">
+    <rect width="1160" height="320" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Layout da esquerda pra direita:</text>
+
+    <text x="30" y="72" font-family="monospace" font-size="11" fill="#D97757" font-weight="700">ZONA A</text>
+    <text x="130" y="72" font-family="monospace" font-size="11" fill="#4A3933">Launcher    x=12     44×44   →  termina em x=56</text>
+    <text x="30" y="92" font-family="monospace" font-size="11" fill="#8B7D72">divider 1   x=68</text>
+
+    <text x="30" y="120" font-family="monospace" font-size="11" fill="#E89B3D" font-weight="700">ZONA B</text>
+    <text x="130" y="120" font-family="monospace" font-size="11" fill="#4A3933">Workspaces  x=82     3×(32) + 2×(8 gap)  →  termina em x=194</text>
+    <text x="30" y="140" font-family="monospace" font-size="11" fill="#8B7D72">divider 2   x=206</text>
+
+    <text x="30" y="168" font-family="monospace" font-size="11" fill="#6B8E7F" font-weight="700">ZONA C</text>
+    <text x="130" y="168" font-family="monospace" font-size="11" fill="#4A3933">Apps        x=222    N×(44) + (N-1)×(8 gap)   ·  cresce com apps abertos</text>
+
+    <text x="30" y="200" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Layout da direita pra esquerda (ancorado na borda direita):</text>
+
+    <text x="30" y="232" font-family="monospace" font-size="11" fill="#1F1611" font-weight="700">ZONA F</text>
+    <text x="130" y="232" font-family="monospace" font-size="11" fill="#4A3933">Show Desktop  margin_right=12    44×44   →  x ≈ 1104</text>
+
+    <text x="30" y="252" font-family="monospace" font-size="11" fill="#1F1611" font-weight="700">ZONA E</text>
+    <text x="130" y="252" font-family="monospace" font-size="11" fill="#4A3933">Clock         margin_right=130           →  x ≈ 1040</text>
+
+    <text x="30" y="272" font-family="monospace" font-size="11" fill="#1F1611" font-weight="700">ZONA D</text>
+    <text x="130" y="272" font-family="monospace" font-size="11" fill="#4A3933">System tray   margin_right=220   4 ícones gap 16   →  x ≈ 780</text>
+
+    <text x="30" y="304" font-family="system-ui, sans-serif" font-size="11" fill="#E89B3D" font-style="italic">Regra: navegação ancora na esquerda · sistema ancora na direita · espaço livre no meio</text>
+  </g>
+
+  <!-- ============ 6. CHECKLIST ============ -->
+  <text x="60" y="2686" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">6 — CHECKLIST DE IMPLEMENTAÇÃO</text>
+
+  <g transform="translate(60, 2710)">
+    <rect width="1160" height="620" fill="#1F1611" rx="12"/>
+
+    <text x="30" y="44" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona A — Launcher</text>
+    <text x="50" y="68" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Botão 44×44 com logo Luma · click abre menu · estados hover/active</text>
+
+    <text x="30" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona B — Workspaces</text>
+    <text x="50" y="124" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Renderiza 3 quadrados 32×32 numerados</text>
+    <text x="50" y="142" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Ativo = pill âmbar · inativos = transparente texto 45%</text>
+    <text x="50" y="160" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Esconde se só 1 workspace · (placeholder na H33, H36 conecta)</text>
+
+    <text x="30" y="192" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona C — Apps abertos</text>
+    <text x="50" y="216" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Quadrados 44×44 com ícone 32px do .desktop</text>
+    <text x="50" y="234" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ App ativo: bg #3D2520 + linha âmbar 24×3 embaixo</text>
+    <text x="50" y="252" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Hover: bg sutil + tooltip com nome após 500ms</text>
+    <text x="50" y="270" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Badge âmbar com número se múltiplas instâncias</text>
+    <text x="50" y="288" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Click foca · click de novo minimiza · scroll alterna</text>
+
+    <text x="30" y="320" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona D — System tray</text>
+    <text x="50" y="344" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Bateria 20px com fill colorido por % + texto "73%"</text>
+    <text x="50" y="362" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ WiFi + Volume + Bell ícones 20px stroke 1.5</text>
+    <text x="50" y="380" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Dot coral no sino se notif não lida (H33: sempre 0)</text>
+    <text x="50" y="398" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ (H33 só renderiza · popups vão pra H44)</text>
+
+    <text x="30" y="430" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona E — Clock</text>
+    <text x="50" y="454" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Hora Fraunces 17px + data Manrope 10px · locale pt-BR · atualiza 30s</text>
+
+    <text x="30" y="486" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" font-weight="700">Zona F — Show Desktop</text>
+    <text x="50" y="510" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Botão 44×44 ícone 2 janelas + seta · 3 estados</text>
+    <text x="50" y="528" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ Click minimiza tudo · click de novo restaura · Super+D atalho</text>
+    <text x="50" y="546" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">☐ bg âmbar quando desktop está visível</text>
+
+    <text x="30" y="582" font-family="system-ui, sans-serif" font-size="12" fill="#E89B3D" font-weight="700">Geral: tudo via theme.toml · hit targets ≥44px · zero hex hardcoded</text>
+  </g>
+</svg>
