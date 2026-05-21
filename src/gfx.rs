@@ -598,6 +598,55 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Painel arredondado com borda 1px na cor `border_color` + alpha
+/// `border_alpha`, e interior preenchido com `bg`. Usado pelo tooltip
+/// da taskbar (H33.taskbar.6). Pixels fora do round-rect ficam alpha 0.
+pub fn make_tooltip_bg(
+    w: i32,
+    h: i32,
+    radius: i32,
+    bg: Color32F,
+    border: Color32F,
+    border_alpha: f32,
+) -> MemoryRenderBuffer {
+    let border_premul = Color32F::new(
+        border.r() * border_alpha,
+        border.g() * border_alpha,
+        border.b() * border_alpha,
+        border_alpha,
+    );
+    let mut pixels = vec![0u8; (w * h * 4) as usize];
+    let r_sq = radius * radius;
+    let inner_radius = (radius - 1).max(0);
+    let inner_r_sq = inner_radius * inner_radius;
+    for y in 0..h {
+        for x in 0..w {
+            if !is_inside_rounded(x, y, w, h, radius, r_sq) {
+                continue;
+            }
+            // Inner: 1px menor em cada lado.
+            let inside_inner = x >= 1
+                && x < (w - 1)
+                && y >= 1
+                && y < (h - 1)
+                && is_inside_rounded(x - 1, y - 1, w - 2, h - 2, inner_radius, inner_r_sq);
+            if inside_inner {
+                put_pixel_premul(&mut pixels, x, y, w, bg);
+            } else {
+                put_pixel_premul(&mut pixels, x, y, w, border_premul);
+            }
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Glyph ⌘ (Cmd/Apple) custom: quadrado outline + 4 pontos nos cantos
 /// externos. Simula a forma clássica do glyph U+2318. H32.7.fix.27.
 pub fn make_cmd_glyph(size: i32, color: Color32F) -> MemoryRenderBuffer {

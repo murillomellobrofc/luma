@@ -312,6 +312,38 @@ pub fn init_winit(
                     data.state.pager.ensure_labels(text, 9);
                     data.state.overview.ensure_labels(text);
                     crate::decoration::ensure_button_glyphs(text);
+                    // H33.taskbar.6: pre-rasteriza tooltip do app sob hover
+                    // se já passou `tooltip_delay_ms` desde o início do hover.
+                    let delay_ms =
+                        crate::theme::current().taskbar.apps.tooltip_delay_ms as u128;
+                    let should_show = matches!(
+                        (data.state.taskbar.hovered_block, data.state.taskbar.hover_started_at),
+                        (Some(_), Some(t)) if t.elapsed().as_millis() >= delay_ms
+                    );
+                    if should_show {
+                        if let Some(idx) = data.state.taskbar.hovered_block {
+                            let label = taskbar_app_ids
+                                .get(idx)
+                                .cloned()
+                                .filter(|s| !s.is_empty())
+                                .or_else(|| {
+                                    data.state
+                                        .taskbar
+                                        .title_labels
+                                        .get(idx)
+                                        .and_then(|t| t.as_ref())
+                                        .map(|tc| tc.text.clone())
+                                })
+                                .unwrap_or_default();
+                            if !label.is_empty() {
+                                crate::taskbar::ensure_tooltip(
+                                    &mut data.state.taskbar,
+                                    &label,
+                                    text,
+                                );
+                            }
+                        }
+                    }
                 }
                 // Clone do cache de títulos (Arc no buffer, cheap).
                 let taskbar_titles: Vec<Option<crate::taskbar::TitleCache>> =
@@ -373,6 +405,42 @@ pub fn init_winit(
                         crate::taskbar::fallback_icon_for(&mut data.state.taskbar, key)
                     })
                     .collect();
+                // H33.taskbar.6: tooltip pronto pra render (se delay passou).
+                // Resolve idx + label do hovered + clone do cache em uma
+                // pass só, antes do bind do renderer.
+                let tooltip_render: Option<(crate::taskbar::TooltipCache, usize)> = {
+                    let delay_ms =
+                        crate::theme::current().taskbar.apps.tooltip_delay_ms as u128;
+                    let elapsed_ok = matches!(
+                        (data.state.taskbar.hovered_block, data.state.taskbar.hover_started_at),
+                        (Some(_), Some(t)) if t.elapsed().as_millis() >= delay_ms
+                    );
+                    let idx = data.state.taskbar.hovered_block;
+                    if elapsed_ok {
+                        idx.and_then(|i| {
+                            let label = taskbar_app_ids
+                                .get(i)
+                                .cloned()
+                                .filter(|s| !s.is_empty())
+                                .or_else(|| {
+                                    taskbar_titles
+                                        .get(i)
+                                        .and_then(|t| t.as_ref())
+                                        .map(|tc| tc.text.clone())
+                                })
+                                .unwrap_or_default();
+                            data.state
+                                .taskbar
+                                .tooltip_cache
+                                .get(&label)
+                                .cloned()
+                                .map(|tc| (tc, i))
+                        })
+                    } else {
+                        None
+                    }
+                };
+                let _ = &taskbar_titles; // usado acima dentro do closure
                 // Clone do gradient bg pra evitar borrow conflict com
                 // renderer durante o render (Arc internamente, cheap).
                 let taskbar_bg = data.state.taskbar.background.clone();
@@ -1795,6 +1863,53 @@ pub fn init_winit(
                             }
                         }
                         let _ = &block_inactive; // unused após H33.taskbar.4
+
+                        // H33.taskbar.6: tooltip do app hovered. Pushed
+                        // ANTES dos solids (= mais à frente no z-stack)
+                        // pra ficar em cima da taskbar + bordas.
+                        if let Some((tc, i)) = tooltip_render.as_ref() {
+                            let t_theme = &crate::theme::current().taskbar.tooltip;
+                            let block_x = start_x + *i as i32 * (bw + bsp);
+                            let button_center_x = block_x + bw / 2;
+                            let tx = button_center_x - tc.bg_size.w / 2;
+                            let ty = block_top - tc.bg_size.h - t_theme.margin_above;
+                            // Label primeiro (vai na frente, em cima do bg).
+                            let lx = tx + (tc.bg_size.w - tc.label_size.w) / 2;
+                            let ly = ty + (tc.bg_size.h - tc.label_size.h) / 2;
+                            let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                    lx, ly,
+                                ))
+                                .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer,
+                                lloc.to_f64(),
+                                &tc.label,
+                                None,
+                                None,
+                                None,
+                                Kind::Unspecified,
+                            ) {
+                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            }
+                            // Bg do tooltip (atrás do label).
+                            let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                    tx, ty,
+                                ))
+                                .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer,
+                                bloc.to_f64(),
+                                &tc.bg,
+                                None,
+                                None,
+                                None,
+                                Kind::Unspecified,
+                            ) {
+                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            }
+                        }
 
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));

@@ -91,10 +91,17 @@ pub fn handle_motion_absolute<I: InputBackend>(
             .filter(|i| i.as_window().is_some())
             .count();
         let ws_count = state.workspaces.count();
-        state.taskbar.hovered_block = match crate::taskbar::hit_test(out, pos, n_windows, ws_count) {
+        let new_hover = match crate::taskbar::hit_test(out, pos, n_windows, ws_count) {
             Some(crate::taskbar::TaskbarHit::Window(idx)) => Some(idx),
             _ => None,
         };
+        // H33.taskbar.6: reset timer do tooltip toda vez que o hovered_block
+        // muda. Tooltip aparece quando passa `apps.tooltip_delay_ms` no
+        // mesmo bloco.
+        if state.taskbar.hovered_block != new_hover {
+            state.taskbar.hover_started_at = new_hover.map(|_| std::time::Instant::now());
+        }
+        state.taskbar.hovered_block = new_hover;
         state.taskbar.show_desktop_hovered = matches!(
             crate::taskbar::hit_test(out, pos, n_windows, ws_count),
             Some(crate::taskbar::TaskbarHit::ShowDesktop)

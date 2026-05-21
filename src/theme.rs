@@ -265,6 +265,23 @@ pub struct TaskbarTokens {
     pub launcher: TaskbarLauncherTokens,
     /// Sub-tokens da zona C (apps abertos). H33.taskbar.4.
     pub apps: TaskbarAppsTokens,
+    /// Sub-tokens do tooltip do botão de app. H33.taskbar.6.
+    pub tooltip: TaskbarTooltipTokens,
+}
+
+/// Sub-tokens do tooltip que aparece acima do botão de app no hover
+/// após `apps.tooltip_delay_ms`. H33.taskbar.6.
+#[derive(Debug, Clone)]
+pub struct TaskbarTooltipTokens {
+    pub bg: Color32F,
+    pub border_color: Color32F,
+    pub border_alpha: f32,
+    pub text_color: Color32F,
+    pub text_size: f32,
+    pub padding: i32,
+    pub corner_radius: i32,
+    /// Distância vertical (px) entre o topo do botão e a base do tooltip.
+    pub margin_above: i32,
 }
 
 /// Sub-tokens da zona C (apps abertos) — botões quadrados KDE-style.
@@ -1198,6 +1215,25 @@ impl Default for TaskbarTokens {
             border_top_height: 2,
             launcher: TaskbarLauncherTokens::default(),
             apps: TaskbarAppsTokens::default(),
+            tooltip: TaskbarTooltipTokens::default(),
+        }
+    }
+}
+
+impl Default for TaskbarTooltipTokens {
+    fn default() -> Self {
+        Self {
+            // #1F1611 — taskbar_bg_top (Coffee).
+            bg: hex_color("#1F1611", 1.0),
+            // Âmbar com alpha 0.3 (sutil).
+            border_color: hex_color("#E89B3D", 1.0),
+            border_alpha: 0.3,
+            // Cream #FBF6EE.
+            text_color: hex_color("#FBF6EE", 1.0),
+            text_size: 11.0,
+            padding: 10,
+            corner_radius: 6,
+            margin_above: 8,
         }
     }
 }
@@ -1730,6 +1766,19 @@ struct TaskbarTokensFile {
     border_top_height: Option<i32>,
     launcher: Option<TaskbarLauncherTokensFile>,
     apps: Option<TaskbarAppsTokensFile>,
+    tooltip: Option<TaskbarTooltipTokensFile>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct TaskbarTooltipTokensFile {
+    bg: Option<String>,
+    border_color: Option<String>,
+    border_alpha: Option<f32>,
+    text_color: Option<String>,
+    text_size: Option<f32>,
+    padding: Option<i32>,
+    corner_radius: Option<i32>,
+    margin_above: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2293,6 +2342,10 @@ impl TaskbarTokensFile {
             .apps
             .map(|a| a.into_tokens(&def.apps))
             .unwrap_or_else(|| def.apps.clone());
+        let tooltip = self
+            .tooltip
+            .map(|t| t.into_tokens(&def.tooltip))
+            .unwrap_or_else(|| def.tooltip.clone());
         TaskbarTokens {
             height: self.height.unwrap_or(def.height),
             padding_left: self.padding_left.unwrap_or(def.padding_left),
@@ -2306,6 +2359,34 @@ impl TaskbarTokensFile {
             border_top_height: self.border_top_height.unwrap_or(def.border_top_height),
             launcher,
             apps,
+            tooltip,
+        }
+    }
+}
+
+impl TaskbarTooltipTokensFile {
+    fn into_tokens(self, def: &TaskbarTooltipTokens) -> TaskbarTooltipTokens {
+        TaskbarTooltipTokens {
+            bg: self
+                .bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.bg),
+            border_color: self
+                .border_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.border_color),
+            border_alpha: self.border_alpha.unwrap_or(def.border_alpha),
+            text_color: self
+                .text_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.text_color),
+            text_size: self.text_size.unwrap_or(def.text_size),
+            padding: self.padding.unwrap_or(def.padding),
+            corner_radius: self.corner_radius.unwrap_or(def.corner_radius),
+            margin_above: self.margin_above.unwrap_or(def.margin_above),
         }
     }
 }

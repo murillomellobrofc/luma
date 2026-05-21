@@ -157,6 +157,17 @@ pub struct TitleCache {
     pub size: Size<i32, Logical>,
 }
 
+/// Cache do tooltip de um app: bg arredondado com borda + label
+/// rasterizado + tamanho do bg (pra posicionar). H33.taskbar.6.
+#[derive(Debug, Clone)]
+pub struct TooltipCache {
+    pub text: String,
+    pub bg: MemoryRenderBuffer,
+    pub label: MemoryRenderBuffer,
+    pub bg_size: Size<i32, Logical>,
+    pub label_size: Size<i32, Logical>,
+}
+
 pub struct TaskbarState {
     /// Background da taskbar — textura 1×taskbar_height com gradient
     /// vertical Coffee→Black (Golden Hour H32.5.3). Pré-renderizada uma
@@ -190,6 +201,13 @@ pub struct TaskbarState {
     /// app) por chave estável (app_id ou nome). Gerado lazy quando um app
     /// não tem `.desktop` Icon resolvido. H33.taskbar.4.
     pub fallback_icon_cache: std::collections::HashMap<String, MemoryRenderBuffer>,
+    /// Cache de tooltips dos apps (bg + label rasterizado). Chave é o
+    /// texto exibido. H33.taskbar.6.
+    pub tooltip_cache: std::collections::HashMap<String, TooltipCache>,
+    /// Timestamp do início do hover atual em algum botão de app. Resetado
+    /// a cada mudança de `hovered_block`. Tooltip aparece quando passa
+    /// `apps.tooltip_delay_ms`. H33.taskbar.6.
+    pub hover_started_at: Option<std::time::Instant>,
     /// Cache de títulos rasterizados por janela (paralelo a `order`).
     /// Re-rasterizados quando o título da janela muda. Ainda só
     /// preparado pra ser usado pela render do bloco no winit.rs (H32.5.5
@@ -332,6 +350,8 @@ impl TaskbarState {
             order: Vec::new(),
             output_name: None,
             fallback_icon_cache: std::collections::HashMap::new(),
+            tooltip_cache: std::collections::HashMap::new(),
+            hover_started_at: None,
         }
     }
 
@@ -507,6 +527,52 @@ pub fn fallback_icon_for(
         .fallback_icon_cache
         .insert(name.to_string(), buf.clone());
     buf
+}
+
+/// Garante que existe cache de tooltip pra `text`. Rasteriza texto + gera
+/// bg arredondado com borda. H33.taskbar.6.
+pub fn ensure_tooltip(
+    state: &mut TaskbarState,
+    text: &str,
+    text_renderer: &crate::text::TextRenderer,
+) {
+    if text.is_empty() || state.tooltip_cache.contains_key(text) {
+        return;
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.tooltip;
+    let (pixels, w, h) = text_renderer.rasterize_colored(text, t.text_size, t.text_color);
+    if w == 0 || h == 0 {
+        return;
+    }
+    let label = MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w as i32, h as i32),
+        1,
+        Transform::Normal,
+        None,
+    );
+    let bg_w = w as i32 + t.padding * 2;
+    let bg_h = h as i32 + t.padding * 2;
+    let bg = crate::gfx::make_tooltip_bg(
+        bg_w,
+        bg_h,
+        t.corner_radius,
+        t.bg,
+        t.border_color,
+        t.border_alpha,
+    );
+    state.tooltip_cache.insert(
+        text.to_string(),
+        TooltipCache {
+            text: text.to_string(),
+            bg,
+            label,
+            bg_size: Size::from((bg_w, bg_h)),
+            label_size: Size::from((w as i32, h as i32)),
+        },
+    );
 }
 
 /// Helper genérico pra rasterizar texto e empacotar em (buffer, size).
