@@ -28,7 +28,10 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let menu_open_now = state.menu_open;
     // H44.volume.1: popup aberto intercepta Esc pra fechar.
     let applet_popup_open = state.applet_popup.is_some();
+    // H47a.tray.2: painel de overflow aberto intercepta Esc.
+    let tray_overflow_open = state.tray.overflow_open;
     let mut close_applet_popup = false;
+    let mut close_tray_overflow = false;
     let _ = keyboard.input::<(), _>(
         state,
         key_code,
@@ -40,6 +43,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
                     close_applet_popup = true;
+                    return FilterResult::Intercept(());
+                }
+            }
+            if tray_overflow_open && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    close_tray_overflow = true;
                     return FilterResult::Intercept(());
                 }
             }
@@ -105,6 +115,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if close_applet_popup {
         state.applet_popup = None;
+        return;
+    }
+
+    if close_tray_overflow {
+        state.tray.overflow_open = false;
         return;
     }
 

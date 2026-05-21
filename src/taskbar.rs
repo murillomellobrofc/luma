@@ -830,6 +830,57 @@ pub fn clock_labels_location(
     (time_pt, date_pt)
 }
 
+/// Retângulo lógico da setinha de overflow do tray pra hit-test do
+/// click. Usa `tray.last_overflow_x` cacheado pelo render. H47a.tray.2.
+pub fn tray_overflow_zone(
+    output_size: Size<i32, Logical>,
+    tray: &crate::tray::TrayState,
+) -> Option<smithay::utils::Rectangle<i32, Logical>> {
+    use smithay::utils::{Point, Rectangle, Size};
+    let theme = crate::theme::current();
+    let t_ov = &theme.taskbar.tray_overflow;
+    let bar_y = output_size.h - taskbar_height();
+    let size = t_ov.arrow_size;
+    let center_y = bar_y + (taskbar_height() - size) / 2;
+    let x = tray.last_overflow_x?;
+    Some(Rectangle::new(
+        Point::from((x, center_y)),
+        Size::from((size, size)),
+    ))
+}
+
+/// Retângulo lógico do painel de overflow (acima da setinha) pra
+/// hit-test "click fora fecha". Anchora centrado horizontalmente
+/// sobre a setinha. H47a.tray.2.
+pub fn tray_overflow_panel_zone(
+    output_size: Size<i32, Logical>,
+    tray: &crate::tray::TrayState,
+) -> Option<smithay::utils::Rectangle<i32, Logical>> {
+    use smithay::utils::{Point, Rectangle, Size};
+    let theme = crate::theme::current();
+    let t_ov = &theme.taskbar.tray_overflow;
+    let arrow_x = tray.last_overflow_x?;
+    let arrow_size = t_ov.arrow_size;
+    let pw = t_ov.panel_width;
+    let ph = t_ov.panel_height;
+    let bar_y = output_size.h - taskbar_height();
+    // Painel acima da setinha, com gap de 8px.
+    let panel_y = bar_y - ph - 8;
+    // Center alinhado ao centro da setinha. Clamp pro output bounds.
+    let arrow_center = arrow_x + arrow_size / 2;
+    let mut panel_x = arrow_center - pw / 2;
+    if panel_x < 8 {
+        panel_x = 8;
+    }
+    if panel_x + pw > output_size.w - 8 {
+        panel_x = output_size.w - 8 - pw;
+    }
+    Some(Rectangle::new(
+        Point::from((panel_x, panel_y)),
+        Size::from((pw, ph)),
+    ))
+}
+
 /// Retângulo lógico do ícone de volume no tray, pra hit-test e
 /// ancoragem do popup. Usa a posição CACHEADA pelo render no
 /// `tray.last_volume_x`. Se ainda não foi renderizado, devolve None.
