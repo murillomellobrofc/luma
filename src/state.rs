@@ -173,6 +173,12 @@ pub struct LumaState {
     /// Menu de contexto do desktop ativo (right-click em área vazia).
     /// `None` = fechado. H48.
     pub context_menu: Option<crate::context_menu::ContextMenu>,
+    /// Entradas visíveis de `~/Desktop` ordenadas (pastas → arquivos,
+    /// alfabético). Vazio se a pasta não existir. Polling 2s atualiza.
+    /// H50.
+    pub desktop_entries: Vec<crate::desktop_icons::DesktopEntry>,
+    /// Último polling de ~/Desktop. None = ainda não scaneado. H50.
+    pub desktop_last_scan: Option<std::time::Instant>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -594,6 +600,8 @@ impl LumaState {
             osd: None,
             osd_media: None,
             context_menu: None,
+            desktop_entries: Vec::new(),
+            desktop_last_scan: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),
