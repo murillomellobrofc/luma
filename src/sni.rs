@@ -58,8 +58,31 @@ pub type SniList = Arc<Mutex<Vec<SniItem>>>;
 /// Inicia a thread D-Bus em background. Retorna a lista compartilhada
 /// (vazia até a thread popular). Se a conexão falhar, a thread loga e
 /// sai — o luma continua funcionando, painel só ficará sempre vazio.
+///
+/// `LUMA_FAKE_SNI=1` injeta 5 itens fake (ícones do tema) só pra
+/// validar render + hit-test sem precisar de apps SNI instalados.
+/// Click ainda chama Activate/ContextMenu, mas o destino é inválido —
+/// log de warn, sem efeito visível.
 pub fn spawn() -> SniList {
     let list: SniList = Arc::new(Mutex::new(Vec::new()));
+    if std::env::var("LUMA_FAKE_SNI").is_ok() {
+        if let Ok(mut g) = list.lock() {
+            for (i, name) in ["firefox", "telegram", "discord", "spotify", "code"]
+                .iter()
+                .enumerate()
+            {
+                g.push(SniItem {
+                    service: format!(":fake.{}", i),
+                    object_path: "/StatusNotifierItem".into(),
+                    title: name.to_string(),
+                    tooltip: format!("Fake item {} ({})", i + 1, name),
+                    icon_name: name.to_string(),
+                    icon_pixmaps: Vec::new(),
+                });
+            }
+        }
+        tracing::info!("SNI: LUMA_FAKE_SNI ativo — 5 itens fake injetados");
+    }
     let list_for_thread = list.clone();
     thread::Builder::new()
         .name("luma-sni".into())
