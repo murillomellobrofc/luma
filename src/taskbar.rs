@@ -22,16 +22,19 @@ pub fn taskbar_height() -> i32 {
     crate::theme::current().taskbar.height
 }
 
-/// Tamanho do container do launcher (quadrado). Default 32 (igual à
-/// altura do window_button) — caber na taskbar de 48 com 8px de padding
-/// vertical.
+/// Tamanho do container do launcher (quadrado). Default 44 (H33.taskbar.3).
 pub fn launcher_width() -> i32 {
-    crate::theme::current().window_button.height
+    crate::theme::current().taskbar.launcher.size
 }
 
 /// Altura do launcher = mesma do width (quadrado).
 pub fn launcher_height() -> i32 {
     launcher_width()
+}
+
+/// Corner radius do launcher (H33.taskbar.3).
+pub fn launcher_corner_radius() -> i32 {
+    crate::theme::current().taskbar.launcher.corner_radius
 }
 
 /// Padding lateral esquerdo da barra (antes do launcher). Default 12.
@@ -148,9 +151,13 @@ pub struct TaskbarState {
     /// de marca, sem função semântica. Cor `accent_amber` com alpha
     /// `accent_amber_alpha_top` (default 0.25).
     pub border_top: SolidColorBuffer,
-    /// Container 32×32 do launcher com cantos arredondados + mini logo
-    /// Luma desenhado dentro (H32.5.9). Memory texture pré-renderizada.
+    /// Container quadrado do launcher (44×44 default em H33) com cantos
+    /// arredondados + mini logo Luma desenhado dentro. Memory texture
+    /// pré-renderizada.
     pub launcher: MemoryRenderBuffer,
+    /// Divider 1px à direita do launcher, altura = taskbar. Sutil
+    /// (alpha ~0.1). H33.taskbar.3.
+    pub launcher_divider: SolidColorBuffer,
     /// Pílulas pré-renderizadas pros 4 estados visuais do bloco da
     /// janela na taskbar (H32.5.5/.8). Cada uma é w×h com cantos
     /// arredondados (raio = applet_corner_radius). Compartilhadas por
@@ -248,12 +255,12 @@ impl TaskbarState {
                 (0, theme.taskbar.border_top_height),
                 border_top_color,
             ),
-            // Launcher: container 32×32 com cantos r6 + mini logo Luma
-            // dentro (H32.5.9).
+            // Launcher: container 44×44 (H33) com cantos r9 + mini logo
+            // Luma dentro. Cor bg vem de `taskbar.launcher.bg` (#3D2520).
             launcher: crate::gfx::make_luma_launcher(
                 launcher_width(),
-                theme.colors.applet_bg,
-                applet_corner_radius(),
+                theme.taskbar.launcher.bg,
+                launcher_corner_radius(),
                 &crate::gfx::LumaLogoColors {
                     // Beam: gradient bottom (Coffee escuro) → top (Honey).
                     beam_bottom: smithay::backend::renderer::Color32F::new(
@@ -263,6 +270,17 @@ impl TaskbarState {
                     foot: theme.colors.hover_minimize,     // Honey
                     dot: theme.colors.text_primary,        // Cream #FBF6EE
                 },
+            ),
+            // Divider 1px à direita do launcher. Cor = divider Cream com
+            // alpha do token. H33.taskbar.3.
+            launcher_divider: SolidColorBuffer::new(
+                (1, taskbar_height()),
+                smithay::backend::renderer::Color32F::new(
+                    theme.colors.divider.r(),
+                    theme.colors.divider.g(),
+                    theme.colors.divider.b(),
+                    theme.taskbar.launcher.divider_alpha,
+                ),
             ),
             block_inactive,
             block_hover,
@@ -541,6 +559,24 @@ pub fn render_solid_elements(
     // H33.taskbar.1: indicador âmbar 3px do bloco ATIVO legado desativado.
     // Substituído pela linha âmbar 24×3 sob app ativo em B.5.
     let _ = (n_windows, surfaces, focused_surface, minimized, workspace_count);
+
+    // H33.taskbar.3: divider 1px vertical à direita do launcher.
+    // Pushed antes do border top pra ficar atrás dele.
+    if theme.taskbar.launcher.divider_after {
+        state
+            .launcher_divider
+            .resize((1, taskbar_height()));
+        let dx = padding_left() + launcher_width();
+        let dloc = Point::<i32, Logical>::from((dx, bar_y))
+            .to_physical_precise_round(1.0);
+        elements.push(SolidColorRenderElement::from_buffer(
+            &state.launcher_divider,
+            dloc,
+            1.0,
+            1.0,
+            Kind::Unspecified,
+        ));
+    }
 
     // Show-desktop (faixinha no canto direito). Default transparente:
     // só renderiza no hover, com cor accent_amber alpha 0.3 (Golden Hour

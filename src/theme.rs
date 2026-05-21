@@ -261,6 +261,24 @@ pub struct TaskbarTokens {
     pub gap_between_applets: i32,
     pub applet_corner_radius: i32,
     pub border_top_height: i32,
+    /// Sub-tokens do launcher (zona A). H33.taskbar.3.
+    pub launcher: TaskbarLauncherTokens,
+}
+
+/// Sub-tokens da zona A (launcher) na taskbar v5. H33.taskbar.3.
+///
+/// Container quadrado 44×44 com logo Luma desenhado dentro + divider 1px
+/// vertical à direita (separa launcher dos workspaces/apps).
+#[derive(Debug, Clone)]
+pub struct TaskbarLauncherTokens {
+    pub size: i32,
+    pub corner_radius: i32,
+    pub bg: Color32F,
+    pub active_bg: Color32F,
+    /// Se true, renderiza divider 1px à direita do launcher.
+    pub divider_after: bool,
+    /// Alpha do divider (cor base = `colors.divider`).
+    pub divider_alpha: f32,
 }
 
 /// Layout da decoração de janela (header + bordas + sombra). H32.6.
@@ -1150,6 +1168,22 @@ impl Default for TaskbarTokens {
             gap_between_applets: 8,
             applet_corner_radius: 9,
             border_top_height: 2,
+            launcher: TaskbarLauncherTokens::default(),
+        }
+    }
+}
+
+impl Default for TaskbarLauncherTokens {
+    fn default() -> Self {
+        Self {
+            size: 44,
+            corner_radius: 9,
+            // #3D2520 — applet_bg_active da Golden Hour.
+            bg: hex_color("#3D2520", 1.0),
+            // #2A1F1A — applet_bg.
+            active_bg: hex_color("#2A1F1A", 1.0),
+            divider_after: true,
+            divider_alpha: 0.1,
         }
     }
 }
@@ -1643,6 +1677,17 @@ struct TaskbarTokensFile {
     gap_between_applets: Option<i32>,
     applet_corner_radius: Option<i32>,
     border_top_height: Option<i32>,
+    launcher: Option<TaskbarLauncherTokensFile>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct TaskbarLauncherTokensFile {
+    size: Option<i32>,
+    corner_radius: Option<i32>,
+    bg: Option<String>,
+    active_bg: Option<String>,
+    divider_after: Option<bool>,
+    divider_alpha: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2172,6 +2217,10 @@ impl ColorTokensFile {
 
 impl TaskbarTokensFile {
     fn into_tokens(self, def: &TaskbarTokens) -> TaskbarTokens {
+        let launcher = self
+            .launcher
+            .map(|l| l.into_tokens(&def.launcher))
+            .unwrap_or_else(|| def.launcher.clone());
         TaskbarTokens {
             height: self.height.unwrap_or(def.height),
             padding_left: self.padding_left.unwrap_or(def.padding_left),
@@ -2183,6 +2232,28 @@ impl TaskbarTokensFile {
                 .applet_corner_radius
                 .unwrap_or(def.applet_corner_radius),
             border_top_height: self.border_top_height.unwrap_or(def.border_top_height),
+            launcher,
+        }
+    }
+}
+
+impl TaskbarLauncherTokensFile {
+    fn into_tokens(self, def: &TaskbarLauncherTokens) -> TaskbarLauncherTokens {
+        TaskbarLauncherTokens {
+            size: self.size.unwrap_or(def.size),
+            corner_radius: self.corner_radius.unwrap_or(def.corner_radius),
+            bg: self
+                .bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.bg),
+            active_bg: self
+                .active_bg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.active_bg),
+            divider_after: self.divider_after.unwrap_or(def.divider_after),
+            divider_alpha: self.divider_alpha.unwrap_or(def.divider_alpha),
         }
     }
 }
