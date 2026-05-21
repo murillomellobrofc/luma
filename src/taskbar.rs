@@ -623,9 +623,33 @@ pub fn render_solid_elements(
     let theme = crate::theme::current();
     let mut elements: Vec<SolidColorRenderElement> = Vec::with_capacity(n_windows + 4);
 
-    // H33.taskbar.1: indicador âmbar 3px do bloco ATIVO legado desativado.
-    // Substituído pela linha âmbar 24×3 sob app ativo em B.5.
-    let _ = (n_windows, surfaces, focused_surface, minimized, workspace_count);
+    // H33.taskbar.5: linha âmbar 24×3 centralizada horizontalmente sob
+    // CADA app ativo (focado). Y = última fileira do botão. Pushed
+    // PRIMEIRO no Vec — fica no TOPO do z-stack, em cima do bg do botão.
+    let bw = block_width();
+    let bh = block_height();
+    let bsp = block_spacing();
+    let block_top = bar_y + (taskbar_height() - bh) / 2;
+    let indicator_w = theme.taskbar.apps.indicator_width;
+    let indicator_h = theme.taskbar.apps.indicator_height;
+    let start_x_blocks = blocks_start_x_with_pager(workspace_count);
+    for i in 0..n_windows {
+        let st = block_state_at(state, i, surfaces, focused_surface, minimized);
+        if st != BlockState::Active {
+            continue;
+        }
+        let x = start_x_blocks + i as i32 * (bw + bsp) + (bw - indicator_w) / 2;
+        let y = block_top + bh - indicator_h;
+        let loc = Point::<i32, Logical>::from((x, y))
+            .to_physical_precise_round(1.0);
+        elements.push(SolidColorRenderElement::from_buffer(
+            &state.block_active_indicator,
+            loc,
+            1.0,
+            1.0,
+            Kind::Unspecified,
+        ));
+    }
 
     // H33.taskbar.3: divider 1px vertical à direita do launcher, com
     // respiro `divider_gap_left` (default 6px) entre a borda do launcher
