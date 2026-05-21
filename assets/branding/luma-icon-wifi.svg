@@ -1,0 +1,98 @@
+<svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="420" fill="#FBF6EE"/>
+
+  <text x="40" y="48" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#1F1611">Luma — Ícones de WiFi</text>
+  <text x="40" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">4 estados · arcos que vão apagando · system tray 20px · Golden Hour</text>
+  <line x1="40" y1="90" x2="760" y2="90" stroke="#E8DDD0"/>
+
+  <!-- PREVIEW GRANDE -->
+  <g transform="translate(40, 120)">
+    <rect width="720" height="160" fill="#1F1611" rx="12"/>
+
+    <!-- FULL -->
+    <g transform="translate(70, 38)">
+      <g transform="scale(3)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <text x="36" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Conectado</text>
+    </g>
+
+    <!-- LOW -->
+    <g transform="translate(245, 38)">
+      <g transform="scale(3)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <text x="36" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Sinal fraco</text>
+    </g>
+
+    <!-- NONE -->
+    <g transform="translate(420, 38)">
+      <g transform="scale(3)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <text x="36" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Sem sinal</text>
+    </g>
+
+    <!-- OFF -->
+    <g transform="translate(595, 38)">
+      <g transform="scale(3)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#8B7D72"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <text x="36" y="100" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Desligado</text>
+    </g>
+  </g>
+
+  <!-- TAMANHO REAL -->
+  <g transform="translate(40, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">TAMANHO REAL — 20px</text>
+    <g transform="translate(0, 14)">
+      <rect width="320" height="56" fill="#1F1611" rx="10"/>
+      <g transform="translate(30, 18)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <g transform="translate(105, 18)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <g transform="translate(180, 18)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#FBF6EE" stroke-width="2.2" stroke-linecap="round" opacity="0.25"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#FBF6EE"/>
+      </g>
+      <g transform="translate(255, 18)">
+        <path d="M 2 8.5 a 15 15 0 0 1 20 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 5.5 12.5 a 10 10 0 0 1 13 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 9 16.5 a 5 5 0 0 1 6 0" fill="none" stroke="#8B7D72" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="12" cy="19.5" r="1.6" fill="#8B7D72"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(400, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">REGRA DE ESTADO</text>
+    <text x="0" y="22" font-family="monospace" font-size="11" fill="#4A3933">sinal forte/médio  →  full  (3 arcos)</text>
+    <text x="0" y="40" font-family="monospace" font-size="11" fill="#4A3933">sinal fraco        →  low   (1 arco)</text>
+    <text x="0" y="58" font-family="monospace" font-size="11" fill="#4A3933">conectado sem net  →  none  (só o ponto)</text>
+    <text x="0" y="76" font-family="monospace" font-size="11" fill="#4A3933">wifi desligado     →  off   (cinza + risco coral)</text>
+  </g>
+</svg>

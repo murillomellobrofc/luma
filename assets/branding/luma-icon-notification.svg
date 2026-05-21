@@ -1,0 +1,80 @@
+<svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="420" fill="#FBF6EE"/>
+
+  <text x="40" y="48" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#1F1611">Luma — Ícone de Notificação</text>
+  <text x="40" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">3 estados · sino estilo linha · system tray 20px · Golden Hour</text>
+  <line x1="40" y1="90" x2="760" y2="90" stroke="#E8DDD0"/>
+
+  <!-- PREVIEW GRANDE -->
+  <g transform="translate(40, 120)">
+    <rect width="720" height="160" fill="#1F1611" rx="12"/>
+
+    <!-- NORMAL -->
+    <g transform="translate(110, 42)">
+      <g transform="scale(3)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <text x="36" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Normal</text>
+      <text x="36" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#6B8E7F" text-anchor="middle">sem notificação</text>
+    </g>
+
+    <!-- ALERT -->
+    <g transform="translate(310, 42)">
+      <g transform="scale(3)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="18.5" cy="5.5" r="4.5" fill="#D97757" stroke="#1F1611" stroke-width="1.5"/>
+      </g>
+      <text x="36" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Alerta</text>
+      <text x="36" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#D97757" text-anchor="middle">tem notificação nova</text>
+    </g>
+
+    <!-- DND -->
+    <g transform="translate(510, 42)">
+      <g transform="scale(3)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#8B7D72" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <text x="36" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Silenciado</text>
+      <text x="36" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#D97757" text-anchor="middle">Não Perturbe</text>
+    </g>
+  </g>
+
+  <!-- TAMANHO REAL -->
+  <g transform="translate(40, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">TAMANHO REAL — 20px</text>
+    <g transform="translate(0, 14)">
+      <rect width="260" height="56" fill="#1F1611" rx="10"/>
+      <g transform="translate(30, 18)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(110, 18)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="18.5" cy="5.5" r="4.5" fill="#D97757" stroke="#1F1611" stroke-width="1.5"/>
+      </g>
+      <g transform="translate(190, 18)">
+        <path d="M 5 17 V 10 a 7 7 0 0 1 14 0 v 7 z" fill="none" stroke="#8B7D72" stroke-width="2" stroke-linejoin="round"/>
+        <line x1="3" y1="17" x2="21" y2="17" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <path d="M 9.5 20.5 a 2.7 2.7 0 0 0 5 0" fill="none" stroke="#8B7D72" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(340, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">REGRA DE ESTADO</text>
+    <text x="0" y="22" font-family="monospace" font-size="11" fill="#4A3933">sem notificação    →  normal (sino cream)</text>
+    <text x="0" y="40" font-family="monospace" font-size="11" fill="#4A3933">tem nova            →  alert  (dot coral no canto)</text>
+    <text x="0" y="58" font-family="monospace" font-size="11" fill="#4A3933">modo Não Perturbe   →  dnd    (cinza + risco coral)</text>
+    <text x="0" y="80" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" font-style="italic">H33: sempre normal (placeholder). H40 conecta de verdade.</text>
+  </g>
+</svg>

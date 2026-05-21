@@ -1,0 +1,67 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="400" fill="#FBF6EE"/>
+
+  <text x="40" y="48" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#1F1611">Luma — Ícone Show Desktop</text>
+  <text x="40" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">2 estados · 2 janelinhas + seta · zona F da taskbar 44×44 · Golden Hour</text>
+  <line x1="40" y1="90" x2="760" y2="90" stroke="#E8DDD0"/>
+
+  <!-- PREVIEW GRANDE -->
+  <g transform="translate(40, 120)">
+    <rect width="720" height="170" fill="#1F1611" rx="12"/>
+
+    <!-- NORMAL -->
+    <g transform="translate(140, 30)">
+      <rect width="80" height="80" fill="transparent" rx="9" stroke="#FBF6EE" stroke-opacity="0.15"/>
+      <g transform="translate(16, 16) scale(2)">
+        <rect x="2.5" y="3" width="11" height="8.5" rx="1.5" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <rect x="9.5" y="7" width="11" height="8.5" rx="1.5" fill="#1F1611" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M 12 17.5 V 22 M 8.5 19 L 12 22.5 L 15.5 19" fill="none" stroke="#E89B3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="14" fill="#A89D92" text-anchor="middle">Normal</text>
+      <text x="40" y="130" font-family="system-ui, sans-serif" font-size="10" fill="#6B8E7F" text-anchor="middle">janelas cream · seta âmbar</text>
+    </g>
+
+    <!-- ATIVO -->
+    <g transform="translate(440, 30)">
+      <rect width="80" height="80" fill="#E89B3D" rx="9"/>
+      <g transform="translate(16, 16) scale(2)">
+        <rect x="2.5" y="3" width="11" height="8.5" rx="1.5" fill="none" stroke="#1F1611" stroke-width="2" stroke-linejoin="round"/>
+        <rect x="9.5" y="7" width="11" height="8.5" rx="1.5" fill="#E89B3D" stroke="#1F1611" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M 12 17.5 V 22 M 8.5 19 L 12 22.5 L 15.5 19" fill="none" stroke="#1F1611" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <text x="40" y="110" font-family="system-ui, sans-serif" font-size="14" fill="#A89D92" text-anchor="middle">Ativo</text>
+      <text x="40" y="130" font-family="system-ui, sans-serif" font-size="10" fill="#E89B3D" text-anchor="middle">desktop visível · bg âmbar</text>
+    </g>
+  </g>
+
+  <!-- TAMANHO REAL -->
+  <g transform="translate(40, 322)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">TAMANHO REAL — botão 44×44 na taskbar</text>
+    <g transform="translate(0, 14)">
+      <rect width="160" height="56" fill="#1F1611" rx="10"/>
+      <g transform="translate(20, 6)">
+        <rect width="44" height="44" fill="transparent" rx="9" stroke="#FBF6EE" stroke-opacity="0.15"/>
+        <g transform="translate(10, 10)">
+          <rect x="2.5" y="3" width="11" height="8.5" rx="1.5" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="9.5" y="7" width="11" height="8.5" rx="1.5" fill="#1F1611" stroke="#FBF6EE" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M 12 17.5 V 22 M 8.5 19 L 12 22.5 L 15.5 19" fill="none" stroke="#E89B3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(86, 6)">
+        <rect width="44" height="44" fill="#E89B3D" rx="9"/>
+        <g transform="translate(10, 10)">
+          <rect x="2.5" y="3" width="11" height="8.5" rx="1.5" fill="none" stroke="#1F1611" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="9.5" y="7" width="11" height="8.5" rx="1.5" fill="#E89B3D" stroke="#1F1611" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M 12 17.5 V 22 M 8.5 19 L 12 22.5 L 15.5 19" fill="none" stroke="#1F1611" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(340, 322)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">REGRA DE ESTADO</text>
+    <text x="0" y="22" font-family="monospace" font-size="11" fill="#4A3933">janelas visíveis    →  normal (sem bg, seta âmbar)</text>
+    <text x="0" y="40" font-family="monospace" font-size="11" fill="#4A3933">desktop minimizado  →  active (bg âmbar cheio)</text>
+    <text x="0" y="62" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" font-style="italic">Click alterna · Super+D faz o mesmo · 2 janelinhas mostram que recolhe tudo.</text>
+  </g>
+</svg>

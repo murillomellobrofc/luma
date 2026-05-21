@@ -1,0 +1,81 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="400" fill="#FBF6EE"/>
+
+  <text x="40" y="48" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#1F1611">Luma — Ícone de Ethernet (cabo)</text>
+  <text x="40" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">2 estados · conector de rede · system tray 20px · Golden Hour</text>
+  <line x1="40" y1="90" x2="760" y2="90" stroke="#E8DDD0"/>
+
+  <!-- PREVIEW GRANDE -->
+  <g transform="translate(40, 120)">
+    <rect width="720" height="170" fill="#1F1611" rx="12"/>
+
+    <!-- ON -->
+    <g transform="translate(150, 38)">
+      <g transform="scale(3.4)">
+        <rect x="6.5" y="13" width="11" height="8" rx="1.5" fill="#FBF6EE"/>
+        <rect x="8.7" y="21" width="2.2" height="2" fill="#FBF6EE"/>
+        <rect x="13.1" y="21" width="2.2" height="2" fill="#FBF6EE"/>
+        <path d="M 12 13 V 8 M 12 8 H 5 V 4.5 M 12 8 H 19 V 4.5"
+              fill="none" stroke="#FBF6EE" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="5" cy="3.5" r="2" fill="#FBF6EE"/>
+        <circle cx="12" cy="3.5" r="2" fill="#FBF6EE"/>
+        <circle cx="19" cy="3.5" r="2" fill="#FBF6EE"/>
+      </g>
+      <text x="40" y="120" font-family="system-ui, sans-serif" font-size="14" fill="#A89D92" text-anchor="middle">Conectado</text>
+      <text x="40" y="140" font-family="system-ui, sans-serif" font-size="10" fill="#6B8E7F" text-anchor="middle">cabo plugado</text>
+    </g>
+
+    <!-- OFF -->
+    <g transform="translate(440, 38)">
+      <g transform="scale(3.4)">
+        <rect x="6.5" y="13" width="11" height="8" rx="1.5" fill="#8B7D72"/>
+        <rect x="8.7" y="21" width="2.2" height="2" fill="#8B7D72"/>
+        <rect x="13.1" y="21" width="2.2" height="2" fill="#8B7D72"/>
+        <path d="M 12 13 V 8 M 12 8 H 5 V 4.5 M 12 8 H 19 V 4.5"
+              fill="none" stroke="#8B7D72" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="5" cy="3.5" r="2" fill="#8B7D72"/>
+        <circle cx="12" cy="3.5" r="2" fill="#8B7D72"/>
+        <circle cx="19" cy="3.5" r="2" fill="#8B7D72"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <text x="40" y="120" font-family="system-ui, sans-serif" font-size="14" fill="#A89D92" text-anchor="middle">Desconectado</text>
+      <text x="40" y="140" font-family="system-ui, sans-serif" font-size="10" fill="#D97757" text-anchor="middle">cabo fora · risco coral</text>
+    </g>
+  </g>
+
+  <!-- TAMANHO REAL + REGRA -->
+  <g transform="translate(40, 322)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">TAMANHO REAL — 20px</text>
+    <g transform="translate(0, 14)">
+      <rect width="180" height="52" fill="#1F1611" rx="10"/>
+      <g transform="translate(48, 15)">
+        <rect x="6.5" y="13" width="11" height="8" rx="1.5" fill="#FBF6EE"/>
+        <rect x="8.7" y="21" width="2.2" height="2" fill="#FBF6EE"/>
+        <rect x="13.1" y="21" width="2.2" height="2" fill="#FBF6EE"/>
+        <path d="M 12 13 V 8 M 12 8 H 5 V 4.5 M 12 8 H 19 V 4.5" fill="none" stroke="#FBF6EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="5" cy="3.5" r="2" fill="#FBF6EE"/>
+        <circle cx="12" cy="3.5" r="2" fill="#FBF6EE"/>
+        <circle cx="19" cy="3.5" r="2" fill="#FBF6EE"/>
+      </g>
+      <g transform="translate(112, 15)">
+        <rect x="6.5" y="13" width="11" height="8" rx="1.5" fill="#8B7D72"/>
+        <rect x="8.7" y="21" width="2.2" height="2" fill="#8B7D72"/>
+        <rect x="13.1" y="21" width="2.2" height="2" fill="#8B7D72"/>
+        <path d="M 12 13 V 8 M 12 8 H 5 V 4.5 M 12 8 H 19 V 4.5" fill="none" stroke="#8B7D72" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="5" cy="3.5" r="2" fill="#8B7D72"/>
+        <circle cx="12" cy="3.5" r="2" fill="#8B7D72"/>
+        <circle cx="19" cy="3.5" r="2" fill="#8B7D72"/>
+        <line x1="3" y1="3" x2="21" y2="21" stroke="#D97757" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(360, 322)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">REGRA — tray mostra UM dos dois</text>
+    <text x="0" y="22" font-family="monospace" font-size="11" fill="#4A3933">cabo plugado    →  ethernet (on/off)</text>
+    <text x="0" y="40" font-family="monospace" font-size="11" fill="#4A3933">sem cabo        →  wifi (full/low/none/off)</text>
+    <text x="0" y="62" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" font-style="italic">Prioridade: se tem cabo conectado, mostra ethernet. Senão, mostra wifi.</text>
+  </g>
+</svg>

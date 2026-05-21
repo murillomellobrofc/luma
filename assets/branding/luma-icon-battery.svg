@@ -1,0 +1,92 @@
+<svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="420" fill="#FBF6EE"/>
+
+  <text x="40" y="48" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#1F1611">Luma — Ícones de Bateria</text>
+  <text x="40" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8B7D72">4 estados · fill colorido por nível · system tray 20px · Golden Hour</text>
+  <line x1="40" y1="90" x2="760" y2="90" stroke="#E8DDD0"/>
+
+  <!-- PREVIEW GRANDE -->
+  <g transform="translate(40, 120)">
+    <rect width="720" height="160" fill="#1F1611" rx="12"/>
+
+    <!-- HIGH -->
+    <g transform="translate(48, 50)">
+      <g transform="scale(2.8)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="4.5" y="9.5" width="13" height="5" rx="1" fill="#6B8E7F"/>
+      </g>
+      <text x="33" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Cheia</text>
+      <text x="33" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#6B8E7F" text-anchor="middle">&gt;50% · sage</text>
+    </g>
+
+    <!-- MEDIUM -->
+    <g transform="translate(228, 50)">
+      <g transform="scale(2.8)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="4.5" y="9.5" width="7" height="5" rx="1" fill="#F5D5A8"/>
+      </g>
+      <text x="33" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Média</text>
+      <text x="33" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#F5D5A8" text-anchor="middle">20-50% · honey</text>
+    </g>
+
+    <!-- LOW -->
+    <g transform="translate(408, 50)">
+      <g transform="scale(2.8)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="4.5" y="9.5" width="3" height="5" rx="1" fill="#D97757"/>
+      </g>
+      <text x="33" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Baixa</text>
+      <text x="33" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#D97757" text-anchor="middle">&lt;20% · coral</text>
+    </g>
+
+    <!-- CHARGING -->
+    <g transform="translate(588, 50)">
+      <g transform="scale(2.8)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M 12 8 L 8 12.5 L 11 12.5 L 10 16 L 14 11.5 L 11 11.5 Z" fill="#E89B3D"/>
+      </g>
+      <text x="33" y="105" font-family="system-ui, sans-serif" font-size="13" fill="#A89D92" text-anchor="middle">Carregando</text>
+      <text x="33" y="123" font-family="system-ui, sans-serif" font-size="9" fill="#E89B3D" text-anchor="middle">raio âmbar</text>
+    </g>
+  </g>
+
+  <!-- TAMANHO REAL -->
+  <g transform="translate(40, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">TAMANHO REAL — 20px (+ texto da %)</text>
+    <g transform="translate(0, 14)">
+      <rect width="360" height="56" fill="#1F1611" rx="10"/>
+      <g transform="translate(24, 18)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="4.5" y="9.5" width="13" height="5" rx="1" fill="#6B8E7F"/>
+      </g>
+      <text x="56" y="34" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">73%</text>
+
+      <g transform="translate(110, 18)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="4.5" y="9.5" width="3" height="5" rx="1" fill="#D97757"/>
+      </g>
+      <text x="142" y="34" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">14%</text>
+
+      <g transform="translate(210, 18)">
+        <rect x="2" y="7" width="18" height="10" rx="2.5" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <path d="M 21.5 10.5 v 3" stroke="#FBF6EE" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M 12 8 L 8 12.5 L 11 12.5 L 10 16 L 14 11.5 L 11 11.5 Z" fill="#E89B3D"/>
+      </g>
+      <text x="242" y="34" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">82%</text>
+    </g>
+  </g>
+
+  <g transform="translate(440, 312)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="11" letter-spacing="1" fill="#8B7D72">REGRA DE ESTADO</text>
+    <text x="0" y="22" font-family="monospace" font-size="11" fill="#4A3933">&gt; 50%       →  high   (sage)</text>
+    <text x="0" y="40" font-family="monospace" font-size="11" fill="#4A3933">20-50%      →  medium (honey)</text>
+    <text x="0" y="58" font-family="monospace" font-size="11" fill="#4A3933">&lt; 20%       →  low    (coral)</text>
+    <text x="0" y="76" font-family="monospace" font-size="11" fill="#4A3933">carregando  →  raio âmbar (sobre qualquer nível)</text>
+  </g>
+</svg>
