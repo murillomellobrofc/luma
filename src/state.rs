@@ -619,7 +619,8 @@ pub fn init_socket(
         })
         .map_err(|e| format!("inserir socket source falhou: {e}"))?;
 
-    std::env::set_var("WAYLAND_DISPLAY", &name);
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("WAYLAND_DISPLAY", &name) };
     Ok(name)
 }
 

@@ -767,11 +767,11 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             return;
         }
 
-        if let Some((window, _loc)) = state
+        match state
             .space
             .element_under(pointer_pos)
             .and_then(|(i, l)| i.as_window().map(|w| (w.clone(), l)))
-        {
+        { Some((window, _loc)) => {
             state
                 .space
                 .raise_element(&crate::space_item::SpaceItem::Window(window.clone()), true);
@@ -786,7 +786,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             for t in toplevels {
                 t.send_pending_configure();
             }
-        } else {
+        } _ => {
             let windows: Vec<_> = state
                 .space
                 .elements()
@@ -799,7 +799,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 }
             }
             keyboard.set_focus(state, Option::<WlSurface>::None, serial);
-        }
+        }}
     }
 
     pointer.button(
