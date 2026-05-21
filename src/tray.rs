@@ -35,6 +35,19 @@ impl Default for WifiState {
     }
 }
 
+/// Estado do adaptador bluetooth. H33.taskbar.11.new.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BluetoothState {
+    On,
+    Off,
+}
+
+impl Default for BluetoothState {
+    fn default() -> Self {
+        BluetoothState::Off
+    }
+}
+
 /// Estado mutável do system tray. Cacheia buffers por (kind, key) onde
 /// `key` distingue estados (ex.: "battery_73" / "battery_15").
 #[derive(Debug, Default)]
@@ -46,6 +59,8 @@ pub struct TrayState {
     /// Cache de wifi icons por estado (key=true conectado, false off).
     /// H33.taskbar.10.fix.
     pub wifi_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Cache de bluetooth icons por estado. H33.taskbar.11.new.
+    pub bt_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone volume (lazy, H33.taskbar.10).
     pub volume_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone bell (lazy, H33.taskbar.11).
@@ -63,6 +78,8 @@ pub struct TrayState {
     pub battery_info: Option<BatteryInfo>,
     /// Último estado lido do wifi. H33.taskbar.10.fix.
     pub wifi_state: WifiState,
+    /// Último estado lido do bluetooth. H33.taskbar.11.new.
+    pub bt_state: BluetoothState,
 }
 
 impl TrayState {
@@ -85,8 +102,46 @@ pub fn refresh_if_stale(state: &mut TrayState) {
     }
     state.battery_info = read_battery();
     state.wifi_state = read_wifi();
-    // bt/volume vêm em D.11/.12.fix
+    state.bt_state = read_bluetooth();
+    // volume vem em D.12.fix
     state.last_poll = Some(std::time::Instant::now());
+}
+
+/// Lê o estado do adaptador bluetooth via `bluetoothctl show`. Procura
+/// linha `Powered: yes/no`. Fallback `rfkill list bluetooth` (se nenhum
+/// device unblocked, considera off). H33.taskbar.11.new.
+pub fn read_bluetooth() -> BluetoothState {
+    use std::process::Command;
+    if let Ok(out) = Command::new("bluetoothctl").arg("show").output() {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            for line in s.lines() {
+                let trimmed = line.trim();
+                if let Some(rest) = trimmed.strip_prefix("Powered:") {
+                    return if rest.trim() == "yes" {
+                        BluetoothState::On
+                    } else {
+                        BluetoothState::Off
+                    };
+                }
+            }
+        }
+    }
+    // Fallback: rfkill — se Soft blocked == no E Hard blocked == no, on.
+    if let Ok(out) = Command::new("rfkill")
+        .args(["list", "bluetooth"])
+        .output()
+    {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            let soft = s.contains("Soft blocked: no");
+            let hard = s.contains("Hard blocked: no");
+            if soft && hard {
+                return BluetoothState::On;
+            }
+        }
+    }
+    BluetoothState::Off
 }
 
 /// Lê o estado da conexão wifi via `nmcli -t -f DEVICE,TYPE,STATE
@@ -269,6 +324,31 @@ pub fn ensure_notif_dot(state: &mut TrayState) -> MemoryRenderBuffer {
     let buf = crate::gfx::make_dot(t.notif_dot_size, t.notif_dot_color);
     state.notif_dot = Some(buf.clone());
     buf
+}
+
+/// Gera (ou pega cacheado) o ícone bluetooth 20px conforme estado.
+/// `on=true` usa `bt_color_on` (cream), false usa `bt_color_off` (gray).
+/// H33.taskbar.11.new.
+pub fn ensure_bluetooth_icon(
+    state: &mut TrayState,
+    on: bool,
+) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = state.bt_cache.get(&on) {
+        return (entry.0.clone(), entry.1);
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let base = if on { t.bt_color_on } else { t.bt_color_off };
+    let color = smithay::backend::renderer::Color32F::new(
+        base.r(),
+        base.g(),
+        base.b(),
+        t.icon_alpha,
+    );
+    let buf = crate::gfx::make_bluetooth_icon(t.icon_size, color);
+    let size = Size::from((t.icon_size, t.icon_size));
+    state.bt_cache.insert(on, (buf.clone(), size));
+    (buf, size)
 }
 
 /// Gera (ou pega cacheado) o ícone volume 20px. H33.taskbar.10.

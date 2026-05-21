@@ -485,13 +485,20 @@ pub fn init_winit(
                         _ => None,
                     }
                 };
-                // H33.taskbar.10-11: wifi + volume + bell icons + notif dot.
+                // H33.taskbar.10-11: wifi + bluetooth + volume + bell + notif dot.
                 let wifi_connected = matches!(
                     data.state.tray.wifi_state,
                     crate::tray::WifiState::Connected
                 );
                 let wifi_render = crate::tray::ensure_wifi_icon(
                     &mut data.state.tray, wifi_connected,
+                );
+                let bt_on = matches!(
+                    data.state.tray.bt_state,
+                    crate::tray::BluetoothState::On
+                );
+                let bt_render = crate::tray::ensure_bluetooth_icon(
+                    &mut data.state.tray, bt_on,
                 );
                 let volume_render = crate::tray::ensure_volume_icon(&mut data.state.tray);
                 let bell_render = crate::tray::ensure_bell_icon(&mut data.state.tray);
@@ -1656,14 +1663,17 @@ pub fn init_winit(
                                 - t_grp.margin_right
                                 - crate::taskbar::show_desktop_width();
                             let clock_left = right_edge - t_grp.gap_between_zones - clock_w;
-                            // bell_x é o canto direito DO BELL. Depois (esq→dir)
-                            // volume, wifi, battery+%. Gap entre eles = t_sys.gap.
+                            // bell_x é o canto direito DO BELL. Ordem ESQ→DIR:
+                            //   battery+%, wifi, bluetooth, volume, bell.
+                            // Calculo de DIR→ESQ. Gap entre items = t_sys.gap.
                             let bell_right_x = clock_left - t_grp.gap_between_zones;
                             let bell_x = bell_right_x - bell_render.1.w;
                             // Volume à esquerda do bell.
                             let volume_x = bell_x - t_sys.gap - volume_render.1.w;
-                            // Wifi à esquerda do volume.
-                            let wifi_x = volume_x - t_sys.gap - wifi_render.1.w;
+                            // Bluetooth à esquerda do volume.
+                            let bt_x = volume_x - t_sys.gap - bt_render.1.w;
+                            // Wifi à esquerda do bluetooth.
+                            let wifi_x = bt_x - t_sys.gap - wifi_render.1.w;
                             // Battery+%: label fica à direita do icon. Bloco fica
                             // todo à esquerda do wifi.
                             let (battery_block_w, bat_icon_w, bat_label_w) =
@@ -1711,6 +1721,8 @@ pub fn init_winit(
                             }
                             push_mem(&mut custom_elements, &wifi_render.0,
                                      wifi_x, center_y_for(wifi_render.1.h), renderer);
+                            push_mem(&mut custom_elements, &bt_render.0,
+                                     bt_x, center_y_for(bt_render.1.h), renderer);
                             push_mem(&mut custom_elements, &volume_render.0,
                                      volume_x, center_y_for(volume_render.1.h), renderer);
                             push_mem(&mut custom_elements, &bell_render.0,

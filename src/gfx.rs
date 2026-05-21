@@ -598,6 +598,83 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Helper: pinta linha entre 2 pontos com Bresenham, stroke `stroke`.
+fn draw_line(
+    pixels: &mut [u8],
+    size: i32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    stroke: i32,
+    color: Color32F,
+) {
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    let mut x = x0;
+    let mut y = y0;
+    loop {
+        for s in 0..stroke {
+            let px = x + s;
+            if px >= 0 && px < size && y >= 0 && y < size {
+                put_pixel_premul(pixels, px, y, size, color);
+            }
+        }
+        if x == x1 && y == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+/// Ícone Bluetooth estilo símbolo clássico (▪ angular). `size × size`.
+/// Linha vertical central + 4 diagonais que formam dois losangos sobrepostos
+/// nos lados direito (parecido com símbolo BT do mundo real). H33.taskbar.11.new.
+pub fn make_bluetooth_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let cx = size / 2;
+    let top = size / 5;
+    let bot = size - size / 5;
+    let mid = size / 2;
+    let right = (size as f32 * 0.72) as i32;
+    let mid_top = (top + mid) / 2;
+    let mid_bot = (mid + bot) / 2;
+    let stroke = 2;
+    // Linha vertical central.
+    for y in top..bot {
+        for s in 0..stroke {
+            let px = cx - 1 + s;
+            if px >= 0 && px < size {
+                put_pixel_premul(&mut pixels, px, y, size, color);
+            }
+        }
+    }
+    // 4 diagonais formando 2 triângulos no lado direito (B angular).
+    draw_line(&mut pixels, size, cx, top, right, mid_top, stroke, color);
+    draw_line(&mut pixels, size, right, mid_top, cx, mid, stroke, color);
+    draw_line(&mut pixels, size, cx, mid, right, mid_bot, stroke, color);
+    draw_line(&mut pixels, size, right, mid_bot, cx, bot, stroke, color);
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Ícone de sino (notification) outline. `size × size`. Forma: cúpula
 /// arredondada por cima + base reta + handle/clapper pequeno embaixo.
 /// H33.taskbar.11.
