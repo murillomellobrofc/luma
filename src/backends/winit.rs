@@ -784,8 +784,6 @@ pub fn init_winit(
                             // some pra cursor "|" ocupar o espaço limpo).
                             let icon_y = s_origin.y + (s_theme.height - s_theme.icon_size) / 2;
                             let icon_x = s_origin.x + s_theme.padding_horizontal;
-                            let search_focused = data.state.menu_new.focused_zone
-                                == crate::menu::state::FocusedZone::Search;
                             let search_active = data.state.menu_new.search_bar_active;
                             let text_label = if !data.state.menu_new.search_query.is_empty() {
                                 data.state.menu_search_bar.query_label.as_ref()
