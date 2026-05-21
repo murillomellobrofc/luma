@@ -156,6 +156,8 @@ pub struct LumaState {
     pub audio_sinks: Vec<crate::audio::AudioDevice>,
     /// Cache de input devices (sources) pro popup de volume. H44.volume.9.
     pub audio_sources: Vec<crate::audio::AudioDevice>,
+    /// Cache de streams (apps tocando audio). H44.volume.12.
+    pub audio_streams: Vec<crate::audio::AudioStream>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -571,6 +573,7 @@ impl LumaState {
             applet_popup: None,
             audio_sinks: Vec::new(),
             audio_sources: Vec::new(),
+            audio_streams: Vec::new(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

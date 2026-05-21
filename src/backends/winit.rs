@@ -2334,8 +2334,7 @@ pub fn init_winit(
                                 .ok()
                             };
 
-                            // H44.volume.5-9: listas de sinks + sources na aba
-                            // Devices, cada uma com header "Saídas" / "Entradas".
+                            // H44.volume.5-12: listas conforme a aba.
                             let (sinks, sources): (
                                 Vec<crate::audio::AudioDevice>,
                                 Vec<crate::audio::AudioDevice>,
@@ -2347,6 +2346,12 @@ pub fn init_winit(
                             } else {
                                 (Vec::new(), Vec::new())
                             };
+                            let streams: Vec<crate::audio::AudioStream> =
+                                if active_tab == crate::popup::VolumeTab::Applications {
+                                    data.state.audio_streams.clone()
+                                } else {
+                                    Vec::new()
+                                };
 
                             // Insert ordem: bg (mais atrás), indicator, labels,
                             // sinks (= mais à frente). insert(0) coloca cada
@@ -2708,6 +2713,130 @@ pub fn init_winit(
                                 ) {
                                     custom_elements
                                         .insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                y_cursor += entry_h;
+                            }
+
+                            // Render dos STREAMS na aba Applications.
+                            // H44.volume.12-14. Mesma estrutura dos sinks.
+                            let mut y_cursor = crate::popup::render_streams_top(
+                                &popup,
+                                output_size_logical,
+                            );
+                            for stream in &streams {
+                                if y_cursor + entry_h > o.y + popup.size.h - t_popup.padding {
+                                    break;
+                                }
+                                let mute_icon_name = if stream.muted {
+                                    "volume-muted"
+                                } else {
+                                    "volume-high"
+                                };
+                                if let Some((ib, _isz)) = crate::tray::ensure_icon_sized(
+                                    &mut data.state.tray, mute_icon_name, 18,
+                                ) {
+                                    let ix = o.x + t_popup.padding;
+                                    let iy = y_cursor;
+                                    if let Some(elem) = mk_mem(&ib, ix, iy, renderer) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                let label_text = truncate_chars(&stream.name, 36);
+                                let pct = (stream.volume.clamp(0.0, 1.5) * 100.0) as u32;
+                                let pct_text = format!("{}%", pct);
+                                if let Some(text) = data.state.text.as_ref() {
+                                    let color_label = if stream.muted {
+                                        theme.colors.text_secondary
+                                    } else {
+                                        theme.colors.text_primary
+                                    };
+                                    let (lp, lw, lh) =
+                                        text.rasterize_colored(&label_text, 12.0, color_label);
+                                    if lw > 0 && lh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &lp,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (lw as i32, lh as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        if let Some(elem) = mk_mem(
+                                            &buf,
+                                            o.x + t_popup.padding + 32,
+                                            y_cursor,
+                                            renderer,
+                                        ) {
+                                            custom_elements
+                                                .insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    let (pp, pw, ph) = text.rasterize_colored(
+                                        &pct_text,
+                                        12.0,
+                                        theme.colors.text_secondary,
+                                    );
+                                    if pw > 0 && ph > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &pp,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (pw as i32, ph as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let px = o.x + popup.size.w
+                                            - t_popup.padding
+                                            - pw as i32;
+                                        if let Some(elem) =
+                                            mk_mem(&buf, px, y_cursor, renderer)
+                                        {
+                                            custom_elements
+                                                .insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
+                                let value = stream.volume.clamp(0.0, 1.0);
+                                let fill_w = ((track_w as f32) * value) as i32;
+                                let track_x = o.x + t_popup.padding;
+                                let track_y = y_cursor + 22;
+                                let track = crate::gfx::make_rounded_panel(
+                                    track_w,
+                                    track_h,
+                                    track_h / 2,
+                                    t_slider.track_color,
+                                );
+                                let fill = crate::gfx::make_rounded_panel(
+                                    fill_w.max(1),
+                                    track_h,
+                                    track_h / 2,
+                                    t_slider.fill_color,
+                                );
+                                let handle = crate::gfx::make_rounded_panel(
+                                    handle_r * 2,
+                                    handle_r * 2,
+                                    handle_r,
+                                    t_slider.handle_color,
+                                );
+                                let handle_cx = track_x + fill_w;
+                                let handle_y = track_y + track_h / 2 - handle_r;
+                                if let Some(elem) =
+                                    mk_mem(&track, track_x, track_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                if let Some(elem) =
+                                    mk_mem(&fill, track_x, track_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                if let Some(elem) = mk_mem(
+                                    &handle,
+                                    handle_cx - handle_r,
+                                    handle_y,
+                                    renderer,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                                 y_cursor += entry_h;
                             }

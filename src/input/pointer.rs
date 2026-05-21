@@ -226,39 +226,59 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             p.volume_tab = tab;
                         }
                     }
-                    // H44.volume.6-9: dispatch dentro da aba Devices
-                    // (sinks E sources, decidido pelo hit).
+                    // H44.volume.6-13: dispatch dentro do popup.
                     if let Some(popup) = popup_clone.as_ref() {
-                        if popup.volume_tab == crate::popup::VolumeTab::Devices {
-                            let n_sinks = state.audio_sinks.len();
-                            let n_sources = state.audio_sources.len();
-                            if let Some(hit) = crate::popup::hit_test_devices_full(
-                                popup, output, n_sinks, n_sources, pointer_pos,
-                            ) {
-                                let id = match hit.list {
-                                    crate::popup::DeviceList::Sinks => {
-                                        state.audio_sinks[hit.idx].id
+                        match popup.volume_tab {
+                            crate::popup::VolumeTab::Devices => {
+                                let n_sinks = state.audio_sinks.len();
+                                let n_sources = state.audio_sources.len();
+                                if let Some(hit) = crate::popup::hit_test_devices_full(
+                                    popup, output, n_sinks, n_sources, pointer_pos,
+                                ) {
+                                    let id = match hit.list {
+                                        crate::popup::DeviceList::Sinks => {
+                                            state.audio_sinks[hit.idx].id
+                                        }
+                                        crate::popup::DeviceList::Sources => {
+                                            state.audio_sources[hit.idx].id
+                                        }
+                                    };
+                                    match hit.region {
+                                        crate::popup::DeviceRegion::Slider(v) => {
+                                            crate::audio::set_volume(id, (v * 100.0) as u8);
+                                        }
+                                        crate::popup::DeviceRegion::MuteIcon => {
+                                            crate::audio::toggle_mute(id);
+                                        }
+                                        crate::popup::DeviceRegion::Label => {
+                                            crate::audio::set_default(id);
+                                        }
                                     }
-                                    crate::popup::DeviceList::Sources => {
-                                        state.audio_sources[hit.idx].id
-                                    }
-                                };
-                                match hit.region {
-                                    crate::popup::DeviceRegion::Slider(v) => {
-                                        let pct = (v * 100.0) as u8;
-                                        crate::audio::set_volume(id, pct);
-                                    }
-                                    crate::popup::DeviceRegion::MuteIcon => {
-                                        crate::audio::toggle_mute(id);
-                                    }
-                                    crate::popup::DeviceRegion::Label => {
-                                        crate::audio::set_default(id);
-                                    }
+                                    let (sinks, sources) =
+                                        crate::audio::list_devices();
+                                    state.audio_sinks = sinks;
+                                    state.audio_sources = sources;
                                 }
-                                let (sinks, sources) =
-                                    crate::audio::list_devices();
-                                state.audio_sinks = sinks;
-                                state.audio_sources = sources;
+                            }
+                            crate::popup::VolumeTab::Applications => {
+                                let n = state.audio_streams.len();
+                                if let Some(hit) = crate::popup::hit_test_streams(
+                                    popup, output, n, pointer_pos,
+                                ) {
+                                    let id = state.audio_streams[hit.idx].id;
+                                    match hit.region {
+                                        crate::popup::DeviceRegion::Slider(v) => {
+                                            crate::audio::set_volume(id, (v * 100.0) as u8);
+                                        }
+                                        crate::popup::DeviceRegion::MuteIcon => {
+                                            crate::audio::toggle_mute(id);
+                                        }
+                                        crate::popup::DeviceRegion::Label => {
+                                            // sem set-default pra streams
+                                        }
+                                    }
+                                    state.audio_streams = crate::audio::list_streams();
+                                }
                             }
                         }
                     }
@@ -496,10 +516,11 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     if was_open {
                         state.applet_popup = None;
                     } else {
-                        // H44.volume.5: refresh devices ao abrir.
+                        // H44.volume.5+12: refresh devices E streams ao abrir.
                         let (sinks, sources) = crate::audio::list_devices();
                         state.audio_sinks = sinks;
                         state.audio_sources = sources;
+                        state.audio_streams = crate::audio::list_streams();
                         state.applet_popup = Some(crate::popup::AppletPopup::new(
                             crate::popup::AppletKind::Volume,
                             zone.loc.x + zone.size.w / 2,

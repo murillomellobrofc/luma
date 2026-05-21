@@ -253,6 +253,25 @@ pub fn hit_test_devices_full(
     None
 }
 
+/// Hit-test na aba Applications (1 lista de streams). H44.volume.13.
+pub fn hit_test_streams(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    n: usize,
+    point: Point<f64, Logical>,
+) -> Option<DeviceHit> {
+    let theme = crate::theme::current();
+    let t_popup = &theme.popup;
+    let top = popup.origin(output_size).y + t_popup.tab_height + t_popup.padding;
+    hit_test_block(popup, output_size, top, n, point)
+}
+
+/// Y inicial da lista de streams na aba Applications. H44.volume.12.
+pub fn render_streams_top(popup: &AppletPopup, output_size: Size<i32, Logical>) -> i32 {
+    let theme = crate::theme::current();
+    popup.origin(output_size).y + theme.popup.tab_height + theme.popup.padding
+}
+
 /// Helpers públicos pra render saber onde começar cada bloco.
 pub fn render_sinks_top(popup: &AppletPopup, output_size: Size<i32, Logical>) -> i32 {
     sinks_top(popup, output_size)

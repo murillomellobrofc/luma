@@ -26,6 +26,79 @@ pub struct AudioDevice {
     pub is_default: bool,
 }
 
+/// Stream de áudio de um app (sink-input no PipeWire). H44.volume.12.
+#[derive(Debug, Clone)]
+pub struct AudioStream {
+    pub id: u32,
+    /// Nome do app (ex: "Brave", "Spotify").
+    pub name: String,
+    pub volume: f32,
+    pub muted: bool,
+}
+
+/// Lista os streams de áudio (apps tocando agora) via `wpctl status`.
+/// Pega apenas as linhas top-level da seção Streams (não os routes
+/// internos com `>`). H44.volume.12.
+pub fn list_streams() -> Vec<AudioStream> {
+    let out = match Command::new("wpctl").arg("status").output() {
+        Ok(o) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+    let s = String::from_utf8_lossy(&out.stdout);
+    let mut in_streams = false;
+    let mut streams = Vec::new();
+    for line in s.lines() {
+        // Detecta entrada/saída da seção Streams.
+        if line.contains("Streams:") {
+            in_streams = true;
+            continue;
+        }
+        if !in_streams {
+            continue;
+        }
+        // Sai da seção quando bate Audio/Video/Settings (próximo header).
+        let trimmed = line.trim();
+        if trimmed.starts_with("Video")
+            || trimmed.starts_with("Settings")
+            || trimmed.starts_with("Audio")
+        {
+            in_streams = false;
+            continue;
+        }
+        // Top-level stream: ID + Name, sem '>'. Sub-routes têm '>'.
+        if line.contains('>') {
+            continue;
+        }
+        let cleaned: String = line.chars().filter(|c| !"├─│└".contains(*c)).collect();
+        let t = cleaned.trim();
+        if t.is_empty() {
+            continue;
+        }
+        // Espera: "ID. Name"
+        if let Some(dot) = t.find('.') {
+            if let Ok(id) = t[..dot].trim().parse::<u32>() {
+                let name = t[dot + 1..].trim().to_string();
+                if !name.is_empty() {
+                    streams.push(AudioStream {
+                        id,
+                        name,
+                        volume: 1.0,
+                        muted: false,
+                    });
+                }
+            }
+        }
+    }
+    // Atualiza volume + mute por id.
+    for s in &mut streams {
+        if let Some((v, m)) = get_volume(s.id) {
+            s.volume = v;
+            s.muted = m;
+        }
+    }
+    streams
+}
+
 /// Lê `wpctl status` e devolve sinks (`output`) + sources (`input`)
 /// com metadados (id, description, volume, default).
 /// Retorna `(sinks, sources)`. H44.volume.5.
