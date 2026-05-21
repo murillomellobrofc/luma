@@ -250,6 +250,38 @@ impl LumaState {
     /// "snapped state" — usuário desfaz arrastando a janela pelo header
     /// pra outra posição. `left = true` snap pra esquerda, `false` pra
     /// direita.
+    /// Toggle "Mostrar área de trabalho": se há alguma janela visível,
+    /// minimiza todas (state.desktop_visible=true). Senão restaura todas
+    /// (state.desktop_visible=false). Acionado por click no botão F da
+    /// taskbar OU Super+D. H33.taskbar.F.17.
+    pub fn toggle_show_desktop(&mut self) {
+        let any_visible = self
+            .space
+            .elements()
+            .filter_map(|i| i.as_window())
+            .any(|w| !crate::decoration::is_minimized(w.window()));
+        let windows: Vec<_> = self
+            .space
+            .elements()
+            .filter_map(|i| i.as_window().cloned())
+            .collect();
+        for w in &windows {
+            crate::decoration::with_decoration(w.window(), |d| d.minimized = any_visible);
+        }
+        if any_visible {
+            if let Some(kb) = self.seat.get_keyboard() {
+                let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+                kb.set_focus(
+                    self,
+                    None::<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+                    serial,
+                );
+            }
+        }
+        self.desktop_visible = any_visible;
+        tracing::info!("show-desktop toggle: desktop_visible={any_visible}");
+    }
+
     pub fn snap_half(&mut self, window: &crate::window::LumaWindow, left: bool) {
         let Some(toplevel) = window.window().toplevel().cloned() else {
             return;

@@ -26,6 +26,8 @@ pub enum KeyAction {
     WorkspaceCycleNext,
     /// Toggle do overview screen (Super+Esc). H36.6.
     ToggleOverview,
+    /// Toggle "Mostrar área de trabalho" (Super+D). H33.taskbar.F.17.
+    ToggleShowDesktop,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -53,6 +55,13 @@ pub fn match_shortcut(
     // pode mexer com Super), mas o caminho canônico é Super.
     if modifiers.logo && keysym == Keysym::k {
         return Some(KeyAction::OpenMenuToSearch);
+    }
+    // Super+D: toggle "Mostrar área de trabalho". H33.taskbar.F.17.
+    // Aceita Ctrl+Alt+D como fallback em modo aninhado (KDE/GNOME que
+    // interceptam Super).
+    let show_desktop_mod = modifiers.logo || (modifiers.ctrl && modifiers.alt);
+    if show_desktop_mod && (keysym == Keysym::d || keysym == Keysym::D) {
+        return Some(KeyAction::ToggleShowDesktop);
     }
     // H36.4-6: workspaces.
     // CANONICAL (futuro DRM): Super+N, Super+Shift+N, Super+Tab, Super+Esc.
@@ -102,6 +111,7 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::WorkspaceMoveWindow(idx) => workspace_move_window(state, idx),
         KeyAction::WorkspaceCycleNext => workspace_cycle_next(state),
         KeyAction::ToggleOverview => toggle_overview(state),
+        KeyAction::ToggleShowDesktop => state.toggle_show_desktop(),
     }
 }
 

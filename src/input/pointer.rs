@@ -418,29 +418,8 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     tracing::info!("launcher clicado (menu_open={})", state.menu_open);
                 }
                 crate::taskbar::TaskbarHit::ShowDesktop => {
-                    let any_visible = state
-                        .space
-                        .elements()
-                        .filter_map(|i| i.as_window())
-                        .any(|w| !crate::decoration::is_minimized(w.window()));
-                    let windows: Vec<_> = state
-                        .space
-                        .elements()
-                        .filter_map(|i| i.as_window().cloned())
-                        .collect();
-                    for w in &windows {
-                        crate::decoration::with_decoration(w.window(), |d| {
-                            d.minimized = any_visible
-                        });
-                    }
-                    if any_visible {
-                        if let Some(kb) = state.seat.get_keyboard() {
-                            kb.set_focus(state, None::<WlSurface>, serial);
-                        }
-                    }
-                    tracing::info!(
-                        "show-desktop clicado (minimizar={any_visible})"
-                    );
+                    // H33.taskbar.F.17: lógica compartilhada com Super+D.
+                    state.toggle_show_desktop();
                 }
                 crate::taskbar::TaskbarHit::Window(idx) => {
                     // Acha a janela pelo surface registrado na ordem estável
