@@ -18,12 +18,16 @@ use tracing::info;
 
 /// Cache do index de pastas de $HOME. Lazy: indexa na primeira chamada
 /// de `ensure_indexed`, refresh quando TTL expira. H32.9.5.
+/// Campos internos + ensure_indexed permanecem pra quando o painel
+/// de search results voltar a consumir esse índice.
+#[allow(dead_code)]
 pub struct HomeIndex {
     pub paths: Vec<PathBuf>,
     indexed_at: Option<Instant>,
     cache_ttl: Duration,
 }
 
+#[allow(dead_code)]
 impl HomeIndex {
     pub fn new(ttl_seconds: u64) -> Self {
         Self {

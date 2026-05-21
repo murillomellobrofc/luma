@@ -120,7 +120,10 @@ impl TextRenderer {
     /// Rasteriza com chars individuais coloridos: chars cujo índice está
     /// em `matched_indices` saem em `highlight_color`, o resto em
     /// `base_color`. Usado pelo H32.9.4 pra mostrar os chars que casaram
-    /// no fuzzy search em amber sobre o resto cream.
+    /// no fuzzy search em amber sobre o resto cream. Render do search
+    /// results ainda não conecta — será reabilitado quando o highlight
+    /// fuzzy voltar.
+    #[allow(dead_code)]
     pub fn rasterize_highlighted(
         &self,
         text: &str,

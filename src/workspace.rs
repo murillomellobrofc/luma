@@ -122,6 +122,8 @@ impl WorkspaceManager {
         self.current = (self.current + 1) % self.workspaces.len();
     }
 
+    /// Espelho de `cycle_next` reservado pra Super+Shift+Tab (não bound).
+    #[allow(dead_code)]
     pub fn cycle_prev(&mut self) {
         if self.workspaces.is_empty() {
             return;

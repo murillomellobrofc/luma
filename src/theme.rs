@@ -28,6 +28,11 @@ pub fn current() -> &'static Theme {
 /// Os campos de TOPO mantém compat com código existente; sub-structs
 /// (`colors`, `taskbar`, etc) são os novos tokens H32.5 organizados por
 /// seção. Defaults: paleta Golden Hour (Coffee/Coral/Amber/Cream/Sage/Honey).
+///
+/// Muitos campos são tokens reservados — declarados no contrato
+/// público + lidos do TOML, mas o render ainda não os consome.
+/// Mantidos pra evitar churn quando a feature correspondente liga.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Theme {
     /// Cor de fundo do output (clear color). Default Coffee.
@@ -285,6 +290,7 @@ pub struct TaskbarTokens {
 /// Ícones renderizados inline (paths SVG no Rust), stroke fino estilo
 /// outline. Battery muda fill por %; notifications mostram dot coral
 /// quando há não lidas. Em desktops sem bateria, battery não aparece.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TaskbarSystemTrayTokens {
     pub icon_size: i32,
@@ -443,6 +449,7 @@ pub struct MenuFullscreenTokens {
 /// embaixo. Tokens emoji-free porque fontdue não tem fallback unicode
 /// pros símbolos ☀ ☕ 🌙 — pode adicionar pixel-art ícone depois se
 /// quiser igual sun/moon do legacy.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MenuGreetingTokens {
     pub padding_top: i32,
@@ -470,6 +477,7 @@ pub struct MenuGreetingTokens {
 /// Pill 64×500 corner-radius 32, centro horizontal. Auto-focus na
 /// abertura do menu — qualquer letra digitada filtra direto sem
 /// precisar clicar. Chip "⌘ K" à direita pra reforçar atalho.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MenuSearchBarTokens {
     pub width: i32,
@@ -509,6 +517,7 @@ pub struct MenuSearchBarTokens {
 /// um quadrado menor 0.45× é desenhado centralizado dentro.
 /// Label 12px Cream embaixo (truncated se > label_max_chars).
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MenuFavoritesGridTokens {
     pub columns: i32,
     pub rows: i32,
@@ -573,6 +582,7 @@ pub struct MenuAllAppsLinkTokens {
 }
 
 /// Session bar bottom com 5 botões + hint + 4 places. H32.10.13.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MenuSessionBarTokens {
     pub bg_color: Color32F,
@@ -607,6 +617,7 @@ pub struct MenuSessionBarTokens {
 /// Os campos de `future` são stubs — ligados em commits posteriores
 /// quando a infra de input/render comportar. Mantidos aqui pra
 /// documentar o contrato com o usuário desde o início.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AccessibilityTokens {
     /// Default true: setas/Tab/Enter cobrem toda navegação sem mouse.
@@ -696,6 +707,7 @@ pub struct MenuColumnDividerTokens {
 
 /// Tokens dos workspaces (pager na taskbar + overview screen). H36 +
 /// H33.taskbar.7 (re-skin: 32×32 quadrados numerados em vez de dots).
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WorkspacesTokens {
     /// Esconde o pager quando há apenas 1 workspace (default `true`).
@@ -750,6 +762,7 @@ impl Default for WorkspacesTokens {
 }
 
 /// Tokens da search Spotlight-like. H32.9.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SearchTokens {
     pub debounce_ms: u32,
@@ -1570,6 +1583,7 @@ impl Default for PopupSliderTokens {
 /// Card 360×108 com arte à esquerda, título/artista + 3 controles
 /// + barra de progresso à direita. Fade-out suave nos últimos
 /// `fade_ms` antes do dismiss.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct OsdMediaTokens {
     pub width: i32,

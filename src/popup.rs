@@ -337,7 +337,9 @@ pub fn render_sources_header_top(
 ///
 /// Trilho cinza no fundo, fill âmbar do início até o valor, bolinha
 /// (handle) honey no x do valor. `value` é 0.0..max (max default 1.0;
-/// boost de 100%+ ajusta max em A.E).
+/// boost de 100%+ ajusta max em A.E). Reservado pra applets futuros
+/// (brightness, network) — popup de volume usa um renderer próprio.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Slider {
     pub bounds: Rectangle<i32, Logical>,
@@ -346,6 +348,7 @@ pub struct Slider {
     pub dragging: bool,
 }
 
+#[allow(dead_code)]
 impl Slider {
     pub fn new(bounds: Rectangle<i32, Logical>, value: f32) -> Self {
         Self {

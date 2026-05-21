@@ -183,6 +183,10 @@ pub enum MediaButton {
 }
 
 /// Layout do card de mídia: arte à esquerda, info à direita.
+///
+/// `width`/`height`/`art_size`/`right_col_w` ficam no struct pra
+/// completude da API; render atual usa tokens direto.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct MediaOsdLayout {
     pub origin_x: i32,
