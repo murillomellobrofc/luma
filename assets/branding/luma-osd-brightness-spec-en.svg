@@ -1,0 +1,126 @@
+<svg viewBox="0 0 1280 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="taskbarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#0F0A07"/>
+    </linearGradient>
+    <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3A4A5C"/>
+      <stop offset="100%" stop-color="#5C6B7A"/>
+    </linearGradient>
+    <filter id="osdShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1080" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Brightness OSD</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Same component as the volume OSD. Only the icon (a sun) changes.</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — SCREEN POSITION (same as volume: above the taskbar, centered)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="380" fill="url(#wallGrad)" rx="12"/>
+    <g transform="translate(450, 230)" filter="url(#osdShadow)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <!-- sun icon -->
+      <g transform="translate(40, 32)">
+        <circle cx="0" cy="0" r="7" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <g stroke="#FBF6EE" stroke-width="2" stroke-linecap="round">
+          <line x1="0" y1="-12" x2="0" y2="-15"/>
+          <line x1="0" y1="12" x2="0" y2="15"/>
+          <line x1="-12" y1="0" x2="-15" y2="0"/>
+          <line x1="12" y1="0" x2="15" y2="0"/>
+          <line x1="-8.5" y1="-8.5" x2="-10.5" y2="-10.5"/>
+          <line x1="8.5" y1="8.5" x2="10.5" y2="10.5"/>
+          <line x1="-8.5" y1="8.5" x2="-10.5" y2="10.5"/>
+          <line x1="8.5" y1="-8.5" x2="10.5" y2="-10.5"/>
+        </g>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="108" height="6" rx="3" fill="#E89B3D"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#F5D5A8" text-anchor="end" font-weight="600">78%</text>
+    </g>
+    <g transform="translate(0, 316)">
+      <rect width="1160" height="64" fill="url(#taskbarGrad)"/>
+      <rect width="1160" height="2" fill="#E89B3D" opacity="0.5"/>
+      <circle cx="34" cy="32" r="14" fill="#3D2520"/>
+    </g>
+    <text x="580" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.85">identical pill, identical position — sun icon instead of speaker</text>
+  </g>
+
+  <text x="60" y="596" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — STATES (brightness has no muted and no above-100)</text>
+
+  <g transform="translate(60, 620)">
+    <rect width="1160" height="180" fill="#2A2520" rx="12"/>
+
+    <!-- low -->
+    <g transform="translate(110, 58)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(40, 32)">
+        <circle cx="0" cy="0" r="6" fill="none" stroke="#A89D92" stroke-width="2"/>
+        <g stroke="#A89D92" stroke-width="2" stroke-linecap="round">
+          <line x1="0" y1="-10" x2="0" y2="-13"/>
+          <line x1="0" y1="10" x2="0" y2="13"/>
+          <line x1="-10" y1="0" x2="-13" y2="0"/>
+          <line x1="10" y1="0" x2="13" y2="0"/>
+        </g>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="28" height="6" rx="3" fill="#E89B3D"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#F5D5A8" text-anchor="end" font-weight="600">20%</text>
+    </g>
+    <text x="240" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">low brightness (small sun, few rays)</text>
+
+    <!-- high -->
+    <g transform="translate(610, 58)">
+      <rect width="260" height="64" fill="#1F1611" rx="16"/>
+      <g transform="translate(40, 32)">
+        <circle cx="0" cy="0" r="7" fill="none" stroke="#FBF6EE" stroke-width="2"/>
+        <g stroke="#FBF6EE" stroke-width="2" stroke-linecap="round">
+          <line x1="0" y1="-12" x2="0" y2="-15"/>
+          <line x1="0" y1="12" x2="0" y2="15"/>
+          <line x1="-12" y1="0" x2="-15" y2="0"/>
+          <line x1="12" y1="0" x2="15" y2="0"/>
+          <line x1="-8.5" y1="-8.5" x2="-10.5" y2="-10.5"/>
+          <line x1="8.5" y1="8.5" x2="10.5" y2="10.5"/>
+          <line x1="-8.5" y1="8.5" x2="-10.5" y2="10.5"/>
+          <line x1="8.5" y1="-8.5" x2="10.5" y2="-10.5"/>
+        </g>
+      </g>
+      <rect x="66" y="29" width="138" height="6" rx="3" fill="#3D2520"/>
+      <rect x="66" y="29" width="135" height="6" rx="3" fill="#E89B3D"/>
+      <text x="236" y="37" font-family="system-ui, sans-serif" font-size="14" fill="#F5D5A8" text-anchor="end" font-weight="600">98%</text>
+    </g>
+    <text x="740" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92" text-anchor="middle">high brightness (full sun, all rays)</text>
+
+    <text x="940" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" font-weight="600">Sun by level:</text>
+    <text x="940" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">low = small sun,</text>
+    <text x="940" y="102" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">4 rays</text>
+    <text x="940" y="122" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">high = full sun,</text>
+    <text x="940" y="138" font-family="system-ui, sans-serif" font-size="11" fill="#A89D92">8 rays</text>
+  </g>
+
+  <text x="60" y="846" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — NOTES</text>
+
+  <g transform="translate(60, 870)">
+    <rect width="560" height="160" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+    <text x="28" y="40" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Exact same pill, track, percentage and behavior</text>
+    <text x="28" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">as the volume OSD. It IS the same component.</text>
+    <text x="28" y="96" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Only difference: the icon is a sun, not a speaker.</text>
+    <text x="28" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">No muted state. No above-100% state. Brightness</text>
+    <text x="28" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">always goes from a minimum up to 100%.</text>
+  </g>
+
+  <g transform="translate(660, 870)">
+    <rect width="560" height="160" fill="#1F1611" rx="8"/>
+    <text x="28" y="36" font-family="monospace" font-size="11" fill="#A89D92"># reuses the same [osd] and [osd.track] tokens</text>
+    <text x="28" y="58" font-family="monospace" font-size="11" fill="#A89D92"># as the volume OSD — nothing new needed</text>
+    <text x="28" y="86" font-family="monospace" font-size="11" fill="#FBF6EE">[osd.brightness]</text>
+    <text x="28" y="106" font-family="monospace" font-size="11" fill="#FBF6EE">icon        = <tspan fill="#6B8E7F">"sun"</tspan></text>
+    <text x="28" y="124" font-family="monospace" font-size="11" fill="#FBF6EE">icon_color  = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="28" y="142" font-family="monospace" font-size="11" fill="#FBF6EE">min_percent = <tspan fill="#E89B3D">5</tspan>   <tspan fill="#A89D92"># never fully dark</tspan></text>
+  </g>
+</svg>
