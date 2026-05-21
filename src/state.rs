@@ -179,6 +179,8 @@ pub struct LumaState {
     pub desktop_entries: Vec<crate::desktop_icons::DesktopEntry>,
     /// Último polling de ~/Desktop. None = ainda não scaneado. H50.
     pub desktop_last_scan: Option<std::time::Instant>,
+    /// Camada de ícones do desktop mapeada na Space (z_index=5). H50.
+    pub desktop_icons: Option<std::sync::Arc<crate::desktop_icons::DesktopIconsLayer>>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -602,6 +604,7 @@ impl LumaState {
             context_menu: None,
             desktop_entries: Vec::new(),
             desktop_last_scan: None,
+            desktop_icons: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

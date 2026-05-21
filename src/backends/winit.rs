@@ -211,11 +211,11 @@ pub fn init_winit(
 
     // Wallpaper como SpaceItem com z_index=0 (atrás de tudo). Atualizamos
     // o output_size dele toda vez que a winit redimensiona.
+    let initial_size = smithay::utils::Size::<i32, smithay::utils::Logical>::from((
+        backend.window_size().w,
+        backend.window_size().h,
+    ));
     if let Some(wp) = data.state.wallpaper.take() {
-        let initial_size = smithay::utils::Size::<i32, smithay::utils::Logical>::from((
-            backend.window_size().w,
-            backend.window_size().h,
-        ));
         wp.set_output_size(initial_size);
         wp.attach_to_output(&output);
         let arc = std::sync::Arc::new(wp);
@@ -225,6 +225,24 @@ pub fn init_winit(
             false,
         );
         data.state.wallpaper_arc = Some(arc);
+    }
+
+    // H50.icons.3: Camada de ícones do desktop como SpaceItem z_index=5
+    // (entre wallpaper e janelas). Scan inicial de ~/Desktop carrega
+    // as entradas; polling 2s em icons.7 atualiza enquanto luma roda.
+    {
+        let layer = std::sync::Arc::new(crate::desktop_icons::DesktopIconsLayer::new());
+        layer.set_output_size(initial_size);
+        let entries = crate::desktop_icons::scan();
+        layer.set_entries(entries.clone());
+        data.state.desktop_entries = entries;
+        data.state.desktop_last_scan = Some(std::time::Instant::now());
+        data.state.space.map_element(
+            crate::space_item::SpaceItem::DesktopIcons(layer.clone()),
+            smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0)),
+            false,
+        );
+        data.state.desktop_icons = Some(layer);
     }
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
@@ -245,6 +263,9 @@ pub fn init_winit(
                 );
                 if let Some(wp) = data.state.wallpaper_arc.as_ref() {
                     wp.set_output_size(smithay::utils::Size::from((size.w, size.h)));
+                }
+                if let Some(layer) = data.state.desktop_icons.as_ref() {
+                    layer.set_output_size(smithay::utils::Size::from((size.w, size.h)));
                 }
             }
             WinitEvent::Input(event) => data.state.process_input_event(event),
