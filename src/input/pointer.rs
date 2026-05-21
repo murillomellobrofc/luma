@@ -158,6 +158,52 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // H48.ctx.2: hover do menu de contexto. Atualiza hovered + abre/
+    // fecha submenu conforme item-Submenu sob o cursor.
+    if state.context_menu.is_some() {
+        let output_size = state
+            .space
+            .output_geometry(state.output_under_cursor(pos))
+            .map(|g| g.size);
+        if let Some(out) = output_size {
+            let tokens = crate::theme::current().context_menu.clone();
+            let menu_clone = state.context_menu.clone();
+            if let Some(snap) = menu_clone {
+                // 1. Verifica submenu primeiro — se hover está nele,
+                // não muda hovered do main.
+                let sub_hover = snap.submenu_hit_test(&tokens, out, pos);
+                if let Some(m) = state.context_menu.as_mut() {
+                    m.submenu_hovered = sub_hover;
+                }
+                // 2. Hover do menu main.
+                let main_hover = snap.hit_test(&tokens, pos);
+                if let Some(m) = state.context_menu.as_mut() {
+                    m.hovered = main_hover;
+                }
+                // 3. Se hover caiu sobre Submenu-kind, abre. Senão se
+                // não está dentro do submenu, fecha.
+                if let Some(idx) = main_hover {
+                    if let Some(item) = snap.items.get(idx) {
+                        let is_sub =
+                            matches!(item.kind, crate::context_menu::ItemKind::Submenu(_));
+                        if let Some(m) = state.context_menu.as_mut() {
+                            if is_sub {
+                                m.open_submenu = Some(idx);
+                            } else {
+                                m.open_submenu = None;
+                            }
+                        }
+                    }
+                } else if sub_hover.is_none() {
+                    // Cursor fora do main E fora do submenu → fecha sub.
+                    if let Some(m) = state.context_menu.as_mut() {
+                        m.open_submenu = None;
+                    }
+                }
+            }
+        }
+    }
+
     // H36.16: hot corner KDE-style. Trigger imediato ao tocar canto
     // absoluto (x<=5, y<=5). Toggle overview. Re-arma quando cursor
     // sai da zona, pra evitar re-trigger contínuo.
