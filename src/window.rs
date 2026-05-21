@@ -11,7 +11,7 @@ use smithay::{
 
 use crate::{
     decoration::{
-        header_elements_at, title_data, window_control_elements_at,
+        header_bg_at, header_top_accent_at, title_data, window_control_elements_at,
         BORDER_THICKNESS, HEADER_HEIGHT,
     },
     render::LumaRenderElement,
@@ -128,12 +128,12 @@ where
         let content_size = SpaceElement::geometry(&self.0).size;
         let full_width_logical = content_size.w + 2 * BORDER_THICKNESS;
 
-        // Header cobre toda a largura (incluindo as 3px laterais que
-        // continuam reservadas pra hit-test de resize mas SEM render).
-        let header = header_elements_at(&self.0, location, full_width_logical);
+        // H_deco.4: header agora tem 2 elementos. Linha âmbar 1px no
+        // topo (Solid). Bg gradient vertical da titlebar (Memory).
         // H_deco.1: bordas L/R/Bottom NÃO renderizadas mais — visual
-        // limpo, sem o contorno laranja. BORDER_THICKNESS=3 continua só
-        // pra geometry/input/resize hit-test.
+        // limpo. BORDER_THICKNESS=3 continua só pra resize hit-test.
+        let header_accent = header_top_accent_at(&self.0, location, full_width_logical);
+        let header_bg = header_bg_at(&self.0, renderer, location, full_width_logical);
 
         // Título PRIMEIRO no vec — z-order do render_output é "primeiro no
         // array = topo da pilha". Se header for antes, ele tampa o título.
@@ -175,11 +175,12 @@ where
             out.push(C::from(LumaRenderElement::Memory(elem)));
         }
 
-        out.extend(
-            header
-                .into_iter()
-                .map(|e| C::from(LumaRenderElement::Solid(e))),
-        );
+        // Linha âmbar (Solid) primeiro = topo do z-stack do header.
+        out.push(C::from(LumaRenderElement::Solid(header_accent)));
+        // Bg gradient depois = atrás da linha âmbar, dentro do header.
+        if let Some(bg) = header_bg {
+            out.push(C::from(LumaRenderElement::Memory(bg)));
+        }
 
         // H_deco.2-3: drop shadow 9-slice atrás da janela. Push DEPOIS
         // dos solids = atrás no z-stack (Smithay renderiza fim→começo).

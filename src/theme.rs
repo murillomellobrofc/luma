@@ -391,6 +391,10 @@ pub struct WindowTokens {
     pub shadow_opacity_inactive: f32,
     /// Cor base da sombra (Black default). H_deco.2.
     pub shadow_color: Color32F,
+    /// Cor do topo do gradient da titlebar. H_deco.4.
+    pub titlebar_bg_top: Color32F,
+    /// Cor da base do gradient da titlebar. H_deco.4.
+    pub titlebar_bg_bottom: Color32F,
 }
 
 /// Layout do menu launcher (container). H32.7.
@@ -1012,6 +1016,9 @@ impl Default for WindowTokens {
             shadow_opacity: 0.35,
             shadow_opacity_inactive: 0.20,
             shadow_color: hex_color("#000000", 1.0),
+            // H_deco.4: gradiente da titlebar.
+            titlebar_bg_top: hex_color("#2A1F1A", 1.0),
+            titlebar_bg_bottom: hex_color("#1F1611", 1.0),
         }
     }
 }
@@ -1677,6 +1684,8 @@ struct WindowTokensFile {
     shadow_opacity: Option<f32>,
     shadow_opacity_inactive: Option<f32>,
     shadow_color: Option<String>,
+    titlebar_bg_top: Option<String>,
+    titlebar_bg_bottom: Option<String>,
     theme_detection: Option<WindowThemeDetectionFile>,
 }
 
@@ -1717,6 +1726,16 @@ impl WindowTokensFile {
                 .as_deref()
                 .and_then(parse_color)
                 .unwrap_or(def.shadow_color),
+            titlebar_bg_top: self
+                .titlebar_bg_top
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.titlebar_bg_top),
+            titlebar_bg_bottom: self
+                .titlebar_bg_bottom
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.titlebar_bg_bottom),
         }
     }
 }

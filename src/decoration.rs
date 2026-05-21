@@ -19,9 +19,9 @@ use smithay::{
     utils::{Logical, Physical, Point, Size, Transform},
 };
 
-/// Altura da barra de título desenhada pelo compositor. H32.5.12: cresce
-/// pra encostar no hit_area (24) dos window controls + algum padding.
-pub const HEADER_HEIGHT: i32 = 28;
+/// Altura da barra de título desenhada pelo compositor. H_deco.4: 40px
+/// (era 28). Combina com os botões 24x24 + 8px padding cada lado.
+pub const HEADER_HEIGHT: i32 = 40;
 /// Espessura da borda visível (esquerda/direita/inferior) ao redor do
 /// conteúdo da janela.
 pub const BORDER_THICKNESS: i32 = 3;
@@ -35,7 +35,11 @@ pub enum HeaderRegion {
 }
 
 pub struct WindowDecoration {
-    pub background: SolidColorBuffer,
+    /// Background da titlebar — gradient vertical Coffee→Black do
+    /// `theme.window.titlebar_bg_top/bottom`. Memory texture
+    /// pré-renderizada uma vez (H_deco.4), esticada na largura via
+    /// dst_size no render.
+    pub background: MemoryRenderBuffer,
     /// Linha 1px no topo do header (Amber alpha 0.4 default). Continuidade
     /// visual com a taskbar e o menu (H32.6.4).
     pub header_top_accent: SolidColorBuffer,
@@ -71,9 +75,13 @@ pub struct TitleCache {
 impl WindowDecoration {
     fn new() -> Self {
         let theme = crate::theme::current();
-        // H32.6.2: header bg vem do token window_header_bg_dark (matou o
-        // roxo legado do luma.toml de teste).
-        let header_bg = theme.colors.window_header_bg_dark;
+        // H_deco.4: bg da titlebar vira gradient vertical 1xHEADER pre-renderizado,
+        // esticado na largura no render.
+        let background = crate::gfx::make_vertical_gradient(
+            HEADER_HEIGHT,
+            theme.window.titlebar_bg_top,
+            theme.window.titlebar_bg_bottom,
+        );
         // H32.6.3: bordas externas iniciam em "fora de foco" (cream alpha
         // 0.08, quase invisível). Janela ganha cor amber ao receber foco
         // via set_focused() chamado pelo winit.rs.
@@ -92,7 +100,7 @@ impl WindowDecoration {
             theme.colors.window_header_top_alpha,
         );
         Self {
-            background: SolidColorBuffer::new((0, HEADER_HEIGHT), header_bg),
+            background,
             header_top_accent: SolidColorBuffer::new((0, 1), top_accent),
             left_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
             right_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
@@ -412,38 +420,54 @@ pub fn hovered_region(window: &Window) -> Option<HeaderRegion> {
     decoration_for(window).hovered
 }
 
-/// Constrói os elementos solid do header (background da barra). Os
-/// window controls (close/max/min) viraram Memory elements — vide
-/// `window_control_elements_at`.
-pub fn header_elements_at(
+/// Constrói os elementos do header: linha âmbar 1px (Solid) + gradient
+/// vertical bg (Memory). H_deco.4: bg agora é gradient esticado pra
+/// largura via dst_size.
+pub fn header_top_accent_at(
     window: &Window,
     origin: Point<i32, Physical>,
     full_width: i32,
-) -> Vec<SolidColorRenderElement> {
+) -> SolidColorRenderElement {
     let width = full_width.max(1);
     let mut deco = decoration_for(window);
-    deco.background.resize((width, HEADER_HEIGHT));
-    // H32.6.4: linha âmbar 1px no topo do header.
     deco.header_top_accent.resize((width, 1));
+    SolidColorRenderElement::from_buffer(
+        &deco.header_top_accent,
+        origin,
+        1.0,
+        1.0,
+        Kind::Unspecified,
+    )
+}
 
-    // Linha âmbar PRIMEIRO no vec — fica no TOPO do z-stack (Smithay
-    // renderiza primeiro-do-vec = mais à frente).
-    vec![
-        SolidColorRenderElement::from_buffer(
-            &deco.header_top_accent,
-            origin,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ),
-        SolidColorRenderElement::from_buffer(
-            &deco.background,
-            origin,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ),
-    ]
+/// Constrói o Memory element do bg gradient da titlebar, esticado
+/// horizontalmente pra `full_width`. H_deco.4.
+pub fn header_bg_at<R>(
+    window: &Window,
+    renderer: &mut R,
+    origin: Point<i32, Physical>,
+    full_width: i32,
+) -> Option<MemoryRenderBufferRenderElement<R>>
+where
+    R: Renderer + ImportMem,
+    R::TextureId: Send + Clone + 'static,
+{
+    let width = full_width.max(1);
+    let deco = decoration_for(window);
+    let src = smithay::utils::Rectangle::<f64, Logical>::from_size(
+        Size::<f64, Logical>::from((1.0, HEADER_HEIGHT as f64)),
+    );
+    let dst = Some(Size::<i32, Logical>::from((width, HEADER_HEIGHT)));
+    MemoryRenderBufferRenderElement::from_buffer(
+        renderer,
+        origin.to_f64(),
+        &deco.background,
+        None,
+        Some(src),
+        dst,
+        Kind::Unspecified,
+    )
+    .ok()
 }
 
 /// Constrói os Memory elements dos 3 window controls posicionados à
