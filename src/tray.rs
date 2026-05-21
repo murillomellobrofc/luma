@@ -110,6 +110,10 @@ pub struct TrayState {
     pub last_overflow_x: Option<i32>,
     /// True quando o painel de overflow está aberto. H47a.tray.2.
     pub overflow_open: bool,
+    /// Quantidade de itens SNI registrados. H47a só armazena (= 0
+    /// até H47b conectar zbus). Usado pelo render pra dim a setinha
+    /// quando vazia. H47a.tray.4.
+    pub sni_count: usize,
 }
 
 impl TrayState {

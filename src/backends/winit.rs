@@ -1840,7 +1840,15 @@ pub fn init_winit(
                             data.state.tray.last_overflow_x = Some(arrow_x);
                             // H47a.tray.3: bg vira âmbar quando open;
                             // chevron vira pra cima (icon-tray-overflow-up).
+                            // H47a.tray.4: dim (alpha reduzida) quando não
+                            // há itens SNI registrados.
                             let open = data.state.tray.overflow_open;
+                            let has_items = data.state.tray.sni_count > 0;
+                            let arrow_alpha = if has_items {
+                                1.0
+                            } else {
+                                t_ov.arrow_disabled_alpha
+                            };
                             let arrow_bg_color = if open {
                                 t_ov.arrow_bg_open
                             } else {
@@ -1852,8 +1860,19 @@ pub fn init_winit(
                                 t_ov.arrow_corner_radius,
                                 arrow_bg_color,
                             );
-                            push_mem(&mut custom_elements, &arrow_bg,
-                                     arrow_x, arrow_y, renderer);
+                            // Render do bg + chevron passa alpha (dim quando
+                            // vazio). Usa from_buffer com alpha em vez de
+                            // push_mem (que não suporta alpha modulation).
+                            let arrow_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                    ::from((arrow_x, arrow_y))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, arrow_loc.to_f64(), &arrow_bg,
+                                Some(arrow_alpha), None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            }
                             // Chevron icon centralizado dentro do botão.
                             // ~60% do tamanho do botão.
                             let chev_size = (arrow_size as f32 * 0.6) as i32;
@@ -1868,9 +1887,16 @@ pub fn init_winit(
                                 chev_size,
                             ) {
                                 let chev_off = (arrow_size - chev_size) / 2;
-                                push_mem(&mut custom_elements, &chev_buf,
-                                         arrow_x + chev_off,
-                                         arrow_y + chev_off, renderer);
+                                let chev_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((arrow_x + chev_off, arrow_y + chev_off))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, chev_loc.to_f64(), &chev_buf,
+                                    Some(arrow_alpha), None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
                             }
 
                             // H47a.tray.2: painel de overflow renderiza
@@ -1919,6 +1945,42 @@ pub fn init_winit(
                                         Kind::Unspecified,
                                     ) {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // H47a.tray.4: placeholder centralizado
+                                    // "Sem itens" enquanto não há SNI (H47b).
+                                    if data.state.tray.sni_count == 0 {
+                                        if let Some(text_r) = data.state.text.as_ref() {
+                                            let (px, w, h) = text_r.rasterize_colored(
+                                                "Sem itens",
+                                                t_ov.placeholder_text_size,
+                                                t_ov.placeholder_text_color,
+                                            );
+                                            if w > 0 && h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (w as i32, h as i32),
+                                                    1,
+                                                    Transform::Normal,
+                                                    None,
+                                                );
+                                                let tx = panel.loc.x + (panel.size.w - w as i32) / 2;
+                                                let ty = panel.loc.y + (panel.size.h - h as i32) / 2;
+                                                let t_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                        ::from((tx, ty))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer,
+                                                    t_loc.to_f64(),
+                                                    &buf,
+                                                    None, None, None,
+                                                    Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
