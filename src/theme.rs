@@ -282,6 +282,8 @@ pub struct TaskbarTokens {
     pub system_tray: TaskbarSystemTrayTokens,
     /// Setinha de overflow do tray + painel. H47a.tray.
     pub tray_overflow: TrayOverflowTokens,
+    /// Grid de ícones SNI dentro do painel de overflow. H47b.tray.
+    pub tray_sni: TraySniTokens,
     /// Sub-tokens do grupo direito (D + E + F). H33.taskbar.12.
     pub right_group: TaskbarRightGroupTokens,
 }
@@ -340,6 +342,20 @@ pub struct TrayOverflowTokens {
     /// Tamanho da fonte do placeholder "Sem itens".
     pub placeholder_text_size: f32,
     pub placeholder_text_color: Color32F,
+}
+
+/// Grid de itens SNI dentro do painel de overflow. H47b.
+#[derive(Debug, Clone)]
+pub struct TraySniTokens {
+    pub icon_size: i32,
+    pub button_size: i32,
+    pub button_corner_radius: i32,
+    pub button_bg: Color32F,
+    pub hover_bg: Color32F,
+    pub gap: i32,
+    pub grid_columns: i32,
+    /// Padding interno do painel pro grid.
+    pub padding: i32,
 }
 
 /// Sub-tokens do grupo direito da taskbar. H33.taskbar.12.
@@ -1444,6 +1460,7 @@ impl Default for TaskbarTokens {
             tooltip: TaskbarTooltipTokens::default(),
             system_tray: TaskbarSystemTrayTokens::default(),
             tray_overflow: TrayOverflowTokens::default(),
+            tray_sni: TraySniTokens::default(),
             right_group: TaskbarRightGroupTokens::default(),
         }
     }
@@ -1465,6 +1482,21 @@ impl Default for TrayOverflowTokens {
             panel_height: 120,
             placeholder_text_size: 12.0,
             placeholder_text_color: hex_color("#A89D92", 1.0),  // text_secondary
+        }
+    }
+}
+
+impl Default for TraySniTokens {
+    fn default() -> Self {
+        Self {
+            icon_size: 22,
+            button_size: 40,
+            button_corner_radius: 9,
+            button_bg: hex_color("#2A1F1A", 1.0),
+            hover_bg: hex_color("#3D2520", 1.0),
+            gap: 12,
+            grid_columns: 4,
+            padding: 16,
         }
     }
 }
@@ -2821,6 +2853,7 @@ impl TaskbarTokensFile {
             // + TaskbarRightGroupTokensFile em commit fix se precisar.
             system_tray: def.system_tray.clone(),
             tray_overflow: def.tray_overflow.clone(),
+            tray_sni: def.tray_sni.clone(),
             right_group: def.right_group.clone(),
         }
     }

@@ -19,6 +19,10 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use smithay::backend::allocator::Fourcc;
+use smithay::backend::renderer::element::memory::MemoryRenderBuffer;
+use smithay::utils::Transform;
+
 /// Pixmap raw ARGB32 BE recebido via `IconPixmap` property.
 #[derive(Debug, Clone)]
 pub struct SniPixmap {
@@ -273,6 +277,82 @@ fn read_tooltip(
     let val: zbus::zvariant::Value = body.deserialize().ok()?;
     let tup: (String, Vec<(i32, i32, Vec<u8>)>, String, String) = val.try_into().ok()?;
     Some(tup.2)
+}
+
+/// Carrega o ícone do item SNI em `size×size`. Tenta `icon_name` via
+/// IconIndex (resolve SVG/PNG do tema); se vazio ou não resolver,
+/// converte o maior pixmap fornecido pelo app. H47b.tray.8.
+pub fn load_icon(item: &SniItem, size: i32) -> Option<MemoryRenderBuffer> {
+    if !item.icon_name.is_empty() {
+        if let Some(path) = crate::apps::resolve_icon_path(&item.icon_name) {
+            if path.extension().and_then(|e| e.to_str()) == Some("svg") {
+                return crate::menu::icon_loader::load_svg_file(
+                    &path.to_string_lossy(),
+                    size as u32,
+                );
+            }
+            if let Ok(img) = image::open(&path) {
+                return Some(image_to_buffer(img, size));
+            }
+        }
+    }
+    let best = item
+        .icon_pixmaps
+        .iter()
+        .max_by_key(|p| p.width.min(p.height))?;
+    pixmap_to_buffer(best, size)
+}
+
+fn image_to_buffer(img: image::DynamicImage, size: i32) -> MemoryRenderBuffer {
+    let resized = img.resize_to_fill(
+        size as u32,
+        size as u32,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let rgba = resized.to_rgba8();
+    let (w, h) = (rgba.width() as i32, rgba.height() as i32);
+    let mut pixels = rgba.into_raw();
+    // RGBA → BGRA premultiplicado.
+    for chunk in pixels.chunks_exact_mut(4) {
+        let r = chunk[0];
+        let g = chunk[1];
+        let b = chunk[2];
+        let a = chunk[3];
+        chunk[0] = ((b as u16 * a as u16) / 255) as u8;
+        chunk[1] = ((g as u16 * a as u16) / 255) as u8;
+        chunk[2] = ((r as u16 * a as u16) / 255) as u8;
+        chunk[3] = a;
+    }
+    MemoryRenderBuffer::from_slice(&pixels, Fourcc::Argb8888, (w, h), 1, Transform::Normal, None)
+}
+
+/// Converte `IconPixmap` (ARGB32 big-endian) pra BGRA premultiplicado.
+/// Se o size pedido difere do native, re-encoda via image crate.
+fn pixmap_to_buffer(px: &SniPixmap, target_size: i32) -> Option<MemoryRenderBuffer> {
+    if px.width <= 0 || px.height <= 0 {
+        return None;
+    }
+    let expected = (px.width * px.height * 4) as usize;
+    if px.data.len() != expected {
+        return None;
+    }
+    // SNI pixmap = ARGB big-endian. Converte pra RGBA pra entregar
+    // ao image::ImageBuffer.
+    let mut rgba = Vec::with_capacity(expected);
+    for chunk in px.data.chunks_exact(4) {
+        let a = chunk[0];
+        let r = chunk[1];
+        let g = chunk[2];
+        let b = chunk[3];
+        rgba.push(r);
+        rgba.push(g);
+        rgba.push(b);
+        rgba.push(a);
+    }
+    let img: image::RgbaImage =
+        image::ImageBuffer::from_raw(px.width as u32, px.height as u32, rgba)?;
+    let dyn_img = image::DynamicImage::ImageRgba8(img);
+    Some(image_to_buffer(dyn_img, target_size))
 }
 
 fn read_pixmaps(
