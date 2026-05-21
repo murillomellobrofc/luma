@@ -67,9 +67,18 @@ pub fn spawn() -> SniList {
     let list: SniList = Arc::new(Mutex::new(Vec::new()));
     if std::env::var("LUMA_FAKE_SNI").is_ok() {
         if let Ok(mut g) = list.lock() {
-            for (i, name) in ["firefox", "telegram", "discord", "spotify", "code"]
-                .iter()
-                .enumerate()
+            // Nomes XDG genéricos (freedesktop icon naming spec) +
+            // luma SVGs próprios. Garante que algo aparece em todo
+            // sistema. H47b.fake.
+            for (i, name) in [
+                "applications-internet",
+                "applications-multimedia",
+                "applications-system",
+                "applications-graphics",
+                "applications-games",
+            ]
+            .iter()
+            .enumerate()
             {
                 g.push(SniItem {
                     service: format!(":fake.{}", i),
@@ -381,21 +390,34 @@ fn read_tooltip(
     Some(tup.2)
 }
 
-/// Carrega o ícone do item SNI em `size×size`. Tenta `icon_name` via
-/// IconIndex (resolve SVG/PNG do tema); se vazio ou não resolver,
-/// converte o maior pixmap fornecido pelo app. H47b.tray.8.
+/// Carrega o ícone do item SNI em `size×size`. Cascata de fallbacks:
+/// 1. `icon_name` via IconIndex (tema XDG, cobre Breeze/Adwaita/hicolor)
+/// 2. `icon_name` como SVG dos assets do próprio luma (icon-<name>.svg)
+/// 3. Maior pixmap fornecido pelo app via `IconPixmap`
+/// H47b.tray.8.
 pub fn load_icon(item: &SniItem, size: i32) -> Option<MemoryRenderBuffer> {
     if !item.icon_name.is_empty() {
         if let Some(path) = crate::apps::resolve_icon_path(&item.icon_name) {
             if path.extension().and_then(|e| e.to_str()) == Some("svg") {
-                return crate::menu::icon_loader::load_svg_file(
+                if let Some(buf) = crate::menu::icon_loader::load_svg_file(
                     &path.to_string_lossy(),
                     size as u32,
-                );
+                ) {
+                    return Some(buf);
+                }
             }
             if let Ok(img) = image::open(&path) {
                 return Some(image_to_buffer(img, size));
             }
+        }
+        // Fallback: tenta como SVG dos próprios assets do luma.
+        let theme = crate::theme::current();
+        let local = format!(
+            "{}/icon-{}.svg",
+            theme.taskbar.system_tray.icons_path, item.icon_name
+        );
+        if let Some(buf) = crate::menu::icon_loader::load_svg_file(&local, size as u32) {
+            return Some(buf);
         }
     }
     let best = item
