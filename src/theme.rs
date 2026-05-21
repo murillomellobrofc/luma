@@ -290,6 +290,8 @@ pub struct TaskbarSystemTrayTokens {
     pub battery_fill_high: Color32F,
     pub battery_fill_med: Color32F,
     pub battery_fill_low: Color32F,
+    /// Cor do raio de carregamento (âmbar). H33.taskbar.9.fix.
+    pub battery_charging_mark: Color32F,
     pub battery_pct_color: Color32F,
     pub battery_pct_size: f32,
     pub notif_dot_color: Color32F,
@@ -1288,6 +1290,7 @@ impl Default for TaskbarSystemTrayTokens {
             battery_fill_high: hex_color("#6B8E7F", 1.0),
             battery_fill_med: hex_color("#F5D5A8", 1.0),
             battery_fill_low: hex_color("#D97757", 1.0),
+            battery_charging_mark: hex_color("#E89B3D", 1.0),
             battery_pct_color: hex_color("#FBF6EE", 1.0),
             battery_pct_size: 12.0,
             notif_dot_color: hex_color("#D97757", 1.0),

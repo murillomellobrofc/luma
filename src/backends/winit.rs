@@ -466,10 +466,14 @@ pub fn init_winit(
                     MemoryRenderBuffer,
                     smithay::utils::Size<i32, smithay::utils::Logical>,
                 )> = {
-                    let info = crate::tray::read_battery();
+                    // H33.taskbar.9.fix: refresh dos sensores se >= 3s.
+                    crate::tray::refresh_if_stale(&mut data.state.tray);
+                    let info = data.state.tray.battery_info;
                     match (info, data.state.text.as_ref()) {
                         (Some(b), Some(text_r)) => {
-                            let icon = crate::tray::ensure_battery_icon(&mut data.state.tray, b.capacity);
+                            let icon = crate::tray::ensure_battery_icon(
+                                &mut data.state.tray, b.capacity, b.charging,
+                            );
                             let label = crate::tray::ensure_pct_label(
                                 &mut data.state.tray, b.capacity, text_r,
                             );

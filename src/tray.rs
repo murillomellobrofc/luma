@@ -42,6 +42,12 @@ pub struct TrayState {
     /// Contador de notificações não lidas. Sempre 0 nesta etapa
     /// (H40 vai conectar com fonte real de notificações).
     pub notif_count: usize,
+    /// Timestamp do último polling dos sensores do tray (battery/wifi/
+    /// bluetooth/volume). H33.taskbar.9.fix.
+    pub last_poll: Option<std::time::Instant>,
+    /// Último estado lido da battery (capacity + charging). `None`
+    /// significa sistema sem bateria OU ainda não foi lido.
+    pub battery_info: Option<BatteryInfo>,
 }
 
 impl TrayState {
@@ -50,15 +56,35 @@ impl TrayState {
     }
 }
 
+/// Re-lê os sensores do tray (battery/wifi/bt/volume) se já passou o
+/// `poll_interval_secs` desde o último read. Chamado uma vez por frame
+/// no render; é barato quando não passou o intervalo. H33.taskbar.9.fix.
+pub fn refresh_if_stale(state: &mut TrayState) {
+    let interval = std::time::Duration::from_secs(3);
+    let stale = state
+        .last_poll
+        .map(|t| t.elapsed() >= interval)
+        .unwrap_or(true);
+    if !stale {
+        return;
+    }
+    state.battery_info = read_battery();
+    // wifi/bt/volume vêm em D.10/.11/.12.fix
+    state.last_poll = Some(std::time::Instant::now());
+}
+
 /// Lê a battery do sistema. Tenta primeiro a env `LUMA_FAKE_BATTERY`
 /// (dev/test em desktops sem bateria). Depois `/sys/class/power_supply/BAT*`.
 /// Retorna `None` em máquinas sem bateria. H33.taskbar.9.
 pub fn read_battery() -> Option<BatteryInfo> {
     if let Ok(fake) = std::env::var("LUMA_FAKE_BATTERY") {
         if let Ok(cap) = fake.parse::<u8>() {
+            let charging = std::env::var("LUMA_FAKE_BATTERY_CHARGING")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
             return Some(BatteryInfo {
                 capacity: cap.min(100),
-                charging: false,
+                charging,
             });
         }
     }
@@ -101,9 +127,14 @@ pub fn battery_fill_color(capacity: u8) -> smithay::backend::renderer::Color32F 
 }
 
 /// Gera (ou pega cacheado) o ícone da battery com fill correspondente
-/// ao %. Chave do cache = "battery_<pct>". H33.taskbar.9.
-pub fn ensure_battery_icon(state: &mut TrayState, capacity: u8) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
-    let key = format!("battery_{}", capacity);
+/// ao %. Chave do cache = "battery_<pct>_<c|d>". `charging=true` desenha
+/// pequeno raio âmbar overlay. H33.taskbar.9 + 9.fix.
+pub fn ensure_battery_icon(
+    state: &mut TrayState,
+    capacity: u8,
+    charging: bool,
+) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
+    let key = format!("battery_{}_{}", capacity, if charging { "c" } else { "d" });
     if let Some(entry) = state.icon_cache.get(&key) {
         return Some((entry.0.clone(), entry.1));
     }
@@ -116,7 +147,12 @@ pub fn ensure_battery_icon(state: &mut TrayState, capacity: u8) -> Option<(Memor
         t.icon_color.b(),
         t.icon_alpha,
     );
-    let buf = crate::gfx::make_battery_icon(t.icon_size, capacity, fill, frame);
+    let mark = if charging {
+        Some(t.battery_charging_mark)
+    } else {
+        None
+    };
+    let buf = crate::gfx::make_battery_icon(t.icon_size, capacity, fill, frame, mark);
     let size = Size::from((t.icon_size, t.icon_size));
     state.icon_cache.insert(key, (buf.clone(), size));
     Some((buf, size))

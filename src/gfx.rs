@@ -814,6 +814,8 @@ pub fn make_volume_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
 /// - corpo retangular (outline 1px na cor `frame`)
 /// - tampa pequena à direita
 /// - fill colorido proporcional a `capacity / 100`
+/// - se `charging_mark = Some(color)`, sobrepõe um raio fininho âmbar
+///   no centro do corpo (estilo lightning bolt — H33.taskbar.9.fix).
 ///
 /// H33.taskbar.9. Visualmente parecido com o ícone de bateria nos
 /// system trays do KDE/GNOME, em ~20px.
@@ -822,6 +824,7 @@ pub fn make_battery_icon(
     capacity: u8,
     fill: Color32F,
     frame: Color32F,
+    charging_mark: Option<Color32F>,
 ) -> MemoryRenderBuffer {
     let mut pixels = vec![0u8; (size * size * 4) as usize];
     let body_y_top = size / 4;
@@ -859,6 +862,36 @@ pub fn make_battery_icon(
     for y in inner_y_top..=inner_y_bot {
         for x in inner_x_left..=fill_x_right.min(inner_x_right) {
             put_pixel_premul(&mut pixels, x, y, size, fill);
+        }
+    }
+    // Marca de carregamento: raio fininho 2-segment estilo lightning,
+    // centralizado no corpo. Pintado em cima do fill quando charging.
+    // H33.taskbar.9.fix.
+    if let Some(bolt) = charging_mark {
+        let cx = (inner_x_left + inner_x_right) / 2;
+        let cy = (inner_y_top + inner_y_bot) / 2;
+        // Diagonal cai do canto sup-esq pro centro, e do centro pro
+        // canto inf-dir. Aproximação 4-7 px cada segment.
+        let len = ((inner_y_bot - inner_y_top) / 2).max(2);
+        for d in 0..len {
+            // Topo: (cx - d/2, cy - len + d) ish
+            let x1 = cx - len / 2 + d / 2;
+            let y1 = inner_y_top + d;
+            if x1 >= 0 && x1 < size && y1 >= 0 && y1 < size {
+                put_pixel_premul(&mut pixels, x1, y1, size, bolt);
+                if x1 + 1 < size {
+                    put_pixel_premul(&mut pixels, x1 + 1, y1, size, bolt);
+                }
+            }
+            // Base: (cx + d/2, cy + d) — segmento descendente.
+            let x2 = cx - d / 2 + len / 2;
+            let y2 = cy + d;
+            if x2 >= 0 && x2 < size && y2 >= 0 && y2 < size && y2 <= inner_y_bot {
+                put_pixel_premul(&mut pixels, x2, y2, size, bolt);
+                if x2 - 1 >= 0 {
+                    put_pixel_premul(&mut pixels, x2 - 1, y2, size, bolt);
+                }
+            }
         }
     }
     MemoryRenderBuffer::from_slice(
