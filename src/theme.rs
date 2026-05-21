@@ -636,7 +636,10 @@ pub struct MenuColumnDividerTokens {
 /// H33.taskbar.7 (re-skin: 32×32 quadrados numerados em vez de dots).
 #[derive(Debug, Clone)]
 pub struct WorkspacesTokens {
-    pub pager_show_if_count: usize,
+    /// Esconde o pager quando há apenas 1 workspace (default `true`).
+    /// H33.taskbar.8 — substitui `pager_show_if_count: usize` legado
+    /// do H36 (semântica equivalente mas era contraintuitivo).
+    pub pager_hide_if_single: bool,
     pub pager_padding_left: i32,
     pub pager_gap: i32,
     /// Tamanho de cada item do pager (ativo e inativos). 32 default em
@@ -664,7 +667,7 @@ pub struct WorkspacesTokens {
 impl Default for WorkspacesTokens {
     fn default() -> Self {
         Self {
-            pager_show_if_count: 2,
+            pager_hide_if_single: true,
             pager_padding_left: 14,
             pager_gap: 8,
             pager_item_size: 32,

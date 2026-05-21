@@ -5,7 +5,7 @@
 //! - Inativo: sem bg (transparente) + número CREAM alpha 45%.
 //! - Hover (inativo): bg sutil cream alpha 0.1 pra feedback.
 //!
-//! Esconde quando há apenas 1 workspace (`tokens.pager_show_if_count`).
+//! Esconde quando há apenas 1 workspace (`tokens.pager_hide_if_single`).
 
 use smithay::{
     backend::{
@@ -114,10 +114,14 @@ impl Default for PagerState {
     }
 }
 
-/// Visibilidade do pager — esconde se só há 1 workspace. H36.7.
+/// Visibilidade do pager — esconde se só há 1 workspace e
+/// `pager_hide_if_single` está ativo. H33.taskbar.8.
 pub fn is_visible(workspace_count: usize) -> bool {
     let t = &crate::theme::current().workspaces;
-    workspace_count >= t.pager_show_if_count
+    if t.pager_hide_if_single && workspace_count < 2 {
+        return false;
+    }
+    workspace_count > 0
 }
 
 /// X inicial do pager dentro da taskbar (depois do launcher).

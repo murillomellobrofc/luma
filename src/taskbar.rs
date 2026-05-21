@@ -620,8 +620,9 @@ pub fn blocks_start_x() -> i32 {
 }
 
 /// Mesmo que `blocks_start_x` mas incluindo a largura do pager quando
-/// visível (≥ pager_show_if_count workspaces). Usado pelos call sites
-/// que precisam shiftar pra direita pra não colidir com o pager. H36.fix.
+/// visível (mais de 1 workspace OU `pager_hide_if_single = false`). Usado
+/// pelos call sites que precisam shiftar pra direita pra não colidir
+/// com o pager. H36.fix + H33.taskbar.8.
 pub fn blocks_start_x_with_pager(workspace_count: usize) -> i32 {
     let base = blocks_start_x();
     if !crate::pager::is_visible(workspace_count) {
