@@ -102,11 +102,12 @@ pub fn match_shortcut(
     if show_desktop_mod && (keysym == Keysym::d || keysym == Keysym::D) {
         return Some(KeyAction::ToggleShowDesktop);
     }
-    // H46.media.fallback: Ctrl+Alt+Espaço / . / , como fallback pras
-    // teclas XF86 de mídia (KDE host intercepta XF86 antes de chegar
-    // aqui em modo aninhado). Mesmo padrão dos fallbacks do show-
-    // desktop e workspaces.
+    // H46.media.fallback + H45.osd.fallback: Ctrl+Alt+X como fallback
+    // pras teclas XF86 (volume, brilho, mídia) — KDE host intercepta
+    // XF86 antes de chegar aqui em modo aninhado. Mesmo padrão do
+    // show-desktop e workspaces.
     if modifiers.ctrl && modifiers.alt {
+        // Mídia.
         if keysym == Keysym::space {
             return Some(KeyAction::MediaPlayPause);
         }
@@ -115,6 +116,23 @@ pub fn match_shortcut(
         }
         if keysym == Keysym::comma {
             return Some(KeyAction::MediaPrev);
+        }
+        // Volume: Ctrl+Alt+= raise (= é o +), Ctrl+Alt+- lower, Ctrl+Alt+M mute.
+        if keysym == Keysym::equal || keysym == Keysym::plus {
+            return Some(KeyAction::VolumeRaise);
+        }
+        if keysym == Keysym::minus || keysym == Keysym::underscore {
+            return Some(KeyAction::VolumeLower);
+        }
+        if keysym == Keysym::m || keysym == Keysym::M {
+            return Some(KeyAction::VolumeMute);
+        }
+        // Brilho: ] raise, [ lower.
+        if keysym == Keysym::bracketright {
+            return Some(KeyAction::BrightnessRaise);
+        }
+        if keysym == Keysym::bracketleft {
+            return Some(KeyAction::BrightnessLower);
         }
     }
     // H36.4-6: workspaces.
