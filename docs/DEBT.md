@@ -202,3 +202,56 @@ pra H47c).
 
 Nenhum — o tray nativo (battery/wifi/bt/volume/bell) continua
 funcionando normal. Apenas apps de terceiros não aparecem.
+
+---
+
+## SNI: menu nativo via DBusMenu (H47c)
+
+**Status:** delegando ao app por enquanto.
+
+**Decisão:** click direito num item SNI chama `ContextMenu(x, y)` —
+o app desenha o próprio menu, fora do luma. Não há renderização
+nativa do menu.
+
+### Por quê adiou
+
+DBusMenu (`com.canonical.dbusmenu`) é outro protocolo D-Bus com
+árvore de itens, properties por nó (label, type, icon, separator,
+shortcut), signals (LayoutUpdated, ItemsPropertiesUpdated) e
+ações (Event). Pra render nativo precisamos:
+- Proxy `com.canonical.dbusmenu` em cada item
+- Recursão na árvore via `GetLayout(parent, depth)`
+- Cache de propriedades + escuta de updates
+- Layout floating menu + render + hit-test
+
+Trabalho equivalente a uma etapa inteira (H47c). Por enquanto
+ContextMenu cobre o caso de uso (o app já sabe desenhar bonito).
+
+### Quando desbloqueia
+
+Etapa H47c — substituir `sni::context_menu` por abrir um popup do
+luma renderizando o DBusMenu do item. Mantém ContextMenu como
+fallback se DBusMenu falhar.
+
+---
+
+## SNI: thread D-Bus separada (H47b)
+
+**Status:** funcional, mas com nuance.
+
+**Nuance:** a thread D-Bus tem sua própria `blocking::Connection`
+em loop infinito de `MessageIterator`. Ações de click (`Activate`,
+`ContextMenu`) abrem conexões novas em vez de reutilizar a do
+listener — fire-and-forget, ~10ms latência por click.
+
+### Por quê
+
+`MessageIterator` da thread bloqueia indefinidamente; não é
+trivial intercalar com comandos vindos da main thread sem mpsc +
+poll com timeout (que complicaria o loop). Conexão nova por click
+é simples e a latência é imperceptível.
+
+### Quando desbloqueia
+
+Se medirmos latência percebível em clicks (improvável), trocar
+por canal mpsc + `MessageStream` com `next_timeout`.
