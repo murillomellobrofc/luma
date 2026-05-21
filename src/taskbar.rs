@@ -203,6 +203,10 @@ pub struct TaskbarState {
     /// app) por chave estável (app_id ou nome). Gerado lazy quando um app
     /// não tem `.desktop` Icon resolvido. H33.taskbar.4.
     pub fallback_icon_cache: std::collections::HashMap<String, MemoryRenderBuffer>,
+    /// Cache da inicial (letra) do app fallback. Cor decidida via
+    /// contraste com a `fallback_color_for(name)`. H33.taskbar.polish.1.
+    pub fallback_initial_cache:
+        std::collections::HashMap<String, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Cache de tooltips dos apps (bg + label rasterizado). Chave é o
     /// texto exibido. H33.taskbar.6.
     pub tooltip_cache: std::collections::HashMap<String, TooltipCache>,
@@ -352,6 +356,7 @@ impl TaskbarState {
             order: Vec::new(),
             output_name: None,
             fallback_icon_cache: std::collections::HashMap::new(),
+            fallback_initial_cache: std::collections::HashMap::new(),
             tooltip_cache: std::collections::HashMap::new(),
             hover_started_at: None,
         }
@@ -537,6 +542,62 @@ pub fn fallback_icon_for(
         .fallback_icon_cache
         .insert(name.to_string(), buf.clone());
     buf
+}
+
+/// Inicial do app pra desenhar dentro do quadrado fallback. Pega a
+/// primeira letra alfabética do nome, MAIÚSCULA. Empty → "?".
+/// H33.taskbar.polish.1.
+pub fn fallback_initial_of(name: &str) -> String {
+    name.chars()
+        .find(|c| c.is_alphabetic())
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_string())
+}
+
+/// Rasteriza (ou pega cacheado) a letra inicial do app pra sobrepor ao
+/// quadrado de fallback. Cor escolhida pra contrastar com o bg da
+/// paleta (luminance simples: bgs claros → coffee, escuros → cream).
+/// H33.taskbar.polish.1.
+pub fn ensure_fallback_initial(
+    state: &mut TaskbarState,
+    name: &str,
+    text: &crate::text::TextRenderer,
+) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
+    let key = format!("__init__{}", name);
+    if let Some(entry) = state.fallback_initial_cache.get(&key) {
+        return Some((entry.0.clone(), entry.1));
+    }
+    let initial = fallback_initial_of(name);
+    if initial.is_empty() {
+        return None;
+    }
+    let theme = crate::theme::current();
+    let bg = fallback_color_for(name);
+    // WCAG-ish: se luminância >= 0.5, usa coffee escuro; senão cream.
+    let lum = 0.299 * bg.r() + 0.587 * bg.g() + 0.114 * bg.b();
+    let fg = if lum >= 0.5 {
+        theme.colors.taskbar_bg_top // coffee
+    } else {
+        theme.colors.text_primary // cream
+    };
+    let font_size = app_icon_size() as f32 * 0.55;
+    let (pixels, w, h) = text.rasterize_colored(&initial, font_size, fg);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let buf = MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w as i32, h as i32),
+        1,
+        Transform::Normal,
+        None,
+    );
+    let size = Size::from((w as i32, h as i32));
+    state
+        .fallback_initial_cache
+        .insert(key, (buf.clone(), size));
+    Some((buf, size))
 }
 
 /// Garante que existe cache de tooltip pra `text`. Rasteriza texto + gera

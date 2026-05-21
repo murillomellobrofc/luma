@@ -447,6 +447,30 @@ pub fn init_winit(
                         crate::taskbar::fallback_icon_for(&mut data.state.taskbar, key)
                     })
                     .collect();
+                // H33.taskbar.polish.1: pre-gera a INICIAL (letra) pra cada
+                // fallback. Sobreposta no centro do quadrado pra dar
+                // contexto visual mesmo sem ícone real do .desktop.
+                // Split borrow explícito de `text` e `taskbar` (campos
+                // distintos de LumaState).
+                let taskbar_initials: Vec<Option<(MemoryRenderBuffer, smithay::utils::Size<i32, smithay::utils::Logical>)>> = {
+                    let crate::state::LumaState {
+                        text, taskbar, ..
+                    } = &mut data.state;
+                    match text.as_ref() {
+                        Some(text_r) => taskbar_app_ids
+                            .iter()
+                            .map(|app_id| {
+                                if app_id.is_empty() {
+                                    return None;
+                                }
+                                crate::taskbar::ensure_fallback_initial(
+                                    taskbar, app_id, text_r,
+                                )
+                            })
+                            .collect(),
+                        None => vec![None; taskbar_app_ids.len()],
+                    }
+                };
                 // H33.taskbar.6: tooltip pronto pra render (se delay passou).
                 // Resolve idx + label do hovered + clone do cache em uma
                 // pass só, antes do bind do renderer.
@@ -2071,6 +2095,32 @@ pub fn init_winit(
                                     custom_elements.push(LumaRenderElement::Memory(elem));
                                 }
                             } else if let Some(fb) = taskbar_fallbacks.get(i) {
+                                // H33.taskbar.polish.1: inicial PRIMEIRO
+                                // (= na frente no z-stack). Centralizada no
+                                // quadrado 32×32.
+                                if let Some((init_buf, init_sz)) =
+                                    taskbar_initials.get(i).and_then(|o| o.as_ref())
+                                {
+                                    let icon_size_px = crate::taskbar::app_icon_size();
+                                    let lx = icon_x + (icon_size_px - init_sz.w) / 2;
+                                    let ly = icon_y + (icon_size_px - init_sz.h) / 2;
+                                    let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                            lx, ly,
+                                        ))
+                                        .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer,
+                                        lloc.to_f64(),
+                                        init_buf,
+                                        alpha,
+                                        None,
+                                        None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        custom_elements.push(LumaRenderElement::Memory(elem));
+                                    }
+                                }
                                 // Fallback colorido por hash do nome do app.
                                 if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
                                     renderer,
