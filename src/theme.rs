@@ -279,6 +279,9 @@ pub struct TaskbarLauncherTokens {
     pub divider_after: bool,
     /// Alpha do divider (cor base = `colors.divider`).
     pub divider_alpha: f32,
+    /// Distância (px) entre a borda direita do launcher e o divider.
+    /// Default 6 — respiro visual antes da próxima zona.
+    pub divider_gap_left: i32,
 }
 
 /// Layout da decoração de janela (header + bordas + sombra). H32.6.
@@ -1184,6 +1187,7 @@ impl Default for TaskbarLauncherTokens {
             active_bg: hex_color("#2A1F1A", 1.0),
             divider_after: true,
             divider_alpha: 0.1,
+            divider_gap_left: 6,
         }
     }
 }
@@ -1688,6 +1692,7 @@ struct TaskbarLauncherTokensFile {
     active_bg: Option<String>,
     divider_after: Option<bool>,
     divider_alpha: Option<f32>,
+    divider_gap_left: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2254,6 +2259,7 @@ impl TaskbarLauncherTokensFile {
                 .unwrap_or(def.active_bg),
             divider_after: self.divider_after.unwrap_or(def.divider_after),
             divider_alpha: self.divider_alpha.unwrap_or(def.divider_alpha),
+            divider_gap_left: self.divider_gap_left.unwrap_or(def.divider_gap_left),
         }
     }
 }

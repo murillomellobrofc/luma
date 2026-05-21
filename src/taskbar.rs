@@ -560,13 +560,14 @@ pub fn render_solid_elements(
     // Substituído pela linha âmbar 24×3 sob app ativo em B.5.
     let _ = (n_windows, surfaces, focused_surface, minimized, workspace_count);
 
-    // H33.taskbar.3: divider 1px vertical à direita do launcher.
-    // Pushed antes do border top pra ficar atrás dele.
+    // H33.taskbar.3: divider 1px vertical à direita do launcher, com
+    // respiro `divider_gap_left` (default 6px) entre a borda do launcher
+    // e a linha. Pushed antes do border top pra ficar atrás dele.
     if theme.taskbar.launcher.divider_after {
         state
             .launcher_divider
             .resize((1, taskbar_height()));
-        let dx = padding_left() + launcher_width();
+        let dx = padding_left() + launcher_width() + theme.taskbar.launcher.divider_gap_left;
         let dloc = Point::<i32, Logical>::from((dx, bar_y))
             .to_physical_precise_round(1.0);
         elements.push(SolidColorRenderElement::from_buffer(
