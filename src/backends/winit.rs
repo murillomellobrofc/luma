@@ -2232,14 +2232,20 @@ pub fn init_winit(
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));
 
-                        // H44.volume.1: applet popup placeholder. Render como
-                        // retângulo Memory bg da titlebar (gradient escuro)
-                        // pra reuso visual. Conteúdo (tabs/sliders) entra
-                        // em A.2-D. Push EARLY (insert no início) =
-                        // sobre TODA a taskbar.
-                        if let Some(popup) = data.state.applet_popup.as_ref() {
+                        // H44.volume.1-2: applet popup com bg gradient +
+                        // tabs (Dispositivos / Aplicativos). Z-stack pra
+                        // tudo isso ser SOBRE a taskbar: insert(0, ...)
+                        // no custom_elements (Smithay renderiza fim→começo).
+                        // Ordem no vec final (do insert): última coisa
+                        // inserida fica no topo = na frente visualmente.
+                        if let Some(popup) = data.state.applet_popup.clone() {
                             let theme = crate::theme::current();
                             let o = popup.origin(output_size_logical);
+                            let active_tab = popup.volume_tab;
+                            let (devices_rect, apps_rect) = popup.tab_rects(output_size_logical);
+
+                            // (1) Bg do popup (gradient + cantos top) -- inserido por ÚLTIMO
+                            // = mais ATRÁS no z-stack.
                             let bg = crate::gfx::make_titlebar_bg(
                                 popup.size.w,
                                 popup.size.h,
@@ -2247,20 +2253,90 @@ pub fn init_winit(
                                 theme.window.titlebar_bg_top,
                                 theme.window.titlebar_bg_bottom,
                             );
-                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>
-                                    ::from((o.x, o.y))
-                                    .to_physical_precise_round(1.0);
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer,
-                                loc.to_f64(),
-                                &bg,
-                                None,
-                                None,
-                                None,
-                                Kind::Unspecified,
-                            ) {
+
+                            // (2) Indicador da tab ativa (linha âmbar 32×3 sob o label).
+                            let active_rect = if active_tab == crate::popup::VolumeTab::Devices {
+                                devices_rect
+                            } else {
+                                apps_rect
+                            };
+                            let ind_w = 32;
+                            let ind_h = 3;
+                            let ind_x = active_rect.loc.x + (active_rect.size.w - ind_w) / 2;
+                            let ind_y = active_rect.loc.y + active_rect.size.h - ind_h - 2;
+                            let indicator = crate::gfx::make_rounded_panel(
+                                ind_w,
+                                ind_h,
+                                1,
+                                theme.colors.accent_amber,
+                            );
+
+                            // (3) Labels das tabs rasterizados pela cor por estado.
+                            let mut tab_labels: Vec<(MemoryRenderBuffer, i32, i32)> = Vec::new();
+                            if let Some(text) = data.state.text.as_ref() {
+                                for (label, rect, is_active) in [
+                                    ("Dispositivos", devices_rect, active_tab == crate::popup::VolumeTab::Devices),
+                                    ("Aplicativos", apps_rect, active_tab == crate::popup::VolumeTab::Applications),
+                                ] {
+                                    let color = if is_active {
+                                        theme.colors.text_primary
+                                    } else {
+                                        theme.colors.text_secondary
+                                    };
+                                    let (pixels, w, h) =
+                                        text.rasterize_colored(label, 13.0, color);
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &pixels,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = rect.loc.x + (rect.size.w - w as i32) / 2;
+                                        let ly = rect.loc.y + (rect.size.h - h as i32) / 2 - 4;
+                                        tab_labels.push((buf, lx, ly));
+                                    }
+                                }
+                            }
+
+                            // Helper local pra push de Memory element.
+                            let mk_mem = |buf: &MemoryRenderBuffer,
+                                          x: i32,
+                                          y: i32,
+                                          r: &mut GlesRenderer|
+                             -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((x, y))
+                                        .to_physical_precise_round(1.0);
+                                MemoryRenderBufferRenderElement::from_buffer(
+                                    r,
+                                    loc.to_f64(),
+                                    buf,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                )
+                                .ok()
+                            };
+
+                            // Insert ordem: bg (será mais atrás), depois indicator,
+                            // depois labels (= mais frente). insert(0) faz cada item
+                            // virar o NOVO topo do z-stack, então pushar na ordem
+                            // INVERSA do z-stack desejado.
+                            if let Some(elem) = mk_mem(&bg, o.x, o.y, renderer) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            if let Some(elem) = mk_mem(&indicator, ind_x, ind_y, renderer) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            for (buf, lx, ly) in &tab_labels {
+                                if let Some(elem) = mk_mem(buf, *lx, *ly, renderer) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
                             }
                         }
 

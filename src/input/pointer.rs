@@ -200,24 +200,33 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let pointer_pos = pointer.current_location();
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
-        // H44.volume.1: popup de applet tem prioridade. Click DENTRO
-        // do popup é consumido pelo popup; click FORA fecha.
+        // H44.volume.1-2: popup de applet tem prioridade. Click DENTRO
+        // do popup é consumido pelo popup (e pode interagir com tabs);
+        // click FORA fecha.
         if state.applet_popup.is_some() {
             let output_size = state
                 .space
                 .output_geometry(state.output_under_cursor(pointer_pos))
                 .map(|g| g.size);
             if let Some(output) = output_size {
-                let inside = state
-                    .applet_popup
+                let popup_clone = state.applet_popup.clone();
+                let inside = popup_clone
                     .as_ref()
                     .map(|p| p.contains(output, pointer_pos))
                     .unwrap_or(false);
                 if !inside {
                     state.applet_popup = None;
+                } else {
+                    // H44.volume.2: tab click muda aba ativa.
+                    if let Some(tab) = popup_clone
+                        .as_ref()
+                        .and_then(|p| p.tab_hit(output, pointer_pos))
+                    {
+                        if let Some(p) = state.applet_popup.as_mut() {
+                            p.volume_tab = tab;
+                        }
+                    }
                 }
-                // Em qualquer caso, o click é consumido aqui — não vai
-                // pra hit-test de janela atrás.
                 pointer.button(
                     state,
                     &ButtonEvent {
