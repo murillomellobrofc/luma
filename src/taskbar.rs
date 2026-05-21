@@ -881,6 +881,45 @@ pub fn tray_overflow_panel_zone(
     ))
 }
 
+/// Hit-test no grid de itens SNI dentro do painel de overflow. Retorna
+/// `(index, button_rect)` se o ponto cai sobre algum item, ou `None`.
+/// Espelha a geometria do render em winit.rs. H47b.tray.12.
+pub fn tray_sni_button_hit(
+    output_size: Size<i32, Logical>,
+    tray: &crate::tray::TrayState,
+    sni_count: usize,
+    point: smithay::utils::Point<f64, Logical>,
+) -> Option<usize> {
+    use smithay::utils::Rectangle;
+    if sni_count == 0 {
+        return None;
+    }
+    let panel = tray_overflow_panel_zone(output_size, tray)?;
+    let theme = crate::theme::current();
+    let t_sni = &theme.taskbar.tray_sni;
+    let cols = t_sni.grid_columns.max(1);
+    let btn = t_sni.button_size;
+    let gap = t_sni.gap;
+    let pad = t_sni.padding;
+    let total_w = cols * btn + (cols - 1) * gap;
+    let grid_x = panel.loc.x + (panel.size.w - total_w) / 2;
+    let grid_y = panel.loc.y + pad + 14;
+    for idx in 0..sni_count {
+        let col = (idx as i32) % cols;
+        let row = (idx as i32) / cols;
+        let bx = grid_x + col * (btn + gap);
+        let by = grid_y + row * (btn + gap);
+        let rect: Rectangle<i32, Logical> = Rectangle::new(
+            smithay::utils::Point::from((bx, by)),
+            Size::from((btn, btn)),
+        );
+        if rect.to_f64().contains(point) {
+            return Some(idx);
+        }
+    }
+    None
+}
+
 /// Retângulo lógico do ícone de volume no tray, pra hit-test e
 /// ancoragem do popup. Usa a posição CACHEADA pelo render no
 /// `tray.last_volume_x`. Se ainda não foi renderizado, devolve None.

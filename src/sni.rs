@@ -266,6 +266,48 @@ fn add_item(conn: &zbus::blocking::Connection, list: &SniList, raw_name: &str) {
     }
 }
 
+/// Manda Activate(x, y) pro item. Click esquerdo. H47b.tray.12.
+/// Cada chamada abre conexão nova (fire-and-forget, ~10ms).
+pub fn activate(service: &str, path: &str, x: i32, y: i32) {
+    let conn = match zbus::blocking::Connection::session() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("SNI: Activate falhou (sem conexao): {e}");
+            return;
+        }
+    };
+    if let Err(e) = conn.call_method(
+        Some(service),
+        path,
+        Some("org.kde.StatusNotifierItem"),
+        "Activate",
+        &(x, y),
+    ) {
+        tracing::warn!("SNI: Activate({service}{path}) erro: {e}");
+    }
+}
+
+/// Manda ContextMenu(x, y) pro item. Click direito — o app desenha
+/// o próprio menu (DBusMenu nativo fica pra H47c). H47b.tray.13.
+pub fn context_menu(service: &str, path: &str, x: i32, y: i32) {
+    let conn = match zbus::blocking::Connection::session() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("SNI: ContextMenu falhou (sem conexao): {e}");
+            return;
+        }
+    };
+    if let Err(e) = conn.call_method(
+        Some(service),
+        path,
+        Some("org.kde.StatusNotifierItem"),
+        "ContextMenu",
+        &(x, y),
+    ) {
+        tracing::warn!("SNI: ContextMenu({service}{path}) erro: {e}");
+    }
+}
+
 fn remove_item(list: &SniList, raw_name: &str) {
     let (service, path) = split_item_name(raw_name);
     if let Ok(mut guard) = list.lock() {

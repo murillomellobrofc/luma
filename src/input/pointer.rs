@@ -287,8 +287,36 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         // (deixa propagar pra surface debaixo).
                         state.tray.overflow_open = false;
                     } else {
-                        // Click dentro do painel: consome, sem ação ainda
-                        // (interações com itens SNI virão na H47b).
+                        // H47b.tray.12-13: click num item dispara Activate
+                        // (left) ou ContextMenu (right). Left = 0x110,
+                        // Right = 0x111.
+                        let sni_snapshot: Vec<crate::sni::SniItem> = state
+                            .sni_list
+                            .lock()
+                            .map(|g| g.clone())
+                            .unwrap_or_default();
+                        let hit = crate::taskbar::tray_sni_button_hit(
+                            output, &state.tray, sni_snapshot.len(), pointer_pos,
+                        );
+                        if let Some(idx) = hit {
+                            if let Some(item) = sni_snapshot.get(idx) {
+                                let cx = pointer_pos.x.round() as i32;
+                                let cy = pointer_pos.y.round() as i32;
+                                if button == 0x111 {
+                                    // Right click: deixa o app desenhar o menu.
+                                    crate::sni::context_menu(
+                                        &item.service, &item.object_path, cx, cy,
+                                    );
+                                } else {
+                                    crate::sni::activate(
+                                        &item.service, &item.object_path, cx, cy,
+                                    );
+                                }
+                            }
+                        }
+                        // Click dentro do painel sempre consome — sem
+                        // botão atingido = sem ação, mas painel não
+                        // fecha (igual menu lateral).
                         pointer.button(
                             state,
                             &ButtonEvent {
