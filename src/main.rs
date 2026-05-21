@@ -1,5 +1,6 @@
 mod apps;
 mod audio;
+mod brightness;
 mod places;
 mod backends;
 mod cursor;
