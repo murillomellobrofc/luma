@@ -137,10 +137,11 @@ where
 
         // Título PRIMEIRO no vec — z-order do render_output é "primeiro no
         // array = topo da pilha". Se header for antes, ele tampa o título.
-        // H32.6.5: padding-left vem de theme.window.title_padding_left;
-        // alpha modula pela flag focused (multiplicador window_title_unfocused_alpha).
+        // H_deco.5: título CENTRALIZADO horizontalmente na titlebar (era
+        // left-align). Alpha modula pela flag focused (visualmente parecido
+        // com o cinza #A89D92 da spec v3 sem precisar de buffer extra).
         let theme = crate::theme::current();
-        let title_pad = theme.window.title_padding_left;
+        let _ = theme.window.title_padding_left; // legacy left-align não usado
         let focused = crate::decoration::is_focused(&self.0);
         let title_alpha = if focused {
             None
@@ -149,8 +150,9 @@ where
         };
         let mut out: Vec<C> = Vec::new();
         if let Some((title_buffer, title_size)) = title_data(&self.0) {
-            let title_x = location.x
-                + (scale.x * (BORDER_THICKNESS + title_pad) as f64) as i32;
+            // Centraliza no eixo X dentro do full_width_logical.
+            let title_x_log = (full_width_logical - title_size.w).max(0) / 2;
+            let title_x = location.x + (scale.x * title_x_log as f64) as i32;
             let header_h_phys = (scale.y * HEADER_HEIGHT as f64) as i32;
             let title_h_phys = (scale.y * title_size.h as f64) as i32;
             let title_y = location.y + ((header_h_phys - title_h_phys) / 2).max(0);
