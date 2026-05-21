@@ -1838,22 +1838,33 @@ pub fn init_winit(
                             let arrow_x = arrow_right_x - arrow_size;
                             let arrow_y = center_y_for(arrow_size);
                             data.state.tray.last_overflow_x = Some(arrow_x);
-                            // Bg quadrado arredondado. Cor depende do estado
-                            // open (tray.3) — por enquanto sempre arrow_bg.
+                            // H47a.tray.3: bg vira âmbar quando open;
+                            // chevron vira pra cima (icon-tray-overflow-up).
+                            let open = data.state.tray.overflow_open;
+                            let arrow_bg_color = if open {
+                                t_ov.arrow_bg_open
+                            } else {
+                                t_ov.arrow_bg
+                            };
                             let arrow_bg = crate::gfx::make_rounded_panel(
                                 arrow_size,
                                 arrow_size,
                                 t_ov.arrow_corner_radius,
-                                t_ov.arrow_bg,
+                                arrow_bg_color,
                             );
                             push_mem(&mut custom_elements, &arrow_bg,
                                      arrow_x, arrow_y, renderer);
                             // Chevron icon centralizado dentro do botão.
                             // ~60% do tamanho do botão.
                             let chev_size = (arrow_size as f32 * 0.6) as i32;
+                            let chev_name = if open {
+                                "tray-overflow-up"
+                            } else {
+                                "tray-overflow-down"
+                            };
                             if let Some((chev_buf, _)) = crate::tray::ensure_icon_sized(
                                 &mut data.state.tray,
-                                "tray-overflow-down",
+                                chev_name,
                                 chev_size,
                             ) {
                                 let chev_off = (arrow_size - chev_size) / 2;
