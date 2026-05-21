@@ -35,6 +35,16 @@ fn with_alpha_color(
     smithay::backend::renderer::Color32F::new(c.r(), c.g(), c.b(), alpha)
 }
 
+/// Trunca string em N chars adicionando "…" se passou. H44.volume.5.
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
+    out.push('…');
+    out
+}
+
 fn month_pt_br(m: u32) -> &'static str {
     match m {
         1 => "jan",
@@ -2324,43 +2334,19 @@ pub fn init_winit(
                                 .ok()
                             };
 
-                            // H44.volume.3-4: slider demo (1 instância) na aba
-                            // Devices. Em A.5+ vira 1 slider por device com
-                            // valor real do wpctl. Por agora 0.6 fixo.
-                            let slider_demo_buffers: Option<(MemoryRenderBuffer, MemoryRenderBuffer, MemoryRenderBuffer)> =
+                            // H44.volume.5-6: lista REAL de sinks na aba Devices.
+                            // Cada sink: label (descrição truncada) + slider
+                            // com value real + texto %.
+                            let sinks: Vec<crate::audio::AudioDevice> =
                                 if active_tab == crate::popup::VolumeTab::Devices {
-                                    let track_w = popup.size.w - t_popup.padding * 2;
-                                    let track_h = t_slider.track_height;
-                                    let value = 0.6_f32;
-                                    let fill_w = ((track_w as f32) * value) as i32;
-                                    let track = crate::gfx::make_rounded_panel(
-                                        track_w,
-                                        track_h,
-                                        track_h / 2,
-                                        t_slider.track_color,
-                                    );
-                                    let fill = crate::gfx::make_rounded_panel(
-                                        fill_w.max(1),
-                                        track_h,
-                                        track_h / 2,
-                                        t_slider.fill_color,
-                                    );
-                                    let handle_r = t_slider.handle_radius;
-                                    let handle = crate::gfx::make_rounded_panel(
-                                        handle_r * 2,
-                                        handle_r * 2,
-                                        handle_r,
-                                        t_slider.handle_color,
-                                    );
-                                    Some((track, fill, handle))
+                                    data.state.audio_sinks.clone()
                                 } else {
-                                    None
+                                    Vec::new()
                                 };
 
-                            // Insert ordem: bg (será mais atrás), depois indicator,
-                            // depois labels, depois slider (= mais frente). insert(0)
-                            // faz cada item virar o NOVO topo do z-stack, então
-                            // pushar na ordem INVERSA do z-stack desejado: bg último.
+                            // Insert ordem: bg (mais atrás), indicator, labels,
+                            // sinks (= mais à frente). insert(0) coloca cada
+                            // novo no topo do z-stack.
                             if let Some(elem) = mk_mem(&bg, o.x, o.y, renderer) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
@@ -2372,27 +2358,141 @@ pub fn init_winit(
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                             }
-                            // Slider demo (Devices tab apenas, value 0.6 hard-coded).
-                            if let Some((track, fill, handle)) = slider_demo_buffers {
-                                let track_w = popup.size.w - t_popup.padding * 2;
-                                let track_h = t_slider.track_height;
-                                let value = 0.6_f32;
-                                let track_x = o.x + t_popup.padding;
-                                let track_y = o.y + t_popup.tab_height + 32;
+
+                            // Render dos sinks (1 entry por device).
+                            // Layout vertical: cada entry tem ~64px de altura
+                            // (nome + slider). Limitado a popup.size.h - tabs.
+                            let entry_h = 64;
+                            let mut y_cursor =
+                                o.y + t_popup.tab_height + t_popup.padding;
+                            let track_w = popup.size.w - t_popup.padding * 2;
+                            let track_h = t_slider.track_height;
+                            let handle_r = t_slider.handle_radius;
+                            for sink in &sinks {
+                                if y_cursor + entry_h > o.y + popup.size.h - t_popup.padding {
+                                    break;
+                                }
+                                // Truncate descrição em ~42 chars pra caber.
+                                let mut label_text =
+                                    truncate_chars(&sink.description, 38);
+                                if sink.is_default {
+                                    label_text = format!("★ {}", label_text);
+                                }
+                                let pct = (sink.volume.clamp(0.0, 1.5) * 100.0) as u32;
+                                let pct_text = format!("{}%", pct);
+
+                                // Rasteriza labels (label nome + pct).
+                                if let Some(text) = data.state.text.as_ref() {
+                                    let color_label = if sink.muted {
+                                        theme.colors.text_secondary
+                                    } else {
+                                        theme.colors.text_primary
+                                    };
+                                    let (lp, lw, lh) = text.rasterize_colored(
+                                        &label_text, 12.0, color_label,
+                                    );
+                                    if lw > 0 && lh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &lp,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (lw as i32, lh as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        if let Some(elem) = mk_mem(
+                                            &buf,
+                                            o.x + t_popup.padding,
+                                            y_cursor,
+                                            renderer,
+                                        ) {
+                                            custom_elements.insert(
+                                                0,
+                                                LumaRenderElement::Memory(elem),
+                                            );
+                                        }
+                                    }
+                                    let (pp, pw, ph) = text.rasterize_colored(
+                                        &pct_text,
+                                        12.0,
+                                        theme.colors.text_secondary,
+                                    );
+                                    if pw > 0 && ph > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &pp,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (pw as i32, ph as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let px = o.x + popup.size.w
+                                            - t_popup.padding
+                                            - pw as i32;
+                                        if let Some(elem) =
+                                            mk_mem(&buf, px, y_cursor, renderer)
+                                        {
+                                            custom_elements.insert(
+                                                0,
+                                                LumaRenderElement::Memory(elem),
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // Slider deste sink.
+                                let value = sink.volume.clamp(0.0, 1.0);
                                 let fill_w = ((track_w as f32) * value) as i32;
-                                let handle_r = t_slider.handle_radius;
+                                let track_x = o.x + t_popup.padding;
+                                let track_y = y_cursor + 22;
+                                let track = crate::gfx::make_rounded_panel(
+                                    track_w,
+                                    track_h,
+                                    track_h / 2,
+                                    t_slider.track_color,
+                                );
+                                let fill = crate::gfx::make_rounded_panel(
+                                    fill_w.max(1),
+                                    track_h,
+                                    track_h / 2,
+                                    t_slider.fill_color,
+                                );
+                                let handle = crate::gfx::make_rounded_panel(
+                                    handle_r * 2,
+                                    handle_r * 2,
+                                    handle_r,
+                                    t_slider.handle_color,
+                                );
                                 let handle_cx = track_x + fill_w;
                                 let handle_y = track_y + track_h / 2 - handle_r;
-                                // handle por último = mais à frente
-                                if let Some(elem) = mk_mem(&track, track_x, track_y, renderer) {
-                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                if let Some(elem) =
+                                    mk_mem(&track, track_x, track_y, renderer)
+                                {
+                                    custom_elements.insert(
+                                        0,
+                                        LumaRenderElement::Memory(elem),
+                                    );
                                 }
-                                if let Some(elem) = mk_mem(&fill, track_x, track_y, renderer) {
-                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                if let Some(elem) =
+                                    mk_mem(&fill, track_x, track_y, renderer)
+                                {
+                                    custom_elements.insert(
+                                        0,
+                                        LumaRenderElement::Memory(elem),
+                                    );
                                 }
-                                if let Some(elem) = mk_mem(&handle, handle_cx - handle_r, handle_y, renderer) {
-                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                if let Some(elem) = mk_mem(
+                                    &handle,
+                                    handle_cx - handle_r,
+                                    handle_y,
+                                    renderer,
+                                ) {
+                                    custom_elements.insert(
+                                        0,
+                                        LumaRenderElement::Memory(elem),
+                                    );
                                 }
+                                y_cursor += entry_h;
                             }
                         }
 

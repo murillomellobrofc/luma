@@ -152,6 +152,10 @@ pub struct LumaState {
     pub desktop_visible: bool,
     /// Applet popup ativo (None = nenhum aberto). H44.volume.1.
     pub applet_popup: Option<crate::popup::AppletPopup>,
+    /// Cache de output devices (sinks) pro popup de volume. H44.volume.5.
+    pub audio_sinks: Vec<crate::audio::AudioDevice>,
+    /// Cache de input devices (sources) pro popup de volume. H44.volume.9.
+    pub audio_sources: Vec<crate::audio::AudioDevice>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -565,6 +569,8 @@ impl LumaState {
             tray: crate::tray::TrayState::new(),
             desktop_visible: false,
             applet_popup: None,
+            audio_sinks: Vec::new(),
+            audio_sources: Vec::new(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

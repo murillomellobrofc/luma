@@ -454,14 +454,26 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         {
             if let Some(zone) = crate::taskbar::tray_volume_zone(output_size, &state.tray) {
                 if zone.to_f64().contains(pointer_pos) {
-                    state.applet_popup = match state.applet_popup.as_ref() {
-                        Some(p) if p.kind == crate::popup::AppletKind::Volume => None,
-                        _ => Some(crate::popup::AppletPopup::new(
+                    let was_open = state.applet_popup.is_some()
+                        && state.applet_popup.as_ref().unwrap().kind
+                            == crate::popup::AppletKind::Volume;
+                    if was_open {
+                        state.applet_popup = None;
+                    } else {
+                        // H44.volume.5: refresh devices ao abrir.
+                        let (sinks, sources) = crate::audio::list_devices();
+                        state.audio_sinks = sinks;
+                        state.audio_sources = sources;
+                        state.applet_popup = Some(crate::popup::AppletPopup::new(
                             crate::popup::AppletKind::Volume,
                             zone.loc.x + zone.size.w / 2,
-                        )),
-                    };
-                    tracing::info!("volume icon clicado, popup={:?}", state.applet_popup.is_some());
+                        ));
+                    }
+                    tracing::info!(
+                        "volume popup={} sinks={}",
+                        state.applet_popup.is_some(),
+                        state.audio_sinks.len()
+                    );
                     pointer.frame(state);
                     return;
                 }
