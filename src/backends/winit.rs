@@ -1985,6 +1985,13 @@ pub fn init_winit(
                                 .iter()
                                 .map(|o| o.as_ref().map(|(b, s)| (b.clone(), *s)))
                                 .collect();
+                            // H33.taskbar.polish.2: usa text_size NOMINAL como
+                            // altura de referência pro cálculo vertical (fontdue
+                            // retorna bbox do glyph -- '1' tem bbox menor que
+                            // '8' e quadrados ficavam desalinhados). Horizontal
+                            // segue size.w real (centralização visual exata).
+                            let nominal_h =
+                                crate::theme::current().workspaces.pager_text_size as i32;
                             for (idx, (x, y, active)) in layout.iter().enumerate() {
                                 // Número PRIMEIRO (= em cima do bg, vem
                                 // na frente do z-stack pq pushed antes).
@@ -1996,7 +2003,7 @@ pub fn init_winit(
                                 let label_alpha = if *active { None } else { Some(inactive_alpha) };
                                 if let Some((buf, size)) = label {
                                     let label_x = x + (item_size - size.w) / 2;
-                                    let label_y = y + (item_size - size.h) / 2;
+                                    let label_y = y + (item_size - nominal_h) / 2;
                                     let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                         smithay::utils::Point::<i32, smithay::utils::Logical>::from((
                                             label_x, label_y,
