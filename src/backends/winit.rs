@@ -2323,10 +2323,43 @@ pub fn init_winit(
                                 .ok()
                             };
 
+                            // H44.volume.3: slider demo (1 instância visível
+                            // quando aba Devices está ativa). Em A.5+ vira
+                            // 1 slider por device. Por agora value fixo 0.6.
+                            let slider_demo_buffers: Option<(MemoryRenderBuffer, MemoryRenderBuffer, MemoryRenderBuffer)> =
+                                if active_tab == crate::popup::VolumeTab::Devices {
+                                    let track_w = popup.size.w - 48;
+                                    let track_h = 6;
+                                    let value = 0.6_f32;
+                                    let fill_w = ((track_w as f32) * value) as i32;
+                                    let track = crate::gfx::make_rounded_panel(
+                                        track_w,
+                                        track_h,
+                                        track_h / 2,
+                                        theme.colors.applet_bg_hover,
+                                    );
+                                    let fill = crate::gfx::make_rounded_panel(
+                                        fill_w.max(1),
+                                        track_h,
+                                        track_h / 2,
+                                        theme.colors.accent_amber,
+                                    );
+                                    let handle_r = 10;
+                                    let handle = crate::gfx::make_rounded_panel(
+                                        handle_r * 2,
+                                        handle_r * 2,
+                                        handle_r,
+                                        theme.colors.hover_minimize, // honey
+                                    );
+                                    Some((track, fill, handle))
+                                } else {
+                                    None
+                                };
+
                             // Insert ordem: bg (será mais atrás), depois indicator,
-                            // depois labels (= mais frente). insert(0) faz cada item
-                            // virar o NOVO topo do z-stack, então pushar na ordem
-                            // INVERSA do z-stack desejado.
+                            // depois labels, depois slider (= mais frente). insert(0)
+                            // faz cada item virar o NOVO topo do z-stack, então
+                            // pushar na ordem INVERSA do z-stack desejado: bg último.
                             if let Some(elem) = mk_mem(&bg, o.x, o.y, renderer) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
@@ -2335,6 +2368,28 @@ pub fn init_winit(
                             }
                             for (buf, lx, ly) in &tab_labels {
                                 if let Some(elem) = mk_mem(buf, *lx, *ly, renderer) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                            // Slider demo (Devices tab apenas, value 0.6 hard-coded).
+                            if let Some((track, fill, handle)) = slider_demo_buffers {
+                                let track_w = popup.size.w - 48;
+                                let track_h = 6;
+                                let value = 0.6_f32;
+                                let track_x = o.x + 24;
+                                let track_y = o.y + 80;
+                                let fill_w = ((track_w as f32) * value) as i32;
+                                let handle_r = 10;
+                                let handle_cx = track_x + fill_w;
+                                let handle_y = track_y + track_h / 2 - handle_r;
+                                // handle por último = mais à frente
+                                if let Some(elem) = mk_mem(&track, track_x, track_y, renderer) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                if let Some(elem) = mk_mem(&fill, track_x, track_y, renderer) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                if let Some(elem) = mk_mem(&handle, handle_cx - handle_r, handle_y, renderer) {
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                             }

@@ -4,7 +4,7 @@
 //! abre ancorado a um ícone do tray e fecha em Esc / click fora.
 //! Renderizado direto pelo Luma — sem usar xdg_popup do cliente.
 
-use smithay::utils::{Logical, Point, Size};
+use smithay::utils::{Logical, Point, Rectangle, Size};
 
 /// Tipos de applet popup. Cada um tem conteúdo próprio (devices/apps/etc).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,5 +108,40 @@ impl AppletPopup {
         let px = point.x as i32;
         let py = point.y as i32;
         px >= o.x && px < o.x + self.size.w && py >= o.y && py < o.y + self.size.h
+    }
+}
+
+/// Slider horizontal reutilizável. H44.volume.3.
+///
+/// Trilho cinza no fundo, fill âmbar do início até o valor, bolinha
+/// (handle) honey no x do valor. `value` é 0.0..max (max default 1.0;
+/// boost de 100%+ ajusta max em A.E).
+#[derive(Debug, Clone, Copy)]
+pub struct Slider {
+    pub bounds: Rectangle<i32, Logical>,
+    pub value: f32,
+    pub max: f32,
+    pub dragging: bool,
+}
+
+impl Slider {
+    pub fn new(bounds: Rectangle<i32, Logical>, value: f32) -> Self {
+        Self {
+            bounds,
+            value: value.clamp(0.0, 1.0),
+            max: 1.0,
+            dragging: false,
+        }
+    }
+
+    /// True se `point` está dentro do retângulo do slider (hit area).
+    pub fn hit_test(&self, point: Point<f64, Logical>) -> bool {
+        self.bounds.to_f64().contains(point)
+    }
+
+    /// Converte coordenada x (clamped pros limites) em value [0, max].
+    pub fn value_from_x(&self, x: f64) -> f32 {
+        let dx = (x - self.bounds.loc.x as f64) / self.bounds.size.w as f64;
+        (dx.clamp(0.0, 1.0) as f32) * self.max
     }
 }
