@@ -289,9 +289,13 @@ pub struct TaskbarSystemTrayTokens {
     pub gap: i32,
     /// Path da pasta dos SVGs do tray. Default `assets/branding/icons`.
     /// Arquivos esperados: `icon-<name>.svg` onde `<name>` é o estado
-    /// (battery-high, wifi-full, bluetooth-on, volume-muted, bell-normal...).
-    /// H33.taskbar.SVG.
+    /// (battery-high, wifi-full, bluetooth-on, volume-muted, bell-normal,
+    /// ethernet-on, ethernet-off, ...). H33.taskbar.SVG.
     pub icons_path: String,
+    /// Cabo ethernet plugado tem prioridade sobre wifi no slot de rede
+    /// (mostra `ethernet-on` se há interface eth com carrier=1).
+    /// H33.taskbar.10.eth.
+    pub network_prefer_ethernet: bool,
     pub battery_pct_color: Color32F,
     pub battery_pct_size: f32,
     pub notif_dot_color: Color32F,
@@ -1288,6 +1292,7 @@ impl Default for TaskbarSystemTrayTokens {
             icon_alpha: 0.85,
             gap: 16,
             icons_path: "assets/branding/icons".to_string(),
+            network_prefer_ethernet: true,
             battery_pct_color: hex_color("#FBF6EE", 1.0),
             battery_pct_size: 12.0,
             notif_dot_color: hex_color("#D97757", 1.0),

@@ -485,9 +485,10 @@ pub fn init_winit(
                         _ => None,
                     }
                 };
-                // H33.taskbar.SVG: wifi + bluetooth + volume + bell (todos SVG).
-                let wifi_name = crate::tray::wifi_icon_name(data.state.tray.wifi_state);
-                let wifi_render = crate::tray::ensure_icon(&mut data.state.tray, wifi_name);
+                // H33.taskbar.SVG + 10.eth: rede (ethernet OU wifi) +
+                // bluetooth + volume + bell (todos SVG).
+                let net_name = crate::tray::network_icon_name(data.state.tray.network);
+                let wifi_render = crate::tray::ensure_icon(&mut data.state.tray, net_name);
                 let bt_name = crate::tray::bluetooth_icon_name(data.state.tray.bt_state);
                 let bt_render = crate::tray::ensure_icon(&mut data.state.tray, bt_name);
                 let volume_name = crate::tray::volume_icon_name(data.state.tray.volume_state);

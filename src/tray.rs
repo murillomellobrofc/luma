@@ -32,7 +32,7 @@ pub enum WifiState {
     Weak,
     /// Wifi ligado mas sem rede ativa.
     NoNetwork,
-    /// Wifi desligado/rfkill.
+    /// Wifi desligado/rfkill OU não há placa wifi no sistema.
     Off,
 }
 
@@ -40,6 +40,20 @@ impl Default for WifiState {
     fn default() -> Self {
         WifiState::Off
     }
+}
+
+/// Estado consolidado da rede (ethernet + wifi). H33.taskbar.10.eth.
+///
+/// Cabo de rede tem prioridade sobre wifi (`network_prefer_ethernet`):
+/// se há interface ethernet com `carrier=1`, mostra `ethernet-on`
+/// independente do wifi. Senão cai pro wifi normal. `ethernet_present`
+/// indica se há ao menos uma placa ethernet — usada pra escolher entre
+/// `ethernet-off` e `wifi-off` quando tudo está desconectado.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NetworkState {
+    pub ethernet_up: bool,
+    pub ethernet_present: bool,
+    pub wifi: WifiState,
 }
 
 /// Estado do adaptador bluetooth.
@@ -78,8 +92,8 @@ pub struct TrayState {
     /// Último estado lido da battery (capacity + charging). None se
     /// sistema sem bateria.
     pub battery_info: Option<BatteryInfo>,
-    /// Último estado lido do wifi.
-    pub wifi_state: WifiState,
+    /// Último estado consolidado da rede (ethernet + wifi). H33.taskbar.10.eth.
+    pub network: NetworkState,
     /// Último estado lido do bluetooth.
     pub bt_state: BluetoothState,
     /// Último estado lido do volume.
@@ -108,10 +122,64 @@ pub fn refresh_if_stale(state: &mut TrayState) {
         return;
     }
     state.battery_info = read_battery();
-    state.wifi_state = read_wifi();
+    state.network = read_network();
     state.bt_state = read_bluetooth();
     state.volume_state = read_volume();
     state.last_poll = Some(std::time::Instant::now());
+}
+
+/// Lê estado consolidado de rede: presença/carrier de ethernet em
+/// `/sys/class/net/*/` (type=1 ARPHRD_ETHER, não-loopback) + estado
+/// wifi via `read_wifi`. H33.taskbar.10.eth.
+pub fn read_network() -> NetworkState {
+    let (ethernet_up, ethernet_present) = read_ethernet();
+    let wifi = read_wifi();
+    NetworkState {
+        ethernet_up,
+        ethernet_present,
+        wifi,
+    }
+}
+
+/// Retorna `(ethernet_up, ethernet_present)`. Iter `/sys/class/net/*/`
+/// e filtra type=1 (ARPHRD_ETHER) excluindo `lo`. `ethernet_up` é true
+/// se ALGUMA dessas interfaces tem `carrier=1`.
+fn read_ethernet() -> (bool, bool) {
+    let entries = match fs::read_dir("/sys/class/net") {
+        Ok(e) => e,
+        Err(_) => return (false, false),
+    };
+    let mut present = false;
+    let mut up = false;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = match path.file_name().and_then(|s| s.to_str()) {
+            Some(n) => n,
+            None => continue,
+        };
+        if name == "lo" {
+            continue;
+        }
+        // type=1 = ARPHRD_ETHER (ethernet). wifi reporta 1 também mas
+        // o nome geralmente começa com `wl` (wlan, wlp, wlo). Exclui.
+        let type_str = fs::read_to_string(path.join("type"))
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        if type_str != "1" {
+            continue;
+        }
+        if name.starts_with("wl") || name.starts_with("ww") {
+            continue;
+        }
+        present = true;
+        if let Ok(c) = fs::read_to_string(path.join("carrier")) {
+            if c.trim() == "1" {
+                up = true;
+            }
+        }
+    }
+    (up, present)
 }
 
 // ────────────────────────── Leituras ──────────────────────────
@@ -287,13 +355,34 @@ pub fn battery_icon_name(info: BatteryInfo) -> &'static str {
     }
 }
 
-/// Nome do SVG do wifi pra um estado dado. H33.taskbar.10.
-pub fn wifi_icon_name(state: WifiState) -> &'static str {
-    match state {
+/// Nome do SVG da rede pra um estado dado. Cabo plugado tem prioridade
+/// sobre wifi se `network_prefer_ethernet=true`. H33.taskbar.10.eth.
+///
+/// Prioridade:
+/// 1. ethernet up                → `ethernet-on`
+/// 2. wifi connected/weak        → `wifi-full` / `wifi-low`
+/// 3. wifi no_network            → `wifi-none`
+/// 4. tudo off, mas eth presente → `ethernet-off`
+/// 5. tudo off, só wifi          → `wifi-off`
+pub fn network_icon_name(state: NetworkState) -> &'static str {
+    let prefer_eth = crate::theme::current()
+        .taskbar
+        .system_tray
+        .network_prefer_ethernet;
+    if prefer_eth && state.ethernet_up {
+        return "ethernet-on";
+    }
+    match state.wifi {
         WifiState::Connected => "wifi-full",
         WifiState::Weak => "wifi-low",
         WifiState::NoNetwork => "wifi-none",
-        WifiState::Off => "wifi-off",
+        WifiState::Off => {
+            if state.ethernet_present {
+                "ethernet-off"
+            } else {
+                "wifi-off"
+            }
+        }
     }
 }
 
