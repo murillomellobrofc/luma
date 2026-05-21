@@ -129,11 +129,44 @@ pub struct DeviceHit {
     pub region: DeviceRegion,
 }
 
-/// Hit-test nos cards de device (Sinks ou Sources). Replica o layout
-/// do render no winit. `entry_h` deve casar com o render. H44.volume.7.
-pub fn hit_test_devices(
+/// Qual lista (Sinks ou Sources) o hit caiu. H44.volume.9.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceList {
+    Sinks,
+    Sources,
+}
+
+/// Hit completo: lista + idx + região clicada.
+#[derive(Debug, Clone, Copy)]
+pub struct DeviceListHit {
+    pub list: DeviceList,
+    pub idx: usize,
+    pub region: DeviceRegion,
+}
+
+/// Y inicial onde a lista de sinks começa (depois do header "Saídas").
+fn sinks_top(popup: &AppletPopup, output_size: Size<i32, Logical>) -> i32 {
+    let theme = crate::theme::current();
+    let t_popup = &theme.popup;
+    popup.origin(output_size).y + t_popup.tab_height + t_popup.padding + 18 // 18 = header height
+}
+
+/// Y inicial onde a lista de sources começa (após sinks + header "Entradas").
+fn sources_top(
     popup: &AppletPopup,
     output_size: Size<i32, Logical>,
+    n_sinks: usize,
+) -> i32 {
+    let entry_h = 64;
+    sinks_top(popup, output_size) + (n_sinks as i32) * entry_h + 12 + 18 // gap + header
+}
+
+/// Hit-test num único bloco de devices (sinks OU sources). Replica
+/// o layout do render. H44.volume.7+9.
+fn hit_test_block(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    block_top: i32,
     n: usize,
     point: Point<f64, Logical>,
 ) -> Option<DeviceHit> {
@@ -146,7 +179,7 @@ pub fn hit_test_devices(
     let track_h = t_slider.track_height;
     let handle_r = t_slider.handle_radius;
     let icon_w = 24;
-    let mut y_cursor = o.y + t_popup.tab_height + t_popup.padding;
+    let mut y_cursor = block_top;
     for idx in 0..n {
         if y_cursor + entry_h > o.y + popup.size.h - t_popup.padding {
             break;
@@ -154,14 +187,10 @@ pub fn hit_test_devices(
         let row_top = y_cursor;
         let row_bot = y_cursor + entry_h;
         if (point.y as i32) >= row_top && (point.y as i32) < row_bot {
-            // Decide região por x.
-            // Mute icon: esquerda (24px wide).
             let mute_left = o.x + t_popup.padding;
             let mute_right = mute_left + icon_w;
-            // Label: meio.
             let label_top = row_top;
             let label_bot = row_top + 20;
-            // Slider: y entre track_top-handle_r e track_bot+handle_r.
             let track_y = row_top + 22;
             let slider_top = track_y - handle_r;
             let slider_bot = track_y + track_h + handle_r;
@@ -194,6 +223,66 @@ pub fn hit_test_devices(
         y_cursor += entry_h;
     }
     None
+}
+
+/// Hit-test geral nas 2 listas (Sinks em cima, Sources embaixo).
+/// Retorna `(DeviceList, DeviceHit)` ou None. H44.volume.9.
+pub fn hit_test_devices_full(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    n_sinks: usize,
+    n_sources: usize,
+    point: Point<f64, Logical>,
+) -> Option<DeviceListHit> {
+    let sinks_t = sinks_top(popup, output_size);
+    if let Some(h) = hit_test_block(popup, output_size, sinks_t, n_sinks, point) {
+        return Some(DeviceListHit {
+            list: DeviceList::Sinks,
+            idx: h.idx,
+            region: h.region,
+        });
+    }
+    let sources_t = sources_top(popup, output_size, n_sinks);
+    if let Some(h) = hit_test_block(popup, output_size, sources_t, n_sources, point) {
+        return Some(DeviceListHit {
+            list: DeviceList::Sources,
+            idx: h.idx,
+            region: h.region,
+        });
+    }
+    None
+}
+
+/// Helpers públicos pra render saber onde começar cada bloco.
+pub fn render_sinks_top(popup: &AppletPopup, output_size: Size<i32, Logical>) -> i32 {
+    sinks_top(popup, output_size)
+}
+
+pub fn render_sources_top(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    n_sinks: usize,
+) -> i32 {
+    sources_top(popup, output_size, n_sinks)
+}
+
+/// Y do header "Saídas" (acima da lista de sinks).
+pub fn render_sinks_header_top(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+) -> i32 {
+    let theme = crate::theme::current();
+    popup.origin(output_size).y + theme.popup.tab_height + theme.popup.padding
+}
+
+/// Y do header "Entradas".
+pub fn render_sources_header_top(
+    popup: &AppletPopup,
+    output_size: Size<i32, Logical>,
+    n_sinks: usize,
+) -> i32 {
+    let entry_h = 64;
+    sinks_top(popup, output_size) + (n_sinks as i32) * entry_h + 12
 }
 
 /// Slider horizontal reutilizável. H44.volume.3.
