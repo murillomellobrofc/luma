@@ -31,7 +31,7 @@ dependência.
 
 ## Deps de sistema
 
-### Fedora 44
+### Fedora
 
 ```
 sudo dnf install \
