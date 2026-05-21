@@ -1842,6 +1842,15 @@ pub fn init_winit(
                             // chevron vira pra cima (icon-tray-overflow-up).
                             // H47a.tray.4: dim (alpha reduzida) quando não
                             // há itens SNI registrados.
+                            // H47b.tray.8: sync sni_count com o vetor
+                            // compartilhado da thread D-Bus.
+                            let sni_snapshot: Vec<crate::sni::SniItem> = data
+                                .state
+                                .sni_list
+                                .lock()
+                                .map(|g| g.clone())
+                                .unwrap_or_default();
+                            data.state.tray.sni_count = sni_snapshot.len();
                             let open = data.state.tray.overflow_open;
                             let has_items = data.state.tray.sni_count > 0;
                             let arrow_alpha = if has_items {
@@ -1946,9 +1955,10 @@ pub fn init_winit(
                                     ) {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
-                                    // H47a.tray.4: placeholder centralizado
-                                    // "Sem itens" enquanto não há SNI (H47b).
-                                    if data.state.tray.sni_count == 0 {
+                                    // H47b.tray.9: grid de ícones SNI no
+                                    // painel quando há itens; caso contrário
+                                    // mostra placeholder (H47a.tray.4).
+                                    if sni_snapshot.is_empty() {
                                         if let Some(text_r) = data.state.text.as_ref() {
                                             let (px, w, h) = text_r.rasterize_colored(
                                                 "Sem itens",
@@ -1976,6 +1986,56 @@ pub fn init_winit(
                                                     &buf,
                                                     None, None, None,
                                                     Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Grid 4-col 40×40 com bg arredondado
+                                        // + ícone 22 centralizado. H47b.tray.9.
+                                        let t_sni = &theme.taskbar.tray_sni;
+                                        let btn = t_sni.button_size;
+                                        let gap = t_sni.gap;
+                                        let cols = t_sni.grid_columns.max(1);
+                                        let pad = t_sni.padding;
+                                        let total_w = cols * btn + (cols - 1) * gap;
+                                        let grid_x = panel.loc.x + (panel.size.w - total_w) / 2;
+                                        let grid_y = panel.loc.y + pad + 14;
+                                        for (idx, item) in sni_snapshot.iter().enumerate() {
+                                            let col = (idx as i32) % cols;
+                                            let row = (idx as i32) / cols;
+                                            let bx = grid_x + col * (btn + gap);
+                                            let by = grid_y + row * (btn + gap);
+                                            // Botão bg.
+                                            let bg = crate::gfx::make_rounded_panel(
+                                                btn,
+                                                btn,
+                                                t_sni.button_corner_radius,
+                                                t_sni.button_bg,
+                                            );
+                                            let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                    ::from((bx, by))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, bg_loc.to_f64(), &bg,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                            // Ícone do item.
+                                            if let Some(icon_buf) =
+                                                crate::sni::load_icon(item, t_sni.icon_size)
+                                            {
+                                                let icon_off = (btn - t_sni.icon_size) / 2;
+                                                let ic_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                        ::from((bx + icon_off, by + icon_off))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, ic_loc.to_f64(), &icon_buf,
+                                                    None, None, None, Kind::Unspecified,
                                                 ) {
                                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                                 }

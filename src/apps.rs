@@ -322,8 +322,8 @@ const THEME_PRIORITY: &[&str] = &[
 
 /// Resolve o `Icon=` de um `.desktop` consultando o `IconIndex` global
 /// (scan único no boot, todos os temas + todas as subpastas indexadas).
-/// H33.icons.7.
-fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
+/// H33.icons.7. Reaproveitado pelo SNI (H47b.tray.8).
+pub fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
     // 1. Path absoluto: usa direto se for formato suportado.
     let p = PathBuf::from(icon);
     if p.is_absolute() && p.exists() && is_supported_ext(&p) {
