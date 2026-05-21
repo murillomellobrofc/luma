@@ -173,7 +173,7 @@ where
         // squircle colorido no hover. Layout vem do theme.window_controls.
         let _ = scale; // window_control_elements_at usa logical=physical do header
         let hover = crate::decoration::hovered_region(&self.0);
-        for elem in window_control_elements_at(renderer, location, full_width_logical, hover) {
+        for elem in window_control_elements_at(renderer, location, full_width_logical, hover, focused) {
             out.push(C::from(LumaRenderElement::Memory(elem)));
         }
 

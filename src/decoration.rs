@@ -274,6 +274,10 @@ pub struct ButtonGlyphs {
     pub maximize: MemoryRenderBuffer,
     pub minimize: MemoryRenderBuffer,
     pub minimize_dark: MemoryRenderBuffer,
+    /// Variantes cinza pra janela fora de foco. H_deco.8.
+    pub close_inactive: MemoryRenderBuffer,
+    pub maximize_inactive: MemoryRenderBuffer,
+    pub minimize_inactive: MemoryRenderBuffer,
     pub hover_minimize_squircle: MemoryRenderBuffer,
     pub hover_maximize_squircle: MemoryRenderBuffer,
     pub hover_close_squircle: MemoryRenderBuffer,
@@ -345,6 +349,26 @@ fn build_button_glyphs() -> ButtonGlyphs {
             icon,
             crate::gfx::WindowControlIcon::Minimize,
             icon_color_dark,
+        ),
+        // H_deco.8: variantes inactive cinza (#8B7D72) pra janela fora
+        // de foco. Mesma forma dos ícones, só muda cor.
+        close_inactive: crate::gfx::make_window_control(
+            hit,
+            icon,
+            crate::gfx::WindowControlIcon::Close,
+            theme.window_controls.inactive_color,
+        ),
+        maximize_inactive: crate::gfx::make_window_control(
+            hit,
+            icon,
+            crate::gfx::WindowControlIcon::Maximize,
+            theme.window_controls.inactive_color,
+        ),
+        minimize_inactive: crate::gfx::make_window_control(
+            hit,
+            icon,
+            crate::gfx::WindowControlIcon::Minimize,
+            theme.window_controls.inactive_color,
         ),
         hover_minimize_squircle: crate::gfx::make_rounded_panel(
             hit,
@@ -484,6 +508,7 @@ pub fn window_control_elements_at<R>(
     origin: Point<i32, Physical>,
     full_width: i32,
     hovered: Option<HeaderRegion>,
+    focused: bool,
 ) -> Vec<MemoryRenderBufferRenderElement<R>>
 where
     R: Renderer + ImportMem,
@@ -509,17 +534,26 @@ where
     let size_dest = Some(Size::<i32, Logical>::from((hit, hit)));
 
     // Pra cada controle, decide qual ícone usar + se tem squircle.
+    // H_deco.8: janela fora de foco usa variante inactive (cinza).
+    // Hover ainda mostra cor original (Honey/Sage/Coral) pra dar
+    // feedback claro mesmo na janela inativa.
     for (region, x_off) in [
         (HeaderRegion::Minimize, min_x),
         (HeaderRegion::Maximize, max_x),
         (HeaderRegion::Close, close_x),
     ] {
         let is_hover = hovered == Some(region);
-        let icon_buf = match (region, is_hover) {
-            (HeaderRegion::Minimize, true) => &glyphs.minimize_dark,
-            (HeaderRegion::Minimize, false) => &glyphs.minimize,
-            (HeaderRegion::Maximize, _) => &glyphs.maximize,
-            (HeaderRegion::Close, _) => &glyphs.close,
+        let icon_buf = match (region, is_hover, focused) {
+            // Min hover: minimize_dark (coffee sobre squircle Honey).
+            (HeaderRegion::Minimize, true, _) => &glyphs.minimize_dark,
+            // Inactive (sem hover): cinza.
+            (HeaderRegion::Minimize, false, false) => &glyphs.minimize_inactive,
+            (HeaderRegion::Maximize, false, false) => &glyphs.maximize_inactive,
+            (HeaderRegion::Close, false, false) => &glyphs.close_inactive,
+            // Foco normal: cream alpha 0.85.
+            (HeaderRegion::Minimize, false, true) => &glyphs.minimize,
+            (HeaderRegion::Maximize, _, _) => &glyphs.maximize,
+            (HeaderRegion::Close, _, _) => &glyphs.close,
             _ => continue,
         };
         let pos = origin + Point::<i32, Physical>::from((x_off, y_offset));

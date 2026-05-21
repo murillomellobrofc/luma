@@ -804,6 +804,9 @@ pub struct WindowControlsTokens {
     pub header_padding_right: i32,
     pub icon_stroke_width: f32,
     pub hover_radius: i32,
+    /// Cor dos ícones quando a janela está fora de foco. H_deco.8.
+    /// Default `#8B7D72` (cinza Golden Hour neutro).
+    pub inactive_color: Color32F,
 }
 
 #[derive(Debug, Clone)]
@@ -1444,9 +1447,13 @@ impl Default for WindowControlsTokens {
             hit_area: 24,
             icon_size: 12,
             gap: 6,
-            header_padding_right: 12,
+            // H_deco.4: margin pros botoes 8 (era 12) -- combina com
+            // a spec v3 que usa margin_right 8.
+            header_padding_right: 8,
             icon_stroke_width: 1.5,
             hover_radius: 6,
+            // H_deco.8: cinza neutro pros botoes da janela fora de foco.
+            inactive_color: hex_color("#8B7D72", 1.0),
         }
     }
 }
@@ -2020,6 +2027,7 @@ struct WindowControlsTokensFile {
     header_padding_right: Option<i32>,
     icon_stroke_width: Option<f32>,
     hover_radius: Option<i32>,
+    inactive_color: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2688,6 +2696,11 @@ impl WindowControlsTokensFile {
                 .unwrap_or(def.header_padding_right),
             icon_stroke_width: self.icon_stroke_width.unwrap_or(def.icon_stroke_width),
             hover_radius: self.hover_radius.unwrap_or(def.hover_radius),
+            inactive_color: self
+                .inactive_color
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or(def.inactive_color),
         }
     }
 }
