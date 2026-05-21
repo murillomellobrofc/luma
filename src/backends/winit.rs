@@ -486,7 +486,13 @@ pub fn init_winit(
                     }
                 };
                 // H33.taskbar.10-11: wifi + volume + bell icons + notif dot.
-                let wifi_render = crate::tray::ensure_wifi_icon(&mut data.state.tray);
+                let wifi_connected = matches!(
+                    data.state.tray.wifi_state,
+                    crate::tray::WifiState::Connected
+                );
+                let wifi_render = crate::tray::ensure_wifi_icon(
+                    &mut data.state.tray, wifi_connected,
+                );
                 let volume_render = crate::tray::ensure_volume_icon(&mut data.state.tray);
                 let bell_render = crate::tray::ensure_bell_icon(&mut data.state.tray);
                 let notif_count = data.state.tray.notif_count;

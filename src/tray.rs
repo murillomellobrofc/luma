@@ -19,8 +19,20 @@ pub struct BatteryInfo {
     /// 0..100.
     pub capacity: u8,
     /// True se Charging / Full / Not charging com fonte AC.
-    #[allow(dead_code)]
     pub charging: bool,
+}
+
+/// Estado da conexão wifi. H33.taskbar.10.fix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiState {
+    Connected,
+    Disconnected,
+}
+
+impl Default for WifiState {
+    fn default() -> Self {
+        WifiState::Disconnected
+    }
 }
 
 /// Estado mutável do system tray. Cacheia buffers por (kind, key) onde
@@ -31,8 +43,9 @@ pub struct TrayState {
     pub icon_cache: HashMap<String, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Cache do label "%" rasterizado por % (key = "<pct>").
     pub pct_label_cache: HashMap<u8, (MemoryRenderBuffer, Size<i32, Logical>)>,
-    /// Buffer do ícone wifi (lazy, H33.taskbar.10).
-    pub wifi_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Cache de wifi icons por estado (key=true conectado, false off).
+    /// H33.taskbar.10.fix.
+    pub wifi_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone volume (lazy, H33.taskbar.10).
     pub volume_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone bell (lazy, H33.taskbar.11).
@@ -48,6 +61,8 @@ pub struct TrayState {
     /// Último estado lido da battery (capacity + charging). `None`
     /// significa sistema sem bateria OU ainda não foi lido.
     pub battery_info: Option<BatteryInfo>,
+    /// Último estado lido do wifi. H33.taskbar.10.fix.
+    pub wifi_state: WifiState,
 }
 
 impl TrayState {
@@ -69,8 +84,46 @@ pub fn refresh_if_stale(state: &mut TrayState) {
         return;
     }
     state.battery_info = read_battery();
-    // wifi/bt/volume vêm em D.10/.11/.12.fix
+    state.wifi_state = read_wifi();
+    // bt/volume vêm em D.11/.12.fix
     state.last_poll = Some(std::time::Instant::now());
+}
+
+/// Lê o estado da conexão wifi via `nmcli -t -f DEVICE,TYPE,STATE
+/// device`. Procura primeira linha com `:wifi:connected`. Fallback:
+/// `nmcli -t -f STATE general`. H33.taskbar.10.fix.
+pub fn read_wifi() -> WifiState {
+    use std::process::Command;
+    // 1) Tenta listar devices wifi.
+    if let Ok(out) = Command::new("nmcli")
+        .args(["-t", "-f", "DEVICE,TYPE,STATE", "device"])
+        .output()
+    {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            for line in s.lines() {
+                let cols: Vec<&str> = line.split(':').collect();
+                if cols.len() >= 3 && cols[1] == "wifi" {
+                    if cols[2] == "connected" {
+                        return WifiState::Connected;
+                    }
+                }
+            }
+        }
+    }
+    // 2) Fallback: estado global.
+    if let Ok(out) = Command::new("nmcli")
+        .args(["-t", "-f", "STATE", "general"])
+        .output()
+    {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            if s.trim() == "connected" {
+                return WifiState::Connected;
+            }
+        }
+    }
+    WifiState::Disconnected
 }
 
 /// Lê a battery do sistema. Tenta primeiro a env `LUMA_FAKE_BATTERY`
@@ -158,23 +211,32 @@ pub fn ensure_battery_icon(
     Some((buf, size))
 }
 
-/// Gera (ou pega cacheado) o ícone wifi 20px. Cor base = `icon_color`
-/// com `icon_alpha`. H33.taskbar.10.
-pub fn ensure_wifi_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32, Logical>) {
-    if let Some(entry) = &state.wifi_icon {
+/// Gera (ou pega cacheado) o ícone wifi 20px conforme `connected`.
+/// Cor depende do estado: `wifi_color_connected` ou `wifi_color_off`,
+/// ambas com `icon_alpha`. H33.taskbar.10 + .10.fix.
+pub fn ensure_wifi_icon(
+    state: &mut TrayState,
+    connected: bool,
+) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = state.wifi_cache.get(&connected) {
         return (entry.0.clone(), entry.1);
     }
     let theme = crate::theme::current();
     let t = &theme.taskbar.system_tray;
+    let base = if connected {
+        t.wifi_color_connected
+    } else {
+        t.wifi_color_off
+    };
     let color = smithay::backend::renderer::Color32F::new(
-        t.icon_color.r(),
-        t.icon_color.g(),
-        t.icon_color.b(),
+        base.r(),
+        base.g(),
+        base.b(),
         t.icon_alpha,
     );
     let buf = crate::gfx::make_wifi_icon(t.icon_size, color);
     let size = Size::from((t.icon_size, t.icon_size));
-    state.wifi_icon = Some((buf.clone(), size));
+    state.wifi_cache.insert(connected, (buf.clone(), size));
     (buf, size)
 }
 
