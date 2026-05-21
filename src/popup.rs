@@ -74,7 +74,7 @@ impl AppletPopup {
         let w = self.size.w - 32;
         let x = o.x + 16;
         let y = o.y + self.size.h - h - 12;
-        Rectangle::from_loc_and_size((x, y), (w, h))
+        Rectangle::new(Point::from((x, y)), Size::from((w, h)))
     }
 
     /// Retângulos das 2 tabs (Devices/Apps) no topo do popup, em
@@ -91,8 +91,11 @@ impl AppletPopup {
         let o = self.origin(output_size);
         let tab_h = 40;
         let half = self.size.w / 2;
-        let devices = Rectangle::from_loc_and_size((o.x, o.y), (half, tab_h));
-        let apps = Rectangle::from_loc_and_size((o.x + half, o.y), (self.size.w - half, tab_h));
+        let devices = Rectangle::new(Point::from((o.x, o.y)), Size::from((half, tab_h)));
+        let apps = Rectangle::new(
+            Point::from((o.x + half, o.y)),
+            Size::from((self.size.w - half, tab_h)),
+        );
         (devices, apps)
     }
 
