@@ -121,6 +121,9 @@ pub struct Theme {
     pub osd_media: OsdMediaTokens,
     /// Layout/cores do menu de contexto do desktop. H48.
     pub context_menu: ContextMenuTokens,
+    /// Wallpaper padrão Golden Hour quando o user não tem
+    /// `~/.config/luma/wallpaper.{png,jpg,jpeg}`. H49.
+    pub wallpaper: WallpaperTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1033,6 +1036,15 @@ impl Default for Theme {
             osd: OsdTokens::default(),
             osd_media: OsdMediaTokens::default(),
             context_menu: ContextMenuTokens::default(),
+            wallpaper: WallpaperTokens::default(),
+        }
+    }
+}
+
+impl Default for WallpaperTokens {
+    fn default() -> Self {
+        Self {
+            default_path: "assets/wallpapers/luma-gradient-dusk-1920x1080.png".to_string(),
         }
     }
 }
@@ -1719,6 +1731,16 @@ impl Default for OsdTokens {
             dismiss_ms: 1500,
         }
     }
+}
+
+/// Wallpaper padrão shipado com o luma. H49.
+///
+/// `default_path` é relativo ao CWD do binário (geralmente o root
+/// do repo em dev). Quando o user tem
+/// `~/.config/luma/wallpaper.{png,jpg,jpeg}`, esse override.
+#[derive(Debug, Clone)]
+pub struct WallpaperTokens {
+    pub default_path: String,
 }
 
 /// Tokens do menu de contexto do desktop. H48.
@@ -2565,6 +2587,7 @@ impl ThemeFile {
             osd: default.osd.clone(),
             osd_media: default.osd_media.clone(),
             context_menu: default.context_menu.clone(),
+            wallpaper: default.wallpaper.clone(),
         }
     }
 }

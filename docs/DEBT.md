@@ -353,3 +353,33 @@ Etapa futura "Config de tela nativa do Luma" — UI dentro do luma pra
 mexer em resolução, orientação, ordem de monitores. Em DRM nativo
 isso vai usar as APIs do kernel KMS; em modo aninhado, fica dim ou
 abre algo placeholder.
+
+---
+
+## Wallpapers — galeria no menu + multi-resolução (H49)
+
+**Status:** ship-vel hoje, melhorias adiadas.
+
+Shipados 6 wallpapers Golden Hour em `assets/wallpapers/`, todos
+1920×1080. O luma seleciona um default (`luma-gradient-dusk`)
+quando o user não tem `~/.config/luma/wallpaper.{png,jpg,jpeg}`.
+
+### O que falta
+
+- **Multi-resolução**: o spec original previa 3 resoluções por wallpaper
+  (1920×1080, 2560×1440, 3840×2160). Só a base 1080 está shipada;
+  resvg/image fazem upscale OK pra resoluções maiores, mas wallpapers
+  nativos seriam melhores. Adicionar 1440/4K quando disponíveis e
+  selecionar o mais próximo do output ativo.
+
+- **Galeria de wallpapers no context menu**: o item "Mudar papel de
+  parede" hoje chama kdialog/zenity (file picker do SO). Uma melhoria
+  é listar os 6 wallpapers shipados como opções rápidas direto no
+  menu (ou submenu), com thumb 64×40. O `wallpapers-preview.png` em
+  `assets/wallpapers/` já existe pra UI dessa galeria.
+
+### Quando desbloqueia
+
+Quando houver tela de configurações nativa do luma (mesma etapa que
+"Configurar tela" do ctx menu). Galeria entra como sub-painel dessa
+config.

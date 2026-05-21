@@ -64,9 +64,10 @@ impl Wallpaper {
         *self.output_size.lock().unwrap()
     }
 
-    /// Tenta carregar `~/.config/luma/wallpaper.png` ou `.jpg`. `None`
-    /// se nenhum dos dois existir ou se decode falhar — caller usa
-    /// clear color como fallback.
+    /// Cascata: (1) `~/.config/luma/wallpaper.{png,jpg,jpeg}` do user
+    /// → (2) wallpaper padrão Golden Hour shipado em
+    /// `assets/wallpapers/` (via `theme.wallpaper.default_path`) →
+    /// (3) `None` (caller usa clear color do tema). H49.
     pub fn load() -> Option<Self> {
         let candidates = config_paths();
         for path in &candidates {
@@ -75,13 +76,27 @@ impl Wallpaper {
             }
             match try_load(path) {
                 Some(w) => {
-                    info!("wallpaper carregado de {:?} ({}x{})", path, w.size.w, w.size.h);
+                    info!("wallpaper do usuário {:?} ({}x{})", path, w.size.w, w.size.h);
                     return Some(w);
                 }
                 None => warn!("falha ao decodificar {:?}", path),
             }
         }
-        info!("nenhum wallpaper em {candidates:?}, usando clear color do tema");
+        // Fallback: wallpaper padrão do luma. H49.
+        let default_path = PathBuf::from(&crate::theme::current().wallpaper.default_path);
+        if default_path.exists() {
+            match try_load(&default_path) {
+                Some(w) => {
+                    info!(
+                        "wallpaper padrão {:?} ({}x{})",
+                        default_path, w.size.w, w.size.h
+                    );
+                    return Some(w);
+                }
+                None => warn!("falha ao decodificar wallpaper padrão {:?}", default_path),
+            }
+        }
+        info!("sem wallpaper (usuário ou padrão), usando clear color do tema");
         None
     }
 }
