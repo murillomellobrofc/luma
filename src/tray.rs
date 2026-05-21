@@ -104,6 +104,12 @@ pub struct TrayState {
     /// hit-test do click (abrir popup). None até o primeiro render.
     /// H44.volume.1.
     pub last_volume_x: Option<i32>,
+    /// X (lógico) da setinha de overflow no último render. Usado pelo
+    /// hit-test do click (toggle painel). None até o primeiro render.
+    /// H47a.tray.1.
+    pub last_overflow_x: Option<i32>,
+    /// True quando o painel de overflow está aberto. H47a.tray.2.
+    pub overflow_open: bool,
 }
 
 impl TrayState {
