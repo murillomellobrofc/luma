@@ -1821,6 +1821,46 @@ pub fn init_winit(
                             }
                             // Notif dot reservado pra H40 (count sempre 0 hoje).
                             let _ = notif_dot_render;
+
+                            // H47a.tray.1: setinha de overflow à esquerda dos
+                            // 5 ícones nativos. Botão 36×36 com bg arredondado
+                            // + chevron SVG (down/up). Sem SNI até H47b, fica
+                            // em alpha reduzida (arrow_disabled_alpha).
+                            let t_ov = &theme.taskbar.tray_overflow;
+                            let arrow_size = t_ov.arrow_size;
+                            // Gap entre setinha e bloco de ícones (usa gap do
+                            // grupo direito pra coerência visual).
+                            let arrow_right_x = if battery_block_w > 0 {
+                                bat_icon_x - t_grp.gap_between_zones
+                            } else {
+                                wifi_x - t_grp.gap_between_zones
+                            };
+                            let arrow_x = arrow_right_x - arrow_size;
+                            let arrow_y = center_y_for(arrow_size);
+                            data.state.tray.last_overflow_x = Some(arrow_x);
+                            // Bg quadrado arredondado. Cor depende do estado
+                            // open (tray.3) — por enquanto sempre arrow_bg.
+                            let arrow_bg = crate::gfx::make_rounded_panel(
+                                arrow_size,
+                                arrow_size,
+                                t_ov.arrow_corner_radius,
+                                t_ov.arrow_bg,
+                            );
+                            push_mem(&mut custom_elements, &arrow_bg,
+                                     arrow_x, arrow_y, renderer);
+                            // Chevron icon centralizado dentro do botão.
+                            // ~60% do tamanho do botão.
+                            let chev_size = (arrow_size as f32 * 0.6) as i32;
+                            if let Some((chev_buf, _)) = crate::tray::ensure_icon_sized(
+                                &mut data.state.tray,
+                                "tray-overflow-down",
+                                chev_size,
+                            ) {
+                                let chev_off = (arrow_size - chev_size) / 2;
+                                push_mem(&mut custom_elements, &chev_buf,
+                                         arrow_x + chev_off,
+                                         arrow_y + chev_off, renderer);
+                            }
                         }
                         // H33.taskbar.F.16: botão Show Desktop 44×44 no
                         // canto direito. Bg condicional (hover/active),

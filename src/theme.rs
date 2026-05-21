@@ -280,6 +280,8 @@ pub struct TaskbarTokens {
     pub tooltip: TaskbarTooltipTokens,
     /// Sub-tokens do system tray (zona D). H33.taskbar.9-11.
     pub system_tray: TaskbarSystemTrayTokens,
+    /// Setinha de overflow do tray + painel. H47a.tray.
+    pub tray_overflow: TrayOverflowTokens,
     /// Sub-tokens do grupo direito (D + E + F). H33.taskbar.12.
     pub right_group: TaskbarRightGroupTokens,
 }
@@ -312,6 +314,32 @@ pub struct TaskbarSystemTrayTokens {
     pub battery_pct_size: f32,
     pub notif_dot_color: Color32F,
     pub notif_dot_size: i32,
+}
+
+/// Setinha de overflow + painel do system tray. H47a.
+/// Setinha fica à esquerda dos 5 ícones nativos. Painel abre ao
+/// clicar (acima da setinha). Enquanto não há SNI (H47b), a setinha
+/// fica em `arrow_disabled_alpha` e o painel mostra placeholder.
+#[derive(Debug, Clone)]
+pub struct TrayOverflowTokens {
+    pub arrow_size: i32,
+    pub arrow_corner_radius: i32,
+    pub arrow_bg: Color32F,
+    pub arrow_bg_open: Color32F,
+    pub arrow_color: Color32F,
+    /// Alpha aplicada quando não há itens SNI (dim). H47a.4.
+    pub arrow_disabled_alpha: f32,
+    pub panel_bg: Color32F,
+    pub panel_corner: i32,
+    pub panel_top_accent: Color32F,
+    /// Largura do painel quando aberto. Default 280 (cabe placeholder
+    /// + futura grid 4-col de ícones SNI). H47a.2.
+    pub panel_width: i32,
+    /// Altura mínima do painel (placeholder + futura grid). H47a.2.
+    pub panel_height: i32,
+    /// Tamanho da fonte do placeholder "Sem itens".
+    pub placeholder_text_size: f32,
+    pub placeholder_text_color: Color32F,
 }
 
 /// Sub-tokens do grupo direito da taskbar. H33.taskbar.12.
@@ -1415,7 +1443,28 @@ impl Default for TaskbarTokens {
             apps: TaskbarAppsTokens::default(),
             tooltip: TaskbarTooltipTokens::default(),
             system_tray: TaskbarSystemTrayTokens::default(),
+            tray_overflow: TrayOverflowTokens::default(),
             right_group: TaskbarRightGroupTokens::default(),
+        }
+    }
+}
+
+impl Default for TrayOverflowTokens {
+    fn default() -> Self {
+        Self {
+            arrow_size: 36,
+            arrow_corner_radius: 9,
+            arrow_bg: hex_color("#3D2520", 1.0),       // applet_bg_active
+            arrow_bg_open: hex_color("#E89B3D", 1.0),  // accent_amber
+            arrow_color: hex_color("#FBF6EE", 1.0),    // cream
+            arrow_disabled_alpha: 0.35,
+            panel_bg: hex_color("#1F1611", 0.96),
+            panel_corner: 14,
+            panel_top_accent: hex_color("#E89B3D", 1.0),
+            panel_width: 280,
+            panel_height: 120,
+            placeholder_text_size: 12.0,
+            placeholder_text_color: hex_color("#A89D92", 1.0),  // text_secondary
         }
     }
 }
@@ -2771,6 +2820,7 @@ impl TaskbarTokensFile {
             // defaults (sem overrides). Adicionar TaskbarSystemTrayTokensFile
             // + TaskbarRightGroupTokensFile em commit fix se precisar.
             system_tray: def.system_tray.clone(),
+            tray_overflow: def.tray_overflow.clone(),
             right_group: def.right_group.clone(),
         }
     }
