@@ -828,8 +828,9 @@ pub fn make_wifi_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
 }
 
 /// Ícone de volume estilo outline: speaker trapezoidal à esquerda + 2
-/// arcos de onda à direita. `size × size`. H33.taskbar.10.
-pub fn make_volume_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
+/// arcos de onda à direita. Se `muted=true`, sobrepõe traço diagonal
+/// (sup-esq → inf-dir) no canto direito. `size × size`. H33.taskbar.10 + 12.fix.
+pub fn make_volume_icon(size: i32, color: Color32F, muted: bool) -> MemoryRenderBuffer {
     let mut pixels = vec![0u8; (size * size * 4) as usize];
     let mid_y = size / 2;
     // Speaker (trapézio sólido): retângulo central + triângulo lateral.
@@ -876,6 +877,10 @@ pub fn make_volume_icon(size: i32, color: Color32F) -> MemoryRenderBuffer {
                 }
             }
         }
+    }
+    // Mute: risca diagonal (sup-esq → inf-dir) sobreposta no lado direito.
+    if muted {
+        draw_line(&mut pixels, size, 2, 2, size - 3, size - 3, 2, color);
     }
     MemoryRenderBuffer::from_slice(
         &pixels,

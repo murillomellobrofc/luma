@@ -500,7 +500,10 @@ pub fn init_winit(
                 let bt_render = crate::tray::ensure_bluetooth_icon(
                     &mut data.state.tray, bt_on,
                 );
-                let volume_render = crate::tray::ensure_volume_icon(&mut data.state.tray);
+                let volume_muted = data.state.tray.volume_state.muted;
+                let volume_render = crate::tray::ensure_volume_icon(
+                    &mut data.state.tray, volume_muted,
+                );
                 let bell_render = crate::tray::ensure_bell_icon(&mut data.state.tray);
                 let notif_count = data.state.tray.notif_count;
                 let notif_dot_render = if notif_count > 0 {

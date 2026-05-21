@@ -48,6 +48,14 @@ impl Default for BluetoothState {
     }
 }
 
+/// Estado do volume do sistema (PipeWire ou ALSA). H33.taskbar.12.fix.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct VolumeState {
+    /// 0..100 (percentual).
+    pub level: u8,
+    pub muted: bool,
+}
+
 /// Estado mutável do system tray. Cacheia buffers por (kind, key) onde
 /// `key` distingue estados (ex.: "battery_73" / "battery_15").
 #[derive(Debug, Default)]
@@ -61,7 +69,10 @@ pub struct TrayState {
     pub wifi_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Cache de bluetooth icons por estado. H33.taskbar.11.new.
     pub bt_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
-    /// Buffer do ícone volume (lazy, H33.taskbar.10).
+    /// Cache de volume icons por estado (mute on/off). H33.taskbar.12.fix.
+    pub volume_cache: HashMap<bool, (MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Buffer legacy do volume icon (vai sair em D.12.fix limpo). Mantido
+    /// só pra compat de campo até a renderização migrar 100% pro cache.
     pub volume_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
     /// Buffer do ícone bell (lazy, H33.taskbar.11).
     pub bell_icon: Option<(MemoryRenderBuffer, Size<i32, Logical>)>,
@@ -80,6 +91,8 @@ pub struct TrayState {
     pub wifi_state: WifiState,
     /// Último estado lido do bluetooth. H33.taskbar.11.new.
     pub bt_state: BluetoothState,
+    /// Último estado lido do volume. H33.taskbar.12.fix.
+    pub volume_state: VolumeState,
 }
 
 impl TrayState {
@@ -103,8 +116,51 @@ pub fn refresh_if_stale(state: &mut TrayState) {
     state.battery_info = read_battery();
     state.wifi_state = read_wifi();
     state.bt_state = read_bluetooth();
-    // volume vem em D.12.fix
+    state.volume_state = read_volume();
     state.last_poll = Some(std::time::Instant::now());
+}
+
+/// Lê o volume do default sink via `wpctl get-volume @DEFAULT_AUDIO_SINK@`.
+/// Saída típica: "Volume: 0.42" (50%) ou "Volume: 0.42 [MUTED]".
+/// Fallback `amixer get Master`. H33.taskbar.12.fix.
+pub fn read_volume() -> VolumeState {
+    use std::process::Command;
+    if let Ok(out) = Command::new("wpctl")
+        .args(["get-volume", "@DEFAULT_AUDIO_SINK@"])
+        .output()
+    {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            let s = s.trim();
+            let muted = s.contains("[MUTED]");
+            // Pega o primeiro float após "Volume:".
+            if let Some(idx) = s.find("Volume:") {
+                let rest = &s[idx + "Volume:".len()..];
+                let token = rest.split_whitespace().next().unwrap_or("0");
+                if let Ok(v) = token.parse::<f32>() {
+                    let level = (v * 100.0).round().clamp(0.0, 100.0) as u8;
+                    return VolumeState { level, muted };
+                }
+            }
+        }
+    }
+    // Fallback amixer.
+    if let Ok(out) = Command::new("amixer").args(["get", "Master"]).output() {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            let muted = s.contains("[off]");
+            // Procura "[NN%]" no texto.
+            for token in s.split_whitespace() {
+                let t = token.trim_matches(|c| c == '[' || c == ']');
+                if let Some(num) = t.strip_suffix('%') {
+                    if let Ok(level) = num.parse::<u8>() {
+                        return VolumeState { level, muted };
+                    }
+                }
+            }
+        }
+    }
+    VolumeState { level: 0, muted: false }
 }
 
 /// Lê o estado do adaptador bluetooth via `bluetoothctl show`. Procura
@@ -351,22 +407,28 @@ pub fn ensure_bluetooth_icon(
     (buf, size)
 }
 
-/// Gera (ou pega cacheado) o ícone volume 20px. H33.taskbar.10.
-pub fn ensure_volume_icon(state: &mut TrayState) -> (MemoryRenderBuffer, Size<i32, Logical>) {
-    if let Some(entry) = &state.volume_icon {
+/// Gera (ou pega cacheado) o ícone volume 20px conforme estado mute.
+/// `muted=true` desenha traço diagonal sobreposto e usa cor mais sutil.
+/// H33.taskbar.10 + 12.fix.
+pub fn ensure_volume_icon(
+    state: &mut TrayState,
+    muted: bool,
+) -> (MemoryRenderBuffer, Size<i32, Logical>) {
+    if let Some(entry) = state.volume_cache.get(&muted) {
         return (entry.0.clone(), entry.1);
     }
     let theme = crate::theme::current();
     let t = &theme.taskbar.system_tray;
+    let base = if muted { t.volume_muted_color } else { t.volume_color };
     let color = smithay::backend::renderer::Color32F::new(
-        t.icon_color.r(),
-        t.icon_color.g(),
-        t.icon_color.b(),
+        base.r(),
+        base.g(),
+        base.b(),
         t.icon_alpha,
     );
-    let buf = crate::gfx::make_volume_icon(t.icon_size, color);
+    let buf = crate::gfx::make_volume_icon(t.icon_size, color, muted);
     let size = Size::from((t.icon_size, t.icon_size));
-    state.volume_icon = Some((buf.clone(), size));
+    state.volume_cache.insert(muted, (buf.clone(), size));
     (buf, size)
 }
 
