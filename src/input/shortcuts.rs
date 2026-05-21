@@ -28,6 +28,16 @@ pub enum KeyAction {
     ToggleOverview,
     /// Toggle "Mostrar área de trabalho" (Super+D). H33.taskbar.F.17.
     ToggleShowDesktop,
+    /// Aumenta o volume do default sink em 5% (cap em 150%). H45.osd.
+    VolumeRaise,
+    /// Diminui o volume do default sink em 5% (floor em 0%). H45.osd.
+    VolumeLower,
+    /// Toggle mute do default sink. H45.osd.
+    VolumeMute,
+    /// Aumenta brilho em 5% (cap 100%). No-op se backend Noop. H45.osd.
+    BrightnessRaise,
+    /// Diminui brilho em 5% (floor 0%). No-op se backend Noop. H45.osd.
+    BrightnessLower,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -46,6 +56,18 @@ pub fn match_shortcut(
 ) -> Option<KeyAction> {
     if key_state != KeyState::Pressed {
         return None;
+    }
+    // H45.osd: teclas XF86 são sem modificador. Mapeadas antes dos
+    // atalhos com modificador pra garantir que sempre disparem o OSD.
+    // Modo aninhado: o compositor host (KDE) também vai ver essas
+    // teclas e mostrar o OSD dele em paralelo — débito, some em DRM.
+    match keysym {
+        Keysym::XF86_AudioRaiseVolume => return Some(KeyAction::VolumeRaise),
+        Keysym::XF86_AudioLowerVolume => return Some(KeyAction::VolumeLower),
+        Keysym::XF86_AudioMute => return Some(KeyAction::VolumeMute),
+        Keysym::XF86_MonBrightnessUp => return Some(KeyAction::BrightnessRaise),
+        Keysym::XF86_MonBrightnessDown => return Some(KeyAction::BrightnessLower),
+        _ => {}
     }
     if modifiers.alt && modifiers.shift && keysym == Keysym::F4 {
         return Some(KeyAction::CloseFocused);
@@ -112,6 +134,55 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::WorkspaceCycleNext => workspace_cycle_next(state),
         KeyAction::ToggleOverview => toggle_overview(state),
         KeyAction::ToggleShowDesktop => state.toggle_show_desktop(),
+        KeyAction::VolumeRaise => volume_step(state, 5),
+        KeyAction::VolumeLower => volume_step(state, -5),
+        KeyAction::VolumeMute => volume_mute_toggle(state),
+        KeyAction::BrightnessRaise => brightness_step(state, 0.05),
+        KeyAction::BrightnessLower => brightness_step(state, -0.05),
+    }
+}
+
+/// Default sink atual via `wpctl status`. Inclui mute pra OSD. H45.osd.
+fn default_sink() -> Option<crate::audio::AudioDevice> {
+    let (sinks, _) = crate::audio::list_devices();
+    sinks.into_iter().find(|d| d.is_default)
+}
+
+/// Soma `delta_pct` ao volume do default sink (cap 0..150) e atualiza
+/// o OSD. Sem default sink = sem ação. H45.osd.
+fn volume_step(state: &mut LumaState, delta_pct: i32) {
+    let Some(sink) = default_sink() else {
+        return;
+    };
+    let cur_pct = (sink.volume * 100.0).round() as i32;
+    let new_pct = (cur_pct + delta_pct).clamp(0, 150);
+    crate::audio::set_volume(sink.id, new_pct as u8);
+    let new_val = new_pct as f32 / 100.0;
+    state.osd = Some(crate::osd::Osd::volume(new_val, sink.muted));
+}
+
+/// Toggle mute do default sink + atualiza OSD com o novo estado.
+fn volume_mute_toggle(state: &mut LumaState) {
+    let Some(sink) = default_sink() else {
+        return;
+    };
+    crate::audio::toggle_mute(sink.id);
+    // Re-lê pra refletir o novo estado de mute (toggle_mute não retorna).
+    if let Some((v, m)) = crate::audio::get_volume(sink.id) {
+        state.osd = Some(crate::osd::Osd::volume(v, m));
+    } else {
+        state.osd = Some(crate::osd::Osd::volume(sink.volume, !sink.muted));
+    }
+}
+
+/// Step de brilho. No-op (e nada de OSD) se nenhum backend disponível.
+fn brightness_step(state: &mut LumaState, delta: f32) {
+    if !crate::brightness::available() {
+        tracing::debug!("XF86 brightness sem backend ativo — ignorado");
+        return;
+    }
+    if let Some(v) = crate::brightness::step(delta) {
+        state.osd = Some(crate::osd::Osd::brightness(v));
     }
 }
 
