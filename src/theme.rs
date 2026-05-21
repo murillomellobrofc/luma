@@ -124,6 +124,8 @@ pub struct Theme {
     /// Wallpaper padrão Golden Hour quando o user não tem
     /// `~/.config/luma/wallpaper.{png,jpg,jpeg}`. H49.
     pub wallpaper: WallpaperTokens,
+    /// Grid de ícones de arquivo no desktop. H50.
+    pub desktop_icons: DesktopIconsTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1037,6 +1039,21 @@ impl Default for Theme {
             osd_media: OsdMediaTokens::default(),
             context_menu: ContextMenuTokens::default(),
             wallpaper: WallpaperTokens::default(),
+            desktop_icons: DesktopIconsTokens::default(),
+        }
+    }
+}
+
+impl Default for DesktopIconsTokens {
+    fn default() -> Self {
+        Self {
+            icon_size: 64,
+            cell_width: 110,
+            cell_height: 120,
+            grid_margin: 40,
+            label_color: hex_color("#FBF6EE", 1.0),
+            label_size: 12.0,
+            label_max_chars: 14,
         }
     }
 }
@@ -1731,6 +1748,23 @@ impl Default for OsdTokens {
             dismiss_ms: 1500,
         }
     }
+}
+
+/// Grid de ícones de arquivo no desktop. H50.
+#[derive(Debug, Clone)]
+pub struct DesktopIconsTokens {
+    /// Lado do quadrado de ícone (px).
+    pub icon_size: i32,
+    /// Largura de cada célula do grid (icon + padding lateral).
+    pub cell_width: i32,
+    /// Altura de cada célula (icon + label + padding vertical).
+    pub cell_height: i32,
+    /// Distância da borda do output ao primeiro ícone.
+    pub grid_margin: i32,
+    pub label_color: Color32F,
+    pub label_size: f32,
+    /// Máximo de chars antes de truncar com '...'.
+    pub label_max_chars: usize,
 }
 
 /// Wallpaper padrão shipado com o luma. H49.
@@ -2588,6 +2622,7 @@ impl ThemeFile {
             osd_media: default.osd_media.clone(),
             context_menu: default.context_menu.clone(),
             wallpaper: default.wallpaper.clone(),
+            desktop_icons: default.desktop_icons.clone(),
         }
     }
 }

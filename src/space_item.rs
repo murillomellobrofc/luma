@@ -18,6 +18,9 @@ use crate::{render::LumaRenderElement, wallpaper::Wallpaper, window::LumaWindow}
 pub enum SpaceItem {
     Window(LumaWindow),
     Wallpaper(Arc<Wallpaper>),
+    /// Camada de ícones do desktop (z_index=5, entre wallpaper e
+    /// janelas). H50.
+    DesktopIcons(Arc<crate::desktop_icons::DesktopIconsLayer>),
 }
 
 impl SpaceItem {
@@ -29,11 +32,21 @@ impl SpaceItem {
     }
 }
 
+impl SpaceItem {
+    fn icons_layer(&self) -> Option<&crate::desktop_icons::DesktopIconsLayer> {
+        match self {
+            Self::DesktopIcons(l) => Some(l.as_ref()),
+            _ => None,
+        }
+    }
+}
+
 impl std::fmt::Debug for SpaceItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Window(_) => f.debug_struct("SpaceItem::Window").finish(),
             Self::Wallpaper(_) => f.debug_struct("SpaceItem::Wallpaper").finish(),
+            Self::DesktopIcons(_) => f.debug_struct("SpaceItem::DesktopIcons").finish(),
         }
     }
 }
@@ -43,6 +56,7 @@ impl Clone for SpaceItem {
         match self {
             Self::Window(w) => Self::Window(w.clone()),
             Self::Wallpaper(w) => Self::Wallpaper(Arc::clone(w)),
+            Self::DesktopIcons(l) => Self::DesktopIcons(Arc::clone(l)),
         }
     }
 }
@@ -52,6 +66,7 @@ impl PartialEq for SpaceItem {
         match (self, other) {
             (Self::Window(a), Self::Window(b)) => a == b,
             (Self::Wallpaper(a), Self::Wallpaper(b)) => Arc::ptr_eq(a, b),
+            (Self::DesktopIcons(a), Self::DesktopIcons(b)) => Arc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -62,6 +77,7 @@ impl IsAlive for SpaceItem {
         match self {
             Self::Window(w) => IsAlive::alive(w),
             Self::Wallpaper(_) => true,
+            Self::DesktopIcons(l) => IsAlive::alive(l.as_ref()),
         }
     }
 }
@@ -71,6 +87,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::bbox(w),
             Self::Wallpaper(w) => SpaceElement::bbox(w.as_ref()),
+            Self::DesktopIcons(l) => SpaceElement::bbox(l.as_ref()),
         }
     }
 
@@ -78,6 +95,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::geometry(w),
             Self::Wallpaper(w) => SpaceElement::geometry(w.as_ref()),
+            Self::DesktopIcons(l) => SpaceElement::geometry(l.as_ref()),
         }
     }
 
@@ -85,6 +103,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::is_in_input_region(w, point),
             Self::Wallpaper(w) => SpaceElement::is_in_input_region(w.as_ref(), point),
+            Self::DesktopIcons(l) => SpaceElement::is_in_input_region(l.as_ref(), point),
         }
     }
 
@@ -92,6 +111,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::set_activate(w, activated),
             Self::Wallpaper(w) => SpaceElement::set_activate(w.as_ref(), activated),
+            Self::DesktopIcons(l) => SpaceElement::set_activate(l.as_ref(), activated),
         }
     }
 
@@ -99,6 +119,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::output_enter(w, output, overlap),
             Self::Wallpaper(w) => SpaceElement::output_enter(w.as_ref(), output, overlap),
+            Self::DesktopIcons(l) => SpaceElement::output_enter(l.as_ref(), output, overlap),
         }
     }
 
@@ -106,6 +127,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::output_leave(w, output),
             Self::Wallpaper(w) => SpaceElement::output_leave(w.as_ref(), output),
+            Self::DesktopIcons(l) => SpaceElement::output_leave(l.as_ref(), output),
         }
     }
 
@@ -113,6 +135,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::refresh(w),
             Self::Wallpaper(w) => SpaceElement::refresh(w.as_ref()),
+            Self::DesktopIcons(l) => SpaceElement::refresh(l.as_ref()),
         }
     }
 
@@ -120,6 +143,7 @@ impl SpaceElement for SpaceItem {
         match self {
             Self::Window(w) => SpaceElement::z_index(w),
             Self::Wallpaper(w) => SpaceElement::z_index(w.as_ref()),
+            Self::DesktopIcons(l) => SpaceElement::z_index(l.as_ref()),
         }
     }
 }
@@ -144,6 +168,13 @@ where
             }
             Self::Wallpaper(w) => AsRenderElements::<R>::render_elements::<C>(
                 w.as_ref(),
+                renderer,
+                location,
+                scale,
+                alpha,
+            ),
+            Self::DesktopIcons(l) => AsRenderElements::<R>::render_elements::<C>(
+                l.as_ref(),
                 renderer,
                 location,
                 scale,
