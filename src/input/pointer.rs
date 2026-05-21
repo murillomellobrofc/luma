@@ -1032,8 +1032,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     pointer.frame(state);
 }
 
-/// Dispatcha ação clicada num item do context menu. H48.ctx.5-7
-/// preenchem as actions de fato. Por enquanto só loga.
+/// Dispatcha ação clicada num item do context menu. H48.ctx.5-7.
+/// Wallpaper bloqueia até o user fechar o file picker — aceitável
+/// porque o menu é modal de qualquer jeito.
 fn dispatch_context_action(
     _state: &mut LumaState,
     item: &crate::context_menu::ContextItem,
@@ -1044,10 +1045,18 @@ fn dispatch_context_action(
         _ => return,
     };
     match action {
-        ContextAction::OpenTerminal => tracing::info!("ctx menu: open terminal (stub)"),
-        ContextAction::ChangeWallpaper => tracing::info!("ctx menu: change wallpaper (stub)"),
-        ContextAction::OpenLumaSettings => tracing::info!("ctx menu: open settings (stub)"),
-        ContextAction::ConfigureDisplay => tracing::info!("ctx menu: configure display (dim)"),
+        ContextAction::OpenTerminal => crate::context_menu::open_terminal(),
+        ContextAction::ChangeWallpaper => {
+            let _ = crate::context_menu::change_wallpaper();
+            // Reload do wallpaper exige reabrir a Wallpaper a partir
+            // do disco — debt em DEBT.md. Hoje o user precisa
+            // reiniciar o luma pra ver o novo wallpaper.
+        }
+        ContextAction::OpenLumaSettings => crate::context_menu::open_luma_settings(),
+        ContextAction::ConfigureDisplay => {
+            // Dim na UI; este arm cobre eventual desync (item enabled
+            // mas action ConfigureDisplay). No-op.
+        }
         ContextAction::Disabled => {}
     }
 }
