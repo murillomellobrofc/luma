@@ -1,101 +1,93 @@
+<div align="center">
+  <img src="assets/branding/luma-logo.svg" alt="Luma" width="160">
+</div>
+
 # Luma
 
-Wayland compositor e ambiente gráfico do Lumina OS, todo em Rust.
+A desktop environment for Linux, written in Rust.
 
-## Status
+Luma is a complete desktop environment built on Wayland, with its own
+compositor, taskbar, application menu and theming system. It aims to
+bring together three things that rarely go together: careful visual
+design, real configurability, and accessibility considered from day one.
 
-v0.0.1, etapa A (bootstrap). Abre socket Wayland, não desenha nada ainda.
+> Status: in active development, heading toward version 1.0.
 
-## Stack
+---
 
-- [Smithay](https://github.com/Smithay/smithay) (master) compositor
-- [Calloop](https://crates.io/crates/calloop) event loop
-- [Slint](https://slint.dev/) widgets do panel/launcher (próximas fases)
-- [Tracing](https://crates.io/crates/tracing) logging
+## What it is
 
-## Visão de design
+Luma is not a theme or an extension of another desktop. It is a full
+graphical environment, built from scratch:
 
-Layout tradicional tipo KDE/Cinnamon: taskbar inferior, menu/launcher à
-esquerda, system tray à direita, janelas com decorações clássicas.
-Configurabilidade tipo KDE, ergonomia tipo Cinnamon/Windows.
+- A custom **Wayland compositor**, built with Smithay
+- A KDE-style **taskbar** with six zones (launcher, workspaces, apps,
+  system tray, clock and show desktop)
+- A fullscreen **application menu** with search, favorites and shortcuts
+- **Window decorations** with soft shadows and custom controls
+- A complete **theming system**, driven by a single configuration file
 
-Cosmic Desktop (System76) é referência técnica de arquitetura Rust, não
-dependência.
+All of it carries a visual identity called Golden Hour: shades of
+coffee, coral, honey and sage, the palette of a late afternoon.
 
-## Roadmap
+---
 
-1. Compositor mínimo + janelas (2 a 4 meses)
-2. Panel + launcher Slint (mais 3 a 6 meses)
-3. Notificações, lock, power (mais 3 a 6 meses)
-4. File manager, settings, polimento (mais 6 a 12 meses)
+## Why it exists
 
-## Deps de sistema
+Most desktop environments treat accessibility as a settings menu tucked
+away at the end. Luma takes the opposite path.
 
-### Fedora
+Luma is designed by a person with a physical disability, and
+accessibility is an architectural decision, not an optional feature.
+Generous click targets, full keyboard navigation, proper contrast, and
+a planned extreme-accessibility preset are part of the project from the
+very start.
 
-```
-sudo dnf install \
-  gcc pkgconf-pkg-config \
-  wayland-devel wayland-protocols-devel \
-  libxkbcommon-devel libinput-devel \
-  mesa-libEGL-devel mesa-libgbm-devel \
-  libdrm-devel libseat-devel \
-  systemd-devel dbus-devel pixman-devel \
-  xorg-x11-server-Xwayland
-```
+The goal is simple: a desktop that is beautiful for everyone and
+genuinely usable by everyone.
 
-### Ubuntu / Debian
+---
 
-```
-sudo apt install \
-  build-essential pkg-config \
-  libwayland-dev wayland-protocols \
-  libxkbcommon-dev libinput-dev \
-  libegl-dev libgbm-dev \
-  libdrm-dev libseat-dev \
-  libsystemd-dev libdbus-1-dev libpixman-1-dev \
-  xwayland \
-  fonts-dejavu-core fonts-liberation
-```
+## Design identity
 
-Runtime do system tray usa `nmcli` (rede), `bluetoothctl` (bluetooth)
-e `wpctl` (volume PipeWire):
+Luma mixes its references on purpose:
 
-```
-sudo apt install network-manager bluez pipewire wireplumber
-```
+- The menu echoes the clarity of the classic Windows 7 menu
+- The configurability follows the philosophy of Linux Mint and KDE
+- The Rust technical foundation is inspired by COSMIC's architecture
+- Accessibility guides every interface decision
+- The Golden Hour look gives it a soul: coffee, coral, honey and sage
 
-### Arch Linux
+Traditional layout, familiar ergonomics, modern technology.
 
-```
-sudo pacman -S --needed \
-  base-devel pkgconf \
-  wayland wayland-protocols \
-  libxkbcommon libinput \
-  mesa libdrm seatd \
-  systemd dbus pixman \
-  xorg-xwayland \
-  ttf-dejavu ttf-liberation
-```
+---
 
-Runtime do system tray:
+## Current state
 
-```
-sudo pacman -S --needed networkmanager bluez bluez-utils pipewire wireplumber
-```
+Already working:
 
-## Build
+- Wayland compositor running GTK and KDE/Qt applications
+- Full taskbar with a system tray reading real data
+  (battery, network, bluetooth, volume)
+- Fullscreen application menu
+- Workspaces
+- Window decorations
+- Theming system via a configuration file
 
-```
-cargo build
-```
+Under construction: notifications, clickable applets, native
+applications, and the alternative visual presets.
 
-## Rodar aninhado (dentro de outra sessão Wayland)
+---
 
-```
-cargo run
-```
+## Documentation
 
-## Licença
+- [Technical documentation](docs/TECHNICAL.en.md) — architecture,
+  build, contributing
+- [Vision and roadmap](docs/ROADMAP.en.md) — where Luma is heading
+- [Versão em português](README.pt.md)
 
-GPL-3.0-or-later
+---
+
+## License
+
+GPL-3.0-or-later.
