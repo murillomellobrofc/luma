@@ -466,14 +466,14 @@ pub fn init_winit(
                     MemoryRenderBuffer,
                     smithay::utils::Size<i32, smithay::utils::Logical>,
                 )> = {
-                    // H33.taskbar.9.fix: refresh dos sensores se >= 3s.
+                    // H33.taskbar.SVG: refresh dos sensores se >= 3s + load
+                    // dos SVGs corretos pra cada estado.
                     crate::tray::refresh_if_stale(&mut data.state.tray);
                     let info = data.state.tray.battery_info;
                     match (info, data.state.text.as_ref()) {
                         (Some(b), Some(text_r)) => {
-                            let icon = crate::tray::ensure_battery_icon(
-                                &mut data.state.tray, b.capacity, b.charging,
-                            );
+                            let name = crate::tray::battery_icon_name(b);
+                            let icon = crate::tray::ensure_icon(&mut data.state.tray, name);
                             let label = crate::tray::ensure_pct_label(
                                 &mut data.state.tray, b.capacity, text_r,
                             );
@@ -485,32 +485,17 @@ pub fn init_winit(
                         _ => None,
                     }
                 };
-                // H33.taskbar.10-11: wifi + bluetooth + volume + bell + notif dot.
-                let wifi_connected = matches!(
-                    data.state.tray.wifi_state,
-                    crate::tray::WifiState::Connected
-                );
-                let wifi_render = crate::tray::ensure_wifi_icon(
-                    &mut data.state.tray, wifi_connected,
-                );
-                let bt_on = matches!(
-                    data.state.tray.bt_state,
-                    crate::tray::BluetoothState::On
-                );
-                let bt_render = crate::tray::ensure_bluetooth_icon(
-                    &mut data.state.tray, bt_on,
-                );
-                let volume_muted = data.state.tray.volume_state.muted;
-                let volume_render = crate::tray::ensure_volume_icon(
-                    &mut data.state.tray, volume_muted,
-                );
-                let bell_render = crate::tray::ensure_bell_icon(&mut data.state.tray);
+                // H33.taskbar.SVG: wifi + bluetooth + volume + bell (todos SVG).
+                let wifi_name = crate::tray::wifi_icon_name(data.state.tray.wifi_state);
+                let wifi_render = crate::tray::ensure_icon(&mut data.state.tray, wifi_name);
+                let bt_name = crate::tray::bluetooth_icon_name(data.state.tray.bt_state);
+                let bt_render = crate::tray::ensure_icon(&mut data.state.tray, bt_name);
+                let volume_name = crate::tray::volume_icon_name(data.state.tray.volume_state);
+                let volume_render = crate::tray::ensure_icon(&mut data.state.tray, volume_name);
                 let notif_count = data.state.tray.notif_count;
-                let notif_dot_render = if notif_count > 0 {
-                    Some(crate::tray::ensure_notif_dot(&mut data.state.tray))
-                } else {
-                    None
-                };
+                let bell_name = crate::tray::bell_icon_name(notif_count);
+                let bell_render = crate::tray::ensure_icon(&mut data.state.tray, bell_name);
+                let notif_dot_render: Option<MemoryRenderBuffer> = None; // H40 conecta
 
 
                 match backend.bind() {
@@ -1666,35 +1651,10 @@ pub fn init_winit(
                                 - t_grp.margin_right
                                 - crate::taskbar::show_desktop_width();
                             let clock_left = right_edge - t_grp.gap_between_zones - clock_w;
-                            // bell_x é o canto direito DO BELL. Ordem ESQ→DIR:
-                            //   battery+%, wifi, bluetooth, volume, bell.
-                            // Calculo de DIR→ESQ. Gap entre items = t_sys.gap.
-                            let bell_right_x = clock_left - t_grp.gap_between_zones;
-                            let bell_x = bell_right_x - bell_render.1.w;
-                            // Volume à esquerda do bell.
-                            let volume_x = bell_x - t_sys.gap - volume_render.1.w;
-                            // Bluetooth à esquerda do volume.
-                            let bt_x = volume_x - t_sys.gap - bt_render.1.w;
-                            // Wifi à esquerda do bluetooth.
-                            let wifi_x = bt_x - t_sys.gap - wifi_render.1.w;
-                            // Battery+%: label fica à direita do icon. Bloco fica
-                            // todo à esquerda do wifi.
-                            let (battery_block_w, bat_icon_w, bat_label_w) =
-                                if let Some((_, bat_sz, _, lbl_sz)) = battery_render.as_ref() {
-                                    (bat_sz.w + 4 + lbl_sz.w, bat_sz.w, lbl_sz.w)
-                                } else {
-                                    (0, 0, 0)
-                                };
-                            let battery_right_x = if battery_block_w > 0 {
-                                wifi_x - t_sys.gap
-                            } else {
-                                wifi_x
-                            };
-                            let bat_icon_x = battery_right_x - battery_block_w;
-                            let bat_label_x = bat_icon_x + bat_icon_w + 4;
-
-                            // Pinta na ordem: battery icon → battery label →
-                            // wifi → volume → bell (+ notif dot overlay).
+                            // Ordem ESQ→DIR (spec H33): battery+%, wifi,
+                            // bluetooth, volume, bell. Cálculo de DIR→ESQ
+                            // pra ancorar no clock. Ícones SVG opcionais
+                            // (Some quando carregaram do disco). H33.taskbar.SVG.
                             let push_mem = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
                                             buf: &MemoryRenderBuffer,
                                             x: i32,
@@ -1715,29 +1675,58 @@ pub fn init_winit(
                                     elems.push(LumaRenderElement::Memory(elem));
                                 }
                             };
+                            // Largura ocupada por cada ícone (0 quando o
+                            // SVG não carregou — esconde aquele slot).
+                            let bell_w = bell_render.as_ref().map(|(_, s)| s.w).unwrap_or(0);
+                            let volume_w = volume_render.as_ref().map(|(_, s)| s.w).unwrap_or(0);
+                            let bt_w = bt_render.as_ref().map(|(_, s)| s.w).unwrap_or(0);
+                            let wifi_w = wifi_render.as_ref().map(|(_, s)| s.w).unwrap_or(0);
+                            // bell_right_x = canto direito do bell, ancorado ao clock.
+                            let bell_right_x = clock_left - t_grp.gap_between_zones;
+                            let bell_x = bell_right_x - bell_w;
+                            let volume_x = bell_x - t_sys.gap - volume_w;
+                            let bt_x = volume_x - t_sys.gap - bt_w;
+                            let wifi_x = bt_x - t_sys.gap - wifi_w;
+                            // Battery+%: bloco icon + 4 + label, todo à esquerda do wifi.
+                            let (battery_block_w, bat_icon_w) =
+                                if let Some((_, bat_sz, _, lbl_sz)) = battery_render.as_ref() {
+                                    (bat_sz.w + 4 + lbl_sz.w, bat_sz.w)
+                                } else {
+                                    (0, 0)
+                                };
+                            let battery_right_x = if battery_block_w > 0 {
+                                wifi_x - t_sys.gap
+                            } else {
+                                wifi_x
+                            };
+                            let bat_icon_x = battery_right_x - battery_block_w;
+                            let bat_label_x = bat_icon_x + bat_icon_w + 4;
+
+                            // Pinta os ícones.
                             if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
-                                let _ = (bat_icon_w, bat_label_w);
                                 push_mem(&mut custom_elements, bat_buf,
                                          bat_icon_x, center_y_for(bat_sz.h), renderer);
                                 push_mem(&mut custom_elements, lbl_buf,
                                          bat_label_x, center_y_for(lbl_sz.h), renderer);
                             }
-                            push_mem(&mut custom_elements, &wifi_render.0,
-                                     wifi_x, center_y_for(wifi_render.1.h), renderer);
-                            push_mem(&mut custom_elements, &bt_render.0,
-                                     bt_x, center_y_for(bt_render.1.h), renderer);
-                            push_mem(&mut custom_elements, &volume_render.0,
-                                     volume_x, center_y_for(volume_render.1.h), renderer);
-                            push_mem(&mut custom_elements, &bell_render.0,
-                                     bell_x, center_y_for(bell_render.1.h), renderer);
-                            // Notif dot: canto sup-direito do bell, se há
-                            // não lidas. H33.taskbar.11.
-                            if let Some(dot) = notif_dot_render.as_ref() {
-                                let dot_size = t_sys.notif_dot_size;
-                                let dx = bell_x + bell_render.1.w - dot_size;
-                                let dy = center_y_for(bell_render.1.h);
-                                push_mem(&mut custom_elements, dot, dx, dy, renderer);
+                            if let Some((buf, sz)) = wifi_render.as_ref() {
+                                push_mem(&mut custom_elements, buf,
+                                         wifi_x, center_y_for(sz.h), renderer);
                             }
+                            if let Some((buf, sz)) = bt_render.as_ref() {
+                                push_mem(&mut custom_elements, buf,
+                                         bt_x, center_y_for(sz.h), renderer);
+                            }
+                            if let Some((buf, sz)) = volume_render.as_ref() {
+                                push_mem(&mut custom_elements, buf,
+                                         volume_x, center_y_for(sz.h), renderer);
+                            }
+                            if let Some((buf, sz)) = bell_render.as_ref() {
+                                push_mem(&mut custom_elements, buf,
+                                         bell_x, center_y_for(sz.h), renderer);
+                            }
+                            // Notif dot reservado pra H40 (count sempre 0 hoje).
+                            let _ = notif_dot_render;
                         }
                         // alpha 1.0 + data 9pt cor secondary alpha 0.65.
                         // Posições calculadas juntas pra alinhamento right.

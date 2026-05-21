@@ -285,25 +285,13 @@ pub struct TaskbarSystemTrayTokens {
     pub icon_stroke_width: f32,
     pub icon_color: Color32F,
     pub icon_alpha: f32,
-    /// Gap horizontal entre os ícones do tray (battery/wifi/volume/bell).
+    /// Gap horizontal entre os ícones do tray (battery/wifi/bt/volume/bell).
     pub gap: i32,
-    pub battery_fill_high: Color32F,
-    pub battery_fill_med: Color32F,
-    pub battery_fill_low: Color32F,
-    /// Cor do raio de carregamento (âmbar). H33.taskbar.9.fix.
-    pub battery_charging_mark: Color32F,
-    /// Cor do ícone wifi quando conectado. H33.taskbar.10.fix.
-    pub wifi_color_connected: Color32F,
-    /// Cor do ícone wifi quando desligado/disconnected. H33.taskbar.10.fix.
-    pub wifi_color_off: Color32F,
-    /// Cor do ícone bluetooth quando ligado. H33.taskbar.11.new.
-    pub bt_color_on: Color32F,
-    /// Cor do ícone bluetooth quando desligado. H33.taskbar.11.new.
-    pub bt_color_off: Color32F,
-    /// Cor do ícone volume default. H33.taskbar.12.fix.
-    pub volume_color: Color32F,
-    /// Cor do ícone volume quando mudo. H33.taskbar.12.fix.
-    pub volume_muted_color: Color32F,
+    /// Path da pasta dos SVGs do tray. Default `assets/branding/icons`.
+    /// Arquivos esperados: `icon-<name>.svg` onde `<name>` é o estado
+    /// (battery-high, wifi-full, bluetooth-on, volume-muted, bell-normal...).
+    /// H33.taskbar.SVG.
+    pub icons_path: String,
     pub battery_pct_color: Color32F,
     pub battery_pct_size: f32,
     pub notif_dot_color: Color32F,
@@ -1299,16 +1287,7 @@ impl Default for TaskbarSystemTrayTokens {
             icon_color: hex_color("#FBF6EE", 1.0),
             icon_alpha: 0.85,
             gap: 16,
-            battery_fill_high: hex_color("#6B8E7F", 1.0),
-            battery_fill_med: hex_color("#F5D5A8", 1.0),
-            battery_fill_low: hex_color("#D97757", 1.0),
-            battery_charging_mark: hex_color("#E89B3D", 1.0),
-            wifi_color_connected: hex_color("#FBF6EE", 1.0),
-            wifi_color_off: hex_color("#8B7D72", 1.0),
-            bt_color_on: hex_color("#FBF6EE", 1.0),
-            bt_color_off: hex_color("#8B7D72", 1.0),
-            volume_color: hex_color("#FBF6EE", 1.0),
-            volume_muted_color: hex_color("#8B7D72", 1.0),
+            icons_path: "assets/branding/icons".to_string(),
             battery_pct_color: hex_color("#FBF6EE", 1.0),
             battery_pct_size: 12.0,
             notif_dot_color: hex_color("#D97757", 1.0),
