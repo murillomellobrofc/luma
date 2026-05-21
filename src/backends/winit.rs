@@ -1870,8 +1870,11 @@ pub fn init_winit(
                                 arrow_bg_color,
                             );
                             // Render do bg + chevron passa alpha (dim quando
-                            // vazio). Usa from_buffer com alpha em vez de
-                            // push_mem (que não suporta alpha modulation).
+                            // vazio). insert(0, ...) pra ambos: bg primeiro
+                            // (vai pra position 1), chev depois (position 0)
+                            // = chev na frente do bg. Push fica errado aqui
+                            // pq Smithay renderiza fim→inicio e o ultimo
+                            // pushed iria pra BACK.
                             let arrow_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 smithay::utils::Point::<i32, smithay::utils::Logical>
                                     ::from((arrow_x, arrow_y))
@@ -1880,7 +1883,7 @@ pub fn init_winit(
                                 renderer, arrow_loc.to_f64(), &arrow_bg,
                                 Some(arrow_alpha), None, None, Kind::Unspecified,
                             ) {
-                                custom_elements.push(LumaRenderElement::Memory(elem));
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
                             // Chevron icon centralizado dentro do botão.
                             // ~60% do tamanho do botão.
@@ -1890,21 +1893,29 @@ pub fn init_winit(
                             } else {
                                 "tray-overflow-down"
                             };
-                            if let Some((chev_buf, _)) = crate::tray::ensure_icon_sized(
+                            match crate::tray::ensure_icon_sized(
                                 &mut data.state.tray,
                                 chev_name,
                                 chev_size,
                             ) {
-                                let chev_off = (arrow_size - chev_size) / 2;
-                                let chev_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>
-                                        ::from((arrow_x + chev_off, arrow_y + chev_off))
-                                        .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer, chev_loc.to_f64(), &chev_buf,
-                                    Some(arrow_alpha), None, None, Kind::Unspecified,
-                                ) {
-                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                Some((chev_buf, _)) => {
+                                    let chev_off = (arrow_size - chev_size) / 2;
+                                    let chev_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                            ::from((arrow_x + chev_off, arrow_y + chev_off))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, chev_loc.to_f64(), &chev_buf,
+                                        Some(arrow_alpha), None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                None => {
+                                    tracing::warn!(
+                                        "tray overflow: SVG '{}' não carregou em size {}",
+                                        chev_name, chev_size,
+                                    );
                                 }
                             }
 
