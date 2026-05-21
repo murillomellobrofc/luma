@@ -255,3 +255,101 @@ poll com timeout (que complicaria o loop). Conexão nova por click
 
 Se medirmos latência percebível em clicks (improvável), trocar
 por canal mpsc + `MessageStream` com `next_timeout`.
+
+---
+
+## Context menu: ícones no desktop (H48 → futuro)
+
+**Status:** 4 items do menu de contexto ficam **dim** porque dependem
+de uma feature que o Luma ainda não tem: arquivos visíveis como ícones
+no desktop (como o KDE/GNOME fazem com Desktop folder).
+
+**Items afetados:**
+- Criar novo (submenu: Pasta, Arquivo de texto)
+- Colar
+- Organizar ícones (submenu: por nome, tipo, data)
+- Modo de edição
+
+### Por quê adiou
+
+"Ícones no desktop" pede:
+- Watcher do `~/Desktop` (inotify ou polling)
+- Render de ícone + label por arquivo, layout em grid
+- Drag-and-drop entre ícones
+- Hit-test de click direito em ícone vs. área vazia (menus diferentes)
+- Clipboard interno (pra "Colar")
+
+Etapa grande, separada. Hoje os 4 ficam visualmente presentes mas não
+clicáveis — preserva o layout final do menu pra quando ligar.
+
+### Quando desbloqueia
+
+Etapa futura "H49 (ou similar) — Ícones de arquivo no desktop". Aí os
+4 items viram `enabled = true` em `default_items()` e ganham handlers.
+
+---
+
+## Context menu: hot-reload do wallpaper (H48.ctx.6)
+
+**Status:** funcional, mas exige restart.
+
+**Sintoma:** "Mudar papel de parede" copia o arquivo pra
+`~/.config/luma/wallpaper.<ext>` corretamente, mas o luma só lê esse
+arquivo no boot (em `Wallpaper::load`). Pra ver o novo wallpaper, o
+user precisa reiniciar o luma.
+
+### Por quê adiou
+
+O `Wallpaper` é dono de um `MemoryRenderBuffer` que está dentro de um
+`Arc` compartilhado com o `Space`. Recarregar envolve:
+- Decodificar nova imagem (já temos `try_load`)
+- Construir novo `Wallpaper`
+- Atualizar todos os pontos que referenciam o `Arc<Wallpaper>` (state +
+  Space)
+
+Operação não-trivial; ctx.6 entrega o caminho copy-and-pick que é o
+**90% do valor** percebido (user escolhe imagem, luma armazena). O
+último passo (reload runtime) fica pra polish.
+
+### Quando desbloqueia
+
+Etapa polish: adicionar `Wallpaper::reload(&mut Arc)` que re-lê do
+disco. Substituir os `Arc` no state + Space. ~1 commit.
+
+---
+
+## Context menu: "Aqui" do terminal = $HOME (H48.ctx.5)
+
+**Status:** semântica reduzida.
+
+**Sintoma:** "Abrir terminal aqui" abre o terminal padrão com
+`current_dir = $HOME`, não com o "aqui" real (pasta navegada no
+desktop, que não existe ainda).
+
+### Por quê
+
+Sem ícones de arquivo no desktop (ver acima), não há conceito de
+"pasta atual do desktop". `$HOME` é o fallback honesto.
+
+### Quando desbloqueia
+
+Junto com a feature de ícones de arquivo — daí "aqui" passa a ser a
+pasta navegada/exibida no momento do right-click.
+
+---
+
+## Context menu: Configurar tela = dim (H48.ctx.7)
+
+**Status:** dim definitivo (visual presente, sem ação).
+
+**Por quê:** o Luma é o próprio compositor. Lançar `kcmshell` (KDE) ou
+`gnome-control-center` configuraria o **host** (em modo aninhado) ou
+não faria nada (em DRM nativo). Sem UI de config de tela própria,
+ficar dim é mais honesto que abrir algo que não controla o luma.
+
+### Quando desbloqueia
+
+Etapa futura "Config de tela nativa do Luma" — UI dentro do luma pra
+mexer em resolução, orientação, ordem de monitores. Em DRM nativo
+isso vai usar as APIs do kernel KMS; em modo aninhado, fica dim ou
+abre algo placeholder.
