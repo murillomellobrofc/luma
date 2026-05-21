@@ -165,3 +165,40 @@ e a falta da arte virar incômodo real. Aí pesa instalar `ureq`
 keys e mostra o OSD dele. 2 OSDs em paralelo. Some no DRM nativo.
 
 Ver [[OSD duplicado em modo aninhado]] (H45) — mesma causa.
+
+---
+
+## Tray overflow sem itens SNI (H47a → H47b)
+
+**Status:** infra visual pronta, falta backend D-Bus.
+
+**Sintoma:** a setinha de overflow do tray aparece **dim** (alpha
+`arrow_disabled_alpha`) e o painel abre com placeholder "Sem itens".
+Nenhum ícone de app de terceiros (Discord, Steam, etc) é exibido.
+
+### Por quê adiou
+
+Suporte real exige protocolo SNI (StatusNotifierItem) via D-Bus:
+- Adicionar crate `zbus` (~80 deps transitivos, ~30-60s compile)
+- Thread dedicada com `zbus::blocking::Connection`
+- Registrar luma como `org.kde.StatusNotifierHost-<pid>`
+- Escutar signals do `org.kde.StatusNotifierWatcher`
+- Pra cada item: ler `IconName/IconPixmap/ToolTip`, escutar `NewIcon`
+  etc.
+
+Etapa H47a entregou só a parte visual (botão + painel + estados
+abertos/fechados/dim/placeholder). Esses ganchos ficam prontos pro
+H47b conectar o backend SNI.
+
+### Quando desbloqueia
+
+Etapa H47b — `tray.sni_count` passa a refletir itens reais; setinha
+acende quando há itens; painel renderiza grid 4-col 40×40 com SVGs
+dos apps; click esquerdo chama `Activate`, click direito chama
+`ContextMenu` (deixa o app desenhar o menu — DBusMenu nativo fica
+pra H47c).
+
+### Workaround interino
+
+Nenhum — o tray nativo (battery/wifi/bt/volume/bell) continua
+funcionando normal. Apenas apps de terceiros não aparecem.
