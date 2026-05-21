@@ -180,34 +180,92 @@ fn parse(path: &std::path::Path) -> Result<Option<DesktopApp>, std::io::Error> {
     Ok(Some(DesktopApp { name, exec, icon }))
 }
 
-/// Tenta resolver o nome do ícone em um caminho PNG no sistema. Tenta
-/// vários paths típicos do XDG e devolve o primeiro que existir. `None`
-/// se nada bater (ícone vai ficar ausente no menu).
+/// Diretórios-base do XDG Icon Theme spec, em ordem de prioridade:
+/// per-user primeiro (override), depois sistema, depois pixmaps legacy.
+/// H33.icons.1.
+fn theme_base_dirs() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Some(home) = std::env::var_os("HOME") {
+        out.push(PathBuf::from(home).join(".local/share/icons"));
+    }
+    out.push(PathBuf::from("/usr/share/icons"));
+    out
+}
+
+/// Ordem de prioridade dos temas: Breeze (KDE) → Adwaita (GTK) →
+/// hicolor (universal). Apps KDE têm ícone só no Breeze; apps GTK
+/// puros no Adwaita/hicolor. hicolor SEMPRE é o último fallback.
+/// H33.icons.1.
+const THEME_PRIORITY: &[&str] = &[
+    "breeze",
+    "breeze-dark",
+    "Adwaita",
+    "AdwaitaLegacy",
+    "hicolor",
+];
+
+/// Sizes em ordem de preferência. 48 primeiro (canônico Breeze + GTK
+/// medium). 32 pra apps de baixa-res. H33.icons.3.
+const SIZE_PREF: &[&str] = &["48", "64", "32", "128", "96", "256", "192", "16"];
+
+/// Categorias de ícone. `apps` é o foco aqui; `categories` cobre alguns
+/// legacy.
+const CATEGORIES: &[&str] = &["apps", "categories"];
+
+/// Resolve o `Icon=` de um `.desktop` em um caminho PNG ou SVG no
+/// sistema, varrendo Breeze (KDE), Adwaita (GTK) e hicolor (universal).
+/// Retorna `None` se nenhum tema/tamanho/categoria contém o ícone.
+/// H33.icons.1-4.
 fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
-    // Path absoluto: usa direto se for PNG/JPG (SVG não suportado).
+    // 1. Path absoluto: usa direto se for formato suportado.
     let p = PathBuf::from(icon);
     if p.is_absolute() && p.exists() && is_supported_ext(&p) {
         return Some(p);
     }
 
-    // Pixmaps: legados, geralmente tem PNGs simples.
-    for ext in &["png", "jpg", "jpeg"] {
+    // 2. pixmaps legacy (geralmente PNG simples por app).
+    for ext in &["png", "svg", "jpg", "jpeg"] {
         let candidate = PathBuf::from(format!("/usr/share/pixmaps/{}.{}", icon, ext));
         if candidate.exists() {
             return Some(candidate);
         }
     }
 
-    // hicolor + Adwaita em vários tamanhos.
-    for theme in &["hicolor", "Adwaita", "AdwaitaLegacy"] {
-        for size in &["48x48", "64x64", "96x96", "128x128", "256x256"] {
-            for cat in &["apps", "categories"] {
-                let candidate = PathBuf::from(format!(
-                    "/usr/share/icons/{}/{}/{}/{}.png",
-                    theme, size, cat, icon
-                ));
-                if candidate.exists() {
-                    return Some(candidate);
+    // 3. Temas. Varre cada base × theme × size × category × style.
+    for base in theme_base_dirs() {
+        for theme in THEME_PRIORITY {
+            // 3a. Pasta scalable (SVG vetorial) — preferida quando há.
+            for cat in CATEGORIES {
+                // hicolor/Adwaita layout: theme/scalable/cat/<icon>.svg
+                let svg = base.join(theme).join("scalable").join(cat).join(format!("{}.svg", icon));
+                if svg.exists() {
+                    return Some(svg);
+                }
+                // Breeze layout: theme/cat/scalable/<icon>.svg (rare)
+                let svg2 = base.join(theme).join(cat).join("scalable").join(format!("{}.svg", icon));
+                if svg2.exists() {
+                    return Some(svg2);
+                }
+            }
+            // 3b. Tamanhos fixos. PNG > SVG na mesma resolução.
+            for size in SIZE_PREF {
+                for cat in CATEGORIES {
+                    // hicolor/Adwaita layout: theme/<size>x<size>/cat/<icon>.<ext>
+                    let hi_dir = base.join(theme).join(format!("{}x{}", size, size)).join(cat);
+                    for ext in &["png", "svg"] {
+                        let candidate = hi_dir.join(format!("{}.{}", icon, ext));
+                        if candidate.exists() {
+                            return Some(candidate);
+                        }
+                    }
+                    // Breeze layout: theme/cat/<size>/<icon>.<ext>  (size sem 'x')
+                    let bz_dir = base.join(theme).join(cat).join(size);
+                    for ext in &["svg", "png"] {
+                        let candidate = bz_dir.join(format!("{}.{}", icon, ext));
+                        if candidate.exists() {
+                            return Some(candidate);
+                        }
+                    }
                 }
             }
         }
@@ -218,7 +276,7 @@ fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
 fn is_supported_ext(p: &std::path::Path) -> bool {
     matches!(
         p.extension().and_then(|e| e.to_str()),
-        Some("png") | Some("jpg") | Some("jpeg")
+        Some("png") | Some("jpg") | Some("jpeg") | Some("svg")
     )
 }
 
@@ -241,6 +299,16 @@ pub fn load_icons(apps: &[DesktopApp]) -> Vec<Option<AppIcon>> {
 }
 
 fn decode_icon(path: &std::path::Path) -> Option<AppIcon> {
+    // H33.icons.2: aceita SVG via icon_loader (usvg + resvg).
+    if path.extension().and_then(|e| e.to_str()) == Some("svg") {
+        // Rasteriza em 128×128 — alto o suficiente pra ficar nítido
+        // quando escalado pra 32 (taskbar) ou 64 (menu fullscreen).
+        let buf = crate::menu::icon_loader::load_svg_file(
+            &path.to_string_lossy(),
+            128,
+        )?;
+        return Some((buf, Size::from((128, 128))));
+    }
     let img = image::open(path).ok()?;
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as i32, rgba.height() as i32);
