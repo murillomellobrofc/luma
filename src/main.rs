@@ -17,6 +17,7 @@ mod state;
 mod taskbar;
 mod text;
 mod theme;
+mod tray;
 mod wallpaper;
 mod window;
 

@@ -457,6 +457,30 @@ pub fn init_winit(
                     .clock_date_label
                     .as_ref()
                     .map(|(b, s)| (b.clone(), *s));
+                // H33.taskbar.9: battery icon + label %, gerados aqui pra
+                // evitar borrow conflict no render. Posicionamento final
+                // (grupo direito colado ao clock) vem em D.12.
+                let battery_render: Option<(
+                    MemoryRenderBuffer,
+                    smithay::utils::Size<i32, smithay::utils::Logical>,
+                    MemoryRenderBuffer,
+                    smithay::utils::Size<i32, smithay::utils::Logical>,
+                )> = {
+                    let info = crate::tray::read_battery();
+                    match (info, data.state.text.as_ref()) {
+                        (Some(b), Some(text_r)) => {
+                            let icon = crate::tray::ensure_battery_icon(&mut data.state.tray, b.capacity);
+                            let label = crate::tray::ensure_pct_label(
+                                &mut data.state.tray, b.capacity, text_r,
+                            );
+                            match (icon, label) {
+                                (Some((ib, isz)), Some((lb, lsz))) => Some((ib, isz, lb, lsz)),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }
+                };
 
 
                 match backend.bind() {
@@ -1588,6 +1612,61 @@ pub fn init_winit(
                         }
 
                         // Clock 2 linhas (H32.5.10): hora 13pt cor primary
+                        // H33.taskbar.9: battery icon + label "%" antes do
+                        // clock. Posicionamento provisório (à esquerda do
+                        // clock atual com gap fixo); D.12 vai re-ancorar
+                        // no grupo direito real.
+                        if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
+                            let t_sys = &crate::theme::current().taskbar.system_tray;
+                            let bar_y_local =
+                                output_size_logical.h - crate::taskbar::taskbar_height();
+                            let icon_y =
+                                bar_y_local + (crate::taskbar::taskbar_height() - bat_sz.h) / 2;
+                            // Posiciona à esquerda do clock atual: clock vive
+                            // em `output_w - show_desktop_width - clock_padding_right`.
+                            // Pra D.9 jogo battery_x = clock_anchor - 80 (espaço
+                            // pra label %). Vai ser reformulado em D.12.
+                            let clock_anchor_x = output_size_logical.w
+                                - crate::taskbar::show_desktop_width()
+                                - crate::taskbar::clock_padding_right();
+                            let label_x = clock_anchor_x - 90;
+                            let icon_x = label_x - bat_sz.w - 4;
+                            let icon_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                    icon_x, icon_y,
+                                ))
+                                .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer,
+                                icon_loc.to_f64(),
+                                bat_buf,
+                                None,
+                                None,
+                                None,
+                                Kind::Unspecified,
+                            ) {
+                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            }
+                            let label_y =
+                                bar_y_local + (crate::taskbar::taskbar_height() - lbl_sz.h) / 2;
+                            let label_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                                    label_x, label_y,
+                                ))
+                                .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer,
+                                label_loc.to_f64(),
+                                lbl_buf,
+                                None,
+                                None,
+                                None,
+                                Kind::Unspecified,
+                            ) {
+                                custom_elements.push(LumaRenderElement::Memory(elem));
+                            }
+                            let _ = t_sys;
+                        }
                         // alpha 1.0 + data 9pt cor secondary alpha 0.65.
                         // Posições calculadas juntas pra alinhamento right.
                         if let (Some((time_buf, time_size)), Some((date_buf, date_size))) =

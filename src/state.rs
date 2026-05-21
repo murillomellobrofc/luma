@@ -144,6 +144,8 @@ pub struct LumaState {
     pub hot_corner_dwell_start: Option<std::time::Instant>,
     /// State visual do pager (buffers + hover). H36.7.
     pub pager: crate::pager::PagerState,
+    /// State do system tray (battery, wifi, volume, notifications). H33.taskbar.9-12.
+    pub tray: crate::tray::TrayState,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -522,6 +524,7 @@ impl LumaState {
             overview_open: false,
             hot_corner_dwell_start: None,
             pager: crate::pager::PagerState::new(),
+            tray: crate::tray::TrayState::new(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

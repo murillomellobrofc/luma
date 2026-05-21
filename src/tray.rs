@@ -1,0 +1,142 @@
+//! System tray na zona D da taskbar v5 (H33.taskbar.9-12).
+//!
+//! Ícones renderizados inline (paths em pixel art simples), sem deps
+//! novas. State guarda info real do sistema (`/sys/class/power_supply/`
+//! pra battery) e o cache dos buffers de cada ícone (chave = string
+//! descrevendo o estado pra invalidar).
+
+use std::collections::HashMap;
+use std::fs;
+
+use smithay::{
+    backend::renderer::element::memory::MemoryRenderBuffer,
+    utils::{Logical, Size},
+};
+
+/// Informação corrente da bateria principal do sistema.
+#[derive(Debug, Clone, Copy)]
+pub struct BatteryInfo {
+    /// 0..100.
+    pub capacity: u8,
+    /// True se Charging / Full / Not charging com fonte AC.
+    #[allow(dead_code)]
+    pub charging: bool,
+}
+
+/// Estado mutável do system tray. Cacheia buffers por (kind, key) onde
+/// `key` distingue estados (ex.: "battery_73" / "battery_15").
+#[derive(Debug, Default)]
+pub struct TrayState {
+    /// Cache do buffer do ícone da battery por chave estável (capacity).
+    pub icon_cache: HashMap<String, (MemoryRenderBuffer, Size<i32, Logical>)>,
+    /// Cache do label "%" rasterizado por % (key = "<pct>").
+    pub pct_label_cache: HashMap<u8, (MemoryRenderBuffer, Size<i32, Logical>)>,
+}
+
+impl TrayState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Lê a battery do sistema. Tenta primeiro a env `LUMA_FAKE_BATTERY`
+/// (dev/test em desktops sem bateria). Depois `/sys/class/power_supply/BAT*`.
+/// Retorna `None` em máquinas sem bateria. H33.taskbar.9.
+pub fn read_battery() -> Option<BatteryInfo> {
+    if let Ok(fake) = std::env::var("LUMA_FAKE_BATTERY") {
+        if let Ok(cap) = fake.parse::<u8>() {
+            return Some(BatteryInfo {
+                capacity: cap.min(100),
+                charging: false,
+            });
+        }
+    }
+
+    let entries = fs::read_dir("/sys/class/power_supply").ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = path.file_name()?.to_str()?.to_string();
+        if !name.starts_with("BAT") {
+            continue;
+        }
+        let capacity = fs::read_to_string(path.join("capacity"))
+            .ok()?
+            .trim()
+            .parse::<u8>()
+            .ok()?;
+        let status = fs::read_to_string(path.join("status"))
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let charging = matches!(status.as_str(), "Charging" | "Full" | "Not charging");
+        return Some(BatteryInfo {
+            capacity: capacity.min(100),
+            charging,
+        });
+    }
+    None
+}
+
+/// Cor de fill da battery baseada no %. Sage > 50, Honey 20-50, Coral < 20.
+pub fn battery_fill_color(capacity: u8) -> smithay::backend::renderer::Color32F {
+    let t = &crate::theme::current().taskbar.system_tray;
+    if capacity > 50 {
+        t.battery_fill_high
+    } else if capacity >= 20 {
+        t.battery_fill_med
+    } else {
+        t.battery_fill_low
+    }
+}
+
+/// Gera (ou pega cacheado) o ícone da battery com fill correspondente
+/// ao %. Chave do cache = "battery_<pct>". H33.taskbar.9.
+pub fn ensure_battery_icon(state: &mut TrayState, capacity: u8) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
+    let key = format!("battery_{}", capacity);
+    if let Some(entry) = state.icon_cache.get(&key) {
+        return Some((entry.0.clone(), entry.1));
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let fill = battery_fill_color(capacity);
+    let frame = smithay::backend::renderer::Color32F::new(
+        t.icon_color.r(),
+        t.icon_color.g(),
+        t.icon_color.b(),
+        t.icon_alpha,
+    );
+    let buf = crate::gfx::make_battery_icon(t.icon_size, capacity, fill, frame);
+    let size = Size::from((t.icon_size, t.icon_size));
+    state.icon_cache.insert(key, (buf.clone(), size));
+    Some((buf, size))
+}
+
+/// Rasteriza (ou pega cacheado) o label "<pct>%" pra mostrar ao lado da
+/// battery. H33.taskbar.9.
+pub fn ensure_pct_label(
+    state: &mut TrayState,
+    capacity: u8,
+    text: &crate::text::TextRenderer,
+) -> Option<(MemoryRenderBuffer, Size<i32, Logical>)> {
+    if let Some(entry) = state.pct_label_cache.get(&capacity) {
+        return Some((entry.0.clone(), entry.1));
+    }
+    let theme = crate::theme::current();
+    let t = &theme.taskbar.system_tray;
+    let s = format!("{}%", capacity);
+    let (pixels, w, h) = text.rasterize_colored(&s, t.battery_pct_size, t.battery_pct_color);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let buf = MemoryRenderBuffer::from_slice(
+        &pixels,
+        smithay::backend::allocator::Fourcc::Argb8888,
+        (w as i32, h as i32),
+        1,
+        smithay::utils::Transform::Normal,
+        None,
+    );
+    let size = Size::from((w as i32, h as i32));
+    state.pct_label_cache.insert(capacity, (buf.clone(), size));
+    Some((buf, size))
+}

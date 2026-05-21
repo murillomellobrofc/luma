@@ -598,6 +598,67 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Ícone de bateria em pixel art simples (`size × size`). Desenha:
+/// - corpo retangular (outline 1px na cor `frame`)
+/// - tampa pequena à direita
+/// - fill colorido proporcional a `capacity / 100`
+///
+/// H33.taskbar.9. Visualmente parecido com o ícone de bateria nos
+/// system trays do KDE/GNOME, em ~20px.
+pub fn make_battery_icon(
+    size: i32,
+    capacity: u8,
+    fill: Color32F,
+    frame: Color32F,
+) -> MemoryRenderBuffer {
+    let mut pixels = vec![0u8; (size * size * 4) as usize];
+    let body_y_top = size / 4;
+    let body_y_bot = size - size / 4 - 1;
+    let body_x_left = 1;
+    let body_x_right = size - 4; // deixa 3px pra tampa
+    // Outline 1px do corpo.
+    for x in body_x_left..=body_x_right {
+        put_pixel_premul(&mut pixels, x, body_y_top, size, frame);
+        put_pixel_premul(&mut pixels, x, body_y_bot, size, frame);
+    }
+    for y in body_y_top..=body_y_bot {
+        put_pixel_premul(&mut pixels, body_x_left, y, size, frame);
+        put_pixel_premul(&mut pixels, body_x_right, y, size, frame);
+    }
+    // Tampa: pequeno retângulo à direita.
+    let cap_y_top = body_y_top + (body_y_bot - body_y_top) / 4;
+    let cap_y_bot = body_y_bot - (body_y_bot - body_y_top) / 4;
+    let cap_x_left = body_x_right + 1;
+    let cap_x_right = (size - 1).min(cap_x_left + 1);
+    for x in cap_x_left..=cap_x_right {
+        for y in cap_y_top..=cap_y_bot {
+            put_pixel_premul(&mut pixels, x, y, size, frame);
+        }
+    }
+    // Fill interno proporcional a capacity. Deixa 1px de respiro do outline.
+    let inner_x_left = body_x_left + 2;
+    let inner_x_right = body_x_right - 2;
+    let inner_y_top = body_y_top + 2;
+    let inner_y_bot = body_y_bot - 2;
+    let inner_w = (inner_x_right - inner_x_left + 1).max(0);
+    let fill_w = (inner_w as i32 * capacity as i32 / 100).max(0);
+    // Bateria enche da esquerda pra direita (convenção visual).
+    let fill_x_right = inner_x_left + fill_w - 1;
+    for y in inner_y_top..=inner_y_bot {
+        for x in inner_x_left..=fill_x_right.min(inner_x_right) {
+            put_pixel_premul(&mut pixels, x, y, size, fill);
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (size, size),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 /// Painel arredondado com borda 1px na cor `border_color` + alpha
 /// `border_alpha`, e interior preenchido com `bg`. Usado pelo tooltip
 /// da taskbar (H33.taskbar.6). Pixels fora do round-rect ficam alpha 0.

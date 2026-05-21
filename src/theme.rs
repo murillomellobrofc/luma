@@ -267,6 +267,44 @@ pub struct TaskbarTokens {
     pub apps: TaskbarAppsTokens,
     /// Sub-tokens do tooltip do botão de app. H33.taskbar.6.
     pub tooltip: TaskbarTooltipTokens,
+    /// Sub-tokens do system tray (zona D). H33.taskbar.9-11.
+    pub system_tray: TaskbarSystemTrayTokens,
+    /// Sub-tokens do grupo direito (D + E + F). H33.taskbar.12.
+    pub right_group: TaskbarRightGroupTokens,
+}
+
+/// Sub-tokens do system tray (zona D) — battery, wifi, volume, notifications.
+/// H33.taskbar.9-11.
+///
+/// Ícones renderizados inline (paths SVG no Rust), stroke fino estilo
+/// outline. Battery muda fill por %; notifications mostram dot coral
+/// quando há não lidas. Em desktops sem bateria, battery não aparece.
+#[derive(Debug, Clone)]
+pub struct TaskbarSystemTrayTokens {
+    pub icon_size: i32,
+    pub icon_stroke_width: f32,
+    pub icon_color: Color32F,
+    pub icon_alpha: f32,
+    /// Gap horizontal entre os ícones do tray (battery/wifi/volume/bell).
+    pub gap: i32,
+    pub battery_fill_high: Color32F,
+    pub battery_fill_med: Color32F,
+    pub battery_fill_low: Color32F,
+    pub battery_pct_color: Color32F,
+    pub battery_pct_size: f32,
+    pub notif_dot_color: Color32F,
+    pub notif_dot_size: i32,
+}
+
+/// Sub-tokens do grupo direito da taskbar. H33.taskbar.12.
+///
+/// As 3 zonas D/E/F (tray, clock, show-desktop) ficam ancoradas na
+/// borda direita, separadas pelo `gap_between_zones`. `margin_right` é
+/// a distância da borda direita do output até a zona F.
+#[derive(Debug, Clone)]
+pub struct TaskbarRightGroupTokens {
+    pub gap_between_zones: i32,
+    pub margin_right: i32,
 }
 
 /// Sub-tokens do tooltip que aparece acima do botão de app no hover
@@ -1233,6 +1271,36 @@ impl Default for TaskbarTokens {
             launcher: TaskbarLauncherTokens::default(),
             apps: TaskbarAppsTokens::default(),
             tooltip: TaskbarTooltipTokens::default(),
+            system_tray: TaskbarSystemTrayTokens::default(),
+            right_group: TaskbarRightGroupTokens::default(),
+        }
+    }
+}
+
+impl Default for TaskbarSystemTrayTokens {
+    fn default() -> Self {
+        Self {
+            icon_size: 20,
+            icon_stroke_width: 1.5,
+            icon_color: hex_color("#FBF6EE", 1.0),
+            icon_alpha: 0.85,
+            gap: 16,
+            battery_fill_high: hex_color("#6B8E7F", 1.0),
+            battery_fill_med: hex_color("#F5D5A8", 1.0),
+            battery_fill_low: hex_color("#D97757", 1.0),
+            battery_pct_color: hex_color("#FBF6EE", 1.0),
+            battery_pct_size: 12.0,
+            notif_dot_color: hex_color("#D97757", 1.0),
+            notif_dot_size: 4,
+        }
+    }
+}
+
+impl Default for TaskbarRightGroupTokens {
+    fn default() -> Self {
+        Self {
+            gap_between_zones: 16,
+            margin_right: 12,
         }
     }
 }
@@ -2377,6 +2445,11 @@ impl TaskbarTokensFile {
             launcher,
             apps,
             tooltip,
+            // System tray e right_group ainda não têm parser TOML; usam
+            // defaults (sem overrides). Adicionar TaskbarSystemTrayTokensFile
+            // + TaskbarRightGroupTokensFile em commit fix se precisar.
+            system_tray: def.system_tray.clone(),
+            right_group: def.right_group.clone(),
         }
     }
 }
