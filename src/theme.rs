@@ -108,6 +108,8 @@ pub struct Theme {
     pub show_desktop: ShowDesktopTokens,
     /// Layout/cores do relógio.
     pub clock: ClockTokens,
+    /// Layout/cores do popup de applet. H44.volume.4.
+    pub popup: PopupTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -836,6 +838,28 @@ pub struct ShowDesktopTokens {
     pub icon_active_name: String,
 }
 
+/// Tokens do popup de applet (volume, futuros). H44.volume.4.
+#[derive(Debug, Clone)]
+pub struct PopupTokens {
+    pub corner_radius: i32,
+    pub padding: i32,
+    pub tab_height: i32,
+    pub tab_text_size: f32,
+    pub tab_indicator_width: i32,
+    pub tab_indicator_height: i32,
+    pub tab_indicator_color: Color32F,
+    pub slider: PopupSliderTokens,
+}
+
+#[derive(Debug, Clone)]
+pub struct PopupSliderTokens {
+    pub track_height: i32,
+    pub track_color: Color32F,
+    pub fill_color: Color32F,
+    pub handle_radius: i32,
+    pub handle_color: Color32F,
+}
+
 #[derive(Debug, Clone)]
 pub struct ClockTokens {
     /// Tamanho da hora (HH:MM). Default 17 (Fraunces no spec H33; hoje
@@ -915,6 +939,7 @@ impl Default for Theme {
             window_controls: WindowControlsTokens::default(),
             show_desktop: ShowDesktopTokens::default(),
             clock: ClockTokens::default(),
+            popup: PopupTokens::default(),
         }
     }
 }
@@ -1476,6 +1501,33 @@ impl Default for ShowDesktopTokens {
             icon_size: 24,
             icon_normal_name: "show-desktop".to_string(),
             icon_active_name: "show-desktop-active".to_string(),
+        }
+    }
+}
+
+impl Default for PopupTokens {
+    fn default() -> Self {
+        Self {
+            corner_radius: 12,
+            padding: 16,
+            tab_height: 40,
+            tab_text_size: 13.0,
+            tab_indicator_width: 32,
+            tab_indicator_height: 3,
+            tab_indicator_color: hex_color("#E89B3D", 1.0),
+            slider: PopupSliderTokens::default(),
+        }
+    }
+}
+
+impl Default for PopupSliderTokens {
+    fn default() -> Self {
+        Self {
+            track_height: 6,
+            track_color: hex_color("#2A1F1A", 1.0),  // applet_bg_hover
+            fill_color: hex_color("#E89B3D", 1.0),   // accent_amber
+            handle_radius: 10,
+            handle_color: hex_color("#F5D5A8", 1.0), // honey
         }
     }
 }
@@ -2241,6 +2293,7 @@ impl ThemeFile {
             window_controls,
             show_desktop,
             clock,
+            popup: default.popup.clone(),
         }
     }
 }

@@ -2232,14 +2232,15 @@ pub fn init_winit(
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));
 
-                        // H44.volume.1-2: applet popup com bg gradient +
-                        // tabs (Dispositivos / Aplicativos). Z-stack pra
-                        // tudo isso ser SOBRE a taskbar: insert(0, ...)
-                        // no custom_elements (Smithay renderiza fim→começo).
-                        // Ordem no vec final (do insert): última coisa
-                        // inserida fica no topo = na frente visualmente.
+                        // H44.volume.1-4: applet popup com bg gradient +
+                        // tabs + slider. Tokens vêm de theme.popup.
+                        // Z-stack: insert(0, ...) coloca cada item NO TOPO.
+                        // Ordem de insert = ordem REVERSA do z desejado
+                        // (último inserido = mais à frente).
                         if let Some(popup) = data.state.applet_popup.clone() {
                             let theme = crate::theme::current();
+                            let t_popup = &theme.popup;
+                            let t_slider = &t_popup.slider;
                             let o = popup.origin(output_size_logical);
                             let active_tab = popup.volume_tab;
                             let (devices_rect, apps_rect) = popup.tab_rects(output_size_logical);
@@ -2249,26 +2250,26 @@ pub fn init_winit(
                             let bg = crate::gfx::make_titlebar_bg(
                                 popup.size.w,
                                 popup.size.h,
-                                12,
+                                t_popup.corner_radius,
                                 theme.window.titlebar_bg_top,
                                 theme.window.titlebar_bg_bottom,
                             );
 
-                            // (2) Indicador da tab ativa (linha âmbar 32×3 sob o label).
+                            // (2) Indicador da tab ativa (linha âmbar sob o label).
                             let active_rect = if active_tab == crate::popup::VolumeTab::Devices {
                                 devices_rect
                             } else {
                                 apps_rect
                             };
-                            let ind_w = 32;
-                            let ind_h = 3;
+                            let ind_w = t_popup.tab_indicator_width;
+                            let ind_h = t_popup.tab_indicator_height;
                             let ind_x = active_rect.loc.x + (active_rect.size.w - ind_w) / 2;
                             let ind_y = active_rect.loc.y + active_rect.size.h - ind_h - 2;
                             let indicator = crate::gfx::make_rounded_panel(
                                 ind_w,
                                 ind_h,
                                 1,
-                                theme.colors.accent_amber,
+                                t_popup.tab_indicator_color,
                             );
 
                             // (3) Labels das tabs rasterizados pela cor por estado.
@@ -2284,7 +2285,7 @@ pub fn init_winit(
                                         theme.colors.text_secondary
                                     };
                                     let (pixels, w, h) =
-                                        text.rasterize_colored(label, 13.0, color);
+                                        text.rasterize_colored(label, t_popup.tab_text_size, color);
                                     if w > 0 && h > 0 {
                                         let buf = MemoryRenderBuffer::from_slice(
                                             &pixels,
@@ -2323,33 +2324,33 @@ pub fn init_winit(
                                 .ok()
                             };
 
-                            // H44.volume.3: slider demo (1 instância visível
-                            // quando aba Devices está ativa). Em A.5+ vira
-                            // 1 slider por device. Por agora value fixo 0.6.
+                            // H44.volume.3-4: slider demo (1 instância) na aba
+                            // Devices. Em A.5+ vira 1 slider por device com
+                            // valor real do wpctl. Por agora 0.6 fixo.
                             let slider_demo_buffers: Option<(MemoryRenderBuffer, MemoryRenderBuffer, MemoryRenderBuffer)> =
                                 if active_tab == crate::popup::VolumeTab::Devices {
-                                    let track_w = popup.size.w - 48;
-                                    let track_h = 6;
+                                    let track_w = popup.size.w - t_popup.padding * 2;
+                                    let track_h = t_slider.track_height;
                                     let value = 0.6_f32;
                                     let fill_w = ((track_w as f32) * value) as i32;
                                     let track = crate::gfx::make_rounded_panel(
                                         track_w,
                                         track_h,
                                         track_h / 2,
-                                        theme.colors.applet_bg_hover,
+                                        t_slider.track_color,
                                     );
                                     let fill = crate::gfx::make_rounded_panel(
                                         fill_w.max(1),
                                         track_h,
                                         track_h / 2,
-                                        theme.colors.accent_amber,
+                                        t_slider.fill_color,
                                     );
-                                    let handle_r = 10;
+                                    let handle_r = t_slider.handle_radius;
                                     let handle = crate::gfx::make_rounded_panel(
                                         handle_r * 2,
                                         handle_r * 2,
                                         handle_r,
-                                        theme.colors.hover_minimize, // honey
+                                        t_slider.handle_color,
                                     );
                                     Some((track, fill, handle))
                                 } else {
@@ -2373,13 +2374,13 @@ pub fn init_winit(
                             }
                             // Slider demo (Devices tab apenas, value 0.6 hard-coded).
                             if let Some((track, fill, handle)) = slider_demo_buffers {
-                                let track_w = popup.size.w - 48;
-                                let track_h = 6;
+                                let track_w = popup.size.w - t_popup.padding * 2;
+                                let track_h = t_slider.track_height;
                                 let value = 0.6_f32;
-                                let track_x = o.x + 24;
-                                let track_y = o.y + 80;
+                                let track_x = o.x + t_popup.padding;
+                                let track_y = o.y + t_popup.tab_height + 32;
                                 let fill_w = ((track_w as f32) * value) as i32;
-                                let handle_r = 10;
+                                let handle_r = t_slider.handle_radius;
                                 let handle_cx = track_x + fill_w;
                                 let handle_y = track_y + track_h / 2 - handle_r;
                                 // handle por último = mais à frente
