@@ -13,6 +13,8 @@
 //! Items `enabled = false` renderizam em `item_disabled` e não
 //! reagem a hover/click.
 
+use std::process::Command;
+
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 /// Ações disparadas por items do menu. H48.
@@ -224,6 +226,150 @@ pub fn slot_height(item: &ContextItem, tokens: &crate::theme::ContextMenuTokens)
         ItemKind::Separator => tokens.separator_height + 2 * tokens.separator_padding,
         _ => tokens.item_height,
     }
+}
+
+/// Abre o terminal padrão em $HOME. Ordem: $TERMINAL → x-terminal-emulator
+/// → konsole → gnome-terminal → foot → alacritty → kitty → xterm.
+/// "Aqui" = $HOME enquanto não houver navegação de pastas no desktop
+/// (debt em DEBT.md). H48.ctx.5.
+pub fn open_terminal() {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    let candidates: Vec<String> = {
+        let mut v = Vec::new();
+        if let Ok(t) = std::env::var("TERMINAL") {
+            if !t.is_empty() {
+                v.push(t);
+            }
+        }
+        for n in [
+            "x-terminal-emulator",
+            "konsole",
+            "gnome-terminal",
+            "foot",
+            "alacritty",
+            "kitty",
+            "wezterm",
+            "xterm",
+        ] {
+            v.push(n.to_string());
+        }
+        v
+    };
+    for term in candidates {
+        if which(&term) {
+            let mut cmd = Command::new(&term);
+            cmd.current_dir(&home);
+            match cmd.spawn() {
+                Ok(_) => {
+                    tracing::info!("ctx menu: abriu {} em {}", term, home);
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!("ctx menu: falha lançando {term}: {e}");
+                }
+            }
+        }
+    }
+    tracing::warn!("ctx menu: nenhum terminal encontrado");
+}
+
+/// Abre o seletor de imagem (kdialog / zenity), copia o arquivo
+/// escolhido pra `~/.config/luma/wallpaper.png` e dispara o reload.
+/// Bloqueia até o user fechar o diálogo. H48.ctx.6.
+pub fn change_wallpaper() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    let pictures = format!("{}/Imagens", home);
+    let pictures = if std::path::Path::new(&pictures).exists() {
+        pictures
+    } else {
+        format!("{}/Pictures", home)
+    };
+    let path = if which("kdialog") {
+        let out = Command::new("kdialog")
+            .args([
+                "--getopenfilename",
+                &pictures,
+                "Imagens (*.png *.jpg *.jpeg)",
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    } else if which("zenity") {
+        let out = Command::new("zenity")
+            .args([
+                "--file-selection",
+                &format!("--filename={}/", pictures),
+                "--file-filter=Imagens | *.png *.jpg *.jpeg",
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    } else {
+        tracing::warn!("ctx menu: nenhum file picker (kdialog/zenity)");
+        return None;
+    };
+    if path.is_empty() {
+        return None;
+    }
+    let src = std::path::PathBuf::from(&path);
+    if !src.exists() {
+        return None;
+    }
+    // Copia pra ~/.config/luma/wallpaper.png (ou .jpg conforme ext).
+    let cfg_dir = std::path::PathBuf::from(&home).join(".config/luma");
+    let _ = std::fs::create_dir_all(&cfg_dir);
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    let dst = cfg_dir.join(format!("wallpaper.{}", ext));
+    // Remove os outros pra não ter ambiguidade na próxima leitura.
+    for old_ext in ["png", "jpg", "jpeg"] {
+        if old_ext != ext {
+            let _ = std::fs::remove_file(cfg_dir.join(format!("wallpaper.{}", old_ext)));
+        }
+    }
+    if let Err(e) = std::fs::copy(&src, &dst) {
+        tracing::warn!("ctx menu: copy wallpaper falhou: {e}");
+        return None;
+    }
+    tracing::info!("ctx menu: wallpaper copiado pra {dst:?}");
+    Some(dst)
+}
+
+/// Abre o theme.toml do user em editor padrão via xdg-open. Cria o
+/// arquivo vazio se não existir. H48.ctx.7.
+pub fn open_luma_settings() {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    let cfg_dir = std::path::PathBuf::from(&home).join(".config/luma");
+    let _ = std::fs::create_dir_all(&cfg_dir);
+    let theme_path = cfg_dir.join("theme.toml");
+    if !theme_path.exists() {
+        let _ = std::fs::write(
+            &theme_path,
+            "# Theme overrides do Luma. Veja src/theme.rs pros tokens.\n",
+        );
+    }
+    let _ = Command::new("xdg-open").arg(&theme_path).spawn();
+    tracing::info!("ctx menu: xdg-open {:?}", theme_path);
+}
+
+fn which(bin: &str) -> bool {
+    Command::new("which")
+        .arg(bin)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Os 8 items do menu (+ 2 separators) da spec H48. ATIVOS:
