@@ -119,6 +119,184 @@ pub struct OsdLayout {
     pub label_center_y: i32,
 }
 
+/// OSD de mídia (now playing). Componente separado do OSD básico —
+/// layout maior, controles clicáveis, fade-out. H46.osd-media.
+#[derive(Debug, Clone)]
+pub struct MediaOsd {
+    pub info: crate::media::MediaInfo,
+    pub shown_at: Instant,
+    pub last_poll: Instant,
+}
+
+impl MediaOsd {
+    pub fn new(info: crate::media::MediaInfo) -> Self {
+        let now = Instant::now();
+        Self {
+            info,
+            shown_at: now,
+            last_poll: now,
+        }
+    }
+
+    /// `true` se já passou do timeout. Próximo frame remove.
+    pub fn expired(&self, timeout_ms: u64) -> bool {
+        self.shown_at.elapsed().as_millis() as u64 >= timeout_ms
+    }
+
+    /// Reset do timer (usado em interação com botões e em key re-trigger).
+    pub fn touch(&mut self) {
+        self.shown_at = Instant::now();
+    }
+
+    /// Fator de opacidade em `0.0..=1.0`. 1.0 fora da janela de fade,
+    /// decai linear pra 0 nos últimos `fade_ms` antes do timeout.
+    pub fn alpha(&self, timeout_ms: u64, fade_ms: u64) -> f32 {
+        let el = self.shown_at.elapsed().as_millis() as u64;
+        if el >= timeout_ms {
+            return 0.0;
+        }
+        if el + fade_ms <= timeout_ms {
+            return 1.0;
+        }
+        let remain = (timeout_ms - el) as f32;
+        (remain / fade_ms as f32).clamp(0.0, 1.0)
+    }
+
+    /// Posição avançada por wall-clock. Entre polls, soma o tempo
+    /// decorrido se status == Playing. Polls sobrescrevem o valor.
+    pub fn current_position(&self) -> f64 {
+        let base = self.info.position;
+        if matches!(self.info.status, Some(crate::media::PlaybackStatus::Playing)) {
+            base + self.last_poll.elapsed().as_secs_f64()
+        } else {
+            base
+        }
+    }
+}
+
+/// Botões clicáveis do MediaOsd. H46.media.6.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaButton {
+    Previous,
+    PlayPause,
+    Next,
+}
+
+/// Layout do card de mídia: arte à esquerda, info à direita.
+#[derive(Debug, Clone, Copy)]
+pub struct MediaOsdLayout {
+    pub origin_x: i32,
+    pub origin_y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub art_x: i32,
+    pub art_y: i32,
+    pub art_size: i32,
+    /// Coluna de texto + controles, à direita da arte.
+    pub right_col_x: i32,
+    pub right_col_w: i32,
+    pub title_y: i32,
+    pub artist_y: i32,
+    pub controls_y: i32,
+    pub prev_x: i32,
+    pub play_x: i32,
+    pub next_x: i32,
+    pub prev_size: i32,
+    pub play_size: i32,
+    pub next_size: i32,
+    pub progress_x: i32,
+    pub progress_y: i32,
+    pub progress_w: i32,
+    pub progress_h: i32,
+}
+
+impl MediaOsdLayout {
+    pub fn compute(
+        output_w: i32,
+        output_h: i32,
+        tokens: &crate::theme::OsdMediaTokens,
+    ) -> Self {
+        let width = tokens.width;
+        let height = tokens.height;
+        let origin_x = (output_w - width) / 2;
+        let origin_y = (output_h - height) / 2;
+
+        let pad = tokens.padding;
+        let art_size = tokens.art_size;
+        let art_x = origin_x + pad;
+        let art_y = origin_y + (height - art_size) / 2;
+
+        let right_col_x = art_x + art_size + pad;
+        let right_col_w = origin_x + width - pad - right_col_x;
+
+        let title_y = origin_y + pad;
+        let artist_y = title_y + (tokens.title_size as i32) + 4;
+
+        let progress_h = tokens.progress_height;
+        let progress_y = origin_y + height - pad - progress_h;
+        let progress_x = right_col_x;
+        let progress_w = right_col_w;
+
+        // Linha de controles entre artista e progress.
+        let play_size = tokens.play_btn_size;
+        let side_size = tokens.side_btn_size;
+        let controls_y = progress_y - 10 - play_size;
+        // Centraliza horizontalmente os 3 botões na right_col.
+        let total_w = side_size + 16 + play_size + 16 + side_size;
+        let group_x = right_col_x + (right_col_w - total_w) / 2;
+        let prev_x = group_x;
+        let play_x = prev_x + side_size + 16;
+        let next_x = play_x + play_size + 16;
+
+        Self {
+            origin_x,
+            origin_y,
+            width,
+            height,
+            art_x,
+            art_y,
+            art_size,
+            right_col_x,
+            right_col_w,
+            title_y,
+            artist_y,
+            controls_y,
+            prev_x,
+            play_x,
+            next_x,
+            prev_size: side_size,
+            play_size,
+            next_size: side_size,
+            progress_x,
+            progress_y,
+            progress_w,
+            progress_h,
+        }
+    }
+
+    /// Hit-test contra os 3 botões. Retorna `Some(button)` SÓ se o
+    /// click cair dentro de um dos rects de controle — qualquer outro
+    /// ponto (arte, texto, progress) retorna `None` e propaga o click
+    /// pra baixo (zero-block fora dos botões). H46.media.6.
+    pub fn hit_test_button(&self, px: f64, py: f64) -> Option<MediaButton> {
+        let in_rect = |x: i32, y: i32, w: i32, h: i32| -> bool {
+            let xf = x as f64;
+            let yf = y as f64;
+            px >= xf && px < xf + w as f64 && py >= yf && py < yf + h as f64
+        };
+        if in_rect(self.prev_x, self.controls_y, self.prev_size, self.prev_size) {
+            return Some(MediaButton::Previous);
+        }
+        if in_rect(self.play_x, self.controls_y, self.play_size, self.play_size) {
+            return Some(MediaButton::PlayPause);
+        }
+        if in_rect(self.next_x, self.controls_y, self.next_size, self.next_size) {
+            return Some(MediaButton::Next);
+        }
+        None
+    }
+}
+
 impl OsdLayout {
     /// Calcula o layout centralizado no output (`output_w`, `output_h`
     /// em coordenadas lógicas). Usa só os tokens do tema, zero hardcode.

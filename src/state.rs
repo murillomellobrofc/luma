@@ -164,6 +164,9 @@ pub struct LumaState {
     /// OSD ativo (volume ou brilho via teclas XF86). H45.osd.
     /// `None` = nenhum overlay; tick limpa quando expira.
     pub osd: Option<crate::osd::Osd>,
+    /// OSD de mídia (now playing card) ativo. H46.osd-media.
+    /// Tick limpa quando expira. Polling de 500ms enquanto visível.
+    pub osd_media: Option<crate::osd::MediaOsd>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -582,6 +585,7 @@ impl LumaState {
             audio_streams: Vec::new(),
             audio_last_refresh: None,
             osd: None,
+            osd_media: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),
