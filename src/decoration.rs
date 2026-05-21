@@ -615,54 +615,6 @@ where
     out
 }
 
-/// Constrói os 3 elementos das bordas laterais e inferior. A borda
-/// superior já é coberta pelo header (mesma cor). `content_height` é a
-/// altura da surface do cliente (sem header/bordas). `full_width` =
-/// content + 2 * BORDER.
-pub fn border_elements_at(
-    window: &Window,
-    origin: Point<i32, Physical>,
-    full_width: i32,
-    content_height: i32,
-) -> Vec<SolidColorRenderElement> {
-    let mut deco = decoration_for(window);
-    deco.left_border
-        .resize((BORDER_THICKNESS, content_height.max(1)));
-    deco.right_border
-        .resize((BORDER_THICKNESS, content_height.max(1)));
-    deco.bottom_border
-        .resize((full_width.max(1), BORDER_THICKNESS));
-
-    let left_off = Point::<i32, Physical>::from((0, HEADER_HEIGHT));
-    let right_off =
-        Point::<i32, Physical>::from((full_width - BORDER_THICKNESS, HEADER_HEIGHT));
-    let bottom_off = Point::<i32, Physical>::from((0, HEADER_HEIGHT + content_height));
-
-    vec![
-        SolidColorRenderElement::from_buffer(
-            &deco.left_border,
-            origin + left_off,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ),
-        SolidColorRenderElement::from_buffer(
-            &deco.right_border,
-            origin + right_off,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ),
-        SolidColorRenderElement::from_buffer(
-            &deco.bottom_border,
-            origin + bottom_off,
-            1.0,
-            1.0,
-            Kind::Unspecified,
-        ),
-    ]
-}
-
 /// Hit-test no header. `point_in_window` é o ponto do mouse em coords
 /// LÓGICAS relativas ao topo-esquerdo da janela (incluindo header).
 /// H32.5.12: layout dos controles vem do theme.window_controls (hit_area

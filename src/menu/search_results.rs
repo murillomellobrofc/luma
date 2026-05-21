@@ -101,7 +101,6 @@ impl Default for SearchResultsLayer {
 pub const ICON_SIZE: i32 = 40;
 pub const ITEM_PADDING: i32 = 12;
 pub const ITEM_GAP: i32 = 6;
-pub const NAME_FONT_SIZE: f32 = 14.0;
 
 pub fn item_height() -> i32 {
     ICON_SIZE + 2 * ITEM_PADDING
