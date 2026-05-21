@@ -180,6 +180,122 @@ fn parse(path: &std::path::Path) -> Result<Option<DesktopApp>, std::io::Error> {
     Ok(Some(DesktopApp { name, exec, icon }))
 }
 
+/// Índice de ícones nome→caminho construído por scan único no primeiro
+/// uso. Lookup O(1) depois. Cobre todas as subpastas (apps, preferences,
+/// devices, status, emblems, ...) sem precisar enumerar categorias.
+/// H33.icons.7.
+pub struct IconIndex {
+    entries: std::collections::HashMap<String, PathBuf>,
+}
+
+static ICON_INDEX: std::sync::OnceLock<IconIndex> = std::sync::OnceLock::new();
+
+/// Acessa o índice global (build lazy no primeiro uso). H33.icons.7.
+pub fn icon_index() -> &'static IconIndex {
+    ICON_INDEX.get_or_init(IconIndex::build)
+}
+
+impl IconIndex {
+    /// Lookup O(1) pelo stem (nome sem extensão) do ícone.
+    pub fn get(&self, name: &str) -> Option<&PathBuf> {
+        self.entries.get(name)
+    }
+
+    /// Constrói o índice varrendo todos os temas e subpastas.
+    /// Ordem de inserção define prioridade (primeiro a entrar vence):
+    /// ~/.local/share/icons → /usr/share/icons (Breeze, Adwaita, hicolor...)
+    /// → /usr/share/pixmaps. Custo ~100-300ms no boot. H33.icons.7.
+    fn build() -> IconIndex {
+        let started = std::time::Instant::now();
+        let mut entries: std::collections::HashMap<String, PathBuf> =
+            std::collections::HashMap::new();
+
+        for base in theme_base_dirs() {
+            for theme in THEME_PRIORITY {
+                let theme_dir = base.join(theme);
+                if !theme_dir.is_dir() {
+                    continue;
+                }
+                // Layout: theme/<level1>/<level2>/<file>.ext
+                // level1/level2 = (size, cat) em hicolor, (cat, size) em breeze.
+                // Ambos resultam em arquivos a 2 níveis de profundidade.
+                let level1_iter = match fs::read_dir(&theme_dir) {
+                    Ok(it) => it,
+                    Err(_) => continue,
+                };
+                for level1 in level1_iter.flatten() {
+                    let level1_path = level1.path();
+                    if !level1_path.is_dir() {
+                        continue;
+                    }
+                    let level2_iter = match fs::read_dir(&level1_path) {
+                        Ok(it) => it,
+                        Err(_) => continue,
+                    };
+                    for level2 in level2_iter.flatten() {
+                        let level2_path = level2.path();
+                        if !level2_path.is_dir() {
+                            continue;
+                        }
+                        let files = match fs::read_dir(&level2_path) {
+                            Ok(it) => it,
+                            Err(_) => continue,
+                        };
+                        for entry in files.flatten() {
+                            let p = entry.path();
+                            let ext = p
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .map(|s| s.to_ascii_lowercase());
+                            let is_icon = matches!(
+                                ext.as_deref(),
+                                Some("svg") | Some("png") | Some("jpg") | Some("jpeg")
+                            );
+                            if !is_icon {
+                                continue;
+                            }
+                            if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                                entries
+                                    .entry(stem.to_string())
+                                    .or_insert_with(|| p.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // pixmaps (último fallback).
+        if let Ok(it) = fs::read_dir("/usr/share/pixmaps") {
+            for entry in it.flatten() {
+                let p = entry.path();
+                let ext = p
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|s| s.to_ascii_lowercase());
+                let is_icon = matches!(
+                    ext.as_deref(),
+                    Some("svg") | Some("png") | Some("jpg") | Some("jpeg") | Some("xpm")
+                );
+                if !is_icon {
+                    continue;
+                }
+                if ext.as_deref() == Some("xpm") {
+                    continue; // xpm não suportado pelo decoder
+                }
+                if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                    entries.entry(stem.to_string()).or_insert_with(|| p.clone());
+                }
+            }
+        }
+        info!(
+            "IconIndex: {} ícones indexados em {:?}",
+            entries.len(),
+            started.elapsed()
+        );
+        IconIndex { entries }
+    }
+}
+
 /// Diretórios-base do XDG Icon Theme spec, em ordem de prioridade:
 /// per-user primeiro (override), depois sistema, depois pixmaps legacy.
 /// H33.icons.1.
@@ -204,73 +320,18 @@ const THEME_PRIORITY: &[&str] = &[
     "hicolor",
 ];
 
-/// Sizes em ordem de preferência. 48 primeiro (canônico Breeze + GTK
-/// medium). 32 pra apps de baixa-res. H33.icons.3.
-const SIZE_PREF: &[&str] = &["48", "64", "32", "128", "96", "256", "192", "16"];
-
-/// Categorias de ícone. `apps` é o foco aqui; `categories` cobre alguns
-/// legacy.
-const CATEGORIES: &[&str] = &["apps", "categories"];
-
-/// Resolve o `Icon=` de um `.desktop` em um caminho PNG ou SVG no
-/// sistema, varrendo Breeze (KDE), Adwaita (GTK) e hicolor (universal).
-/// Retorna `None` se nenhum tema/tamanho/categoria contém o ícone.
-/// H33.icons.1-4.
+/// Resolve o `Icon=` de um `.desktop` consultando o `IconIndex` global
+/// (scan único no boot, todos os temas + todas as subpastas indexadas).
+/// H33.icons.7.
 fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
     // 1. Path absoluto: usa direto se for formato suportado.
     let p = PathBuf::from(icon);
     if p.is_absolute() && p.exists() && is_supported_ext(&p) {
         return Some(p);
     }
-
-    // 2. pixmaps legacy (geralmente PNG simples por app).
-    for ext in &["png", "svg", "jpg", "jpeg"] {
-        let candidate = PathBuf::from(format!("/usr/share/pixmaps/{}.{}", icon, ext));
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    // 3. Temas. Varre cada base × theme × size × category × style.
-    for base in theme_base_dirs() {
-        for theme in THEME_PRIORITY {
-            // 3a. Pasta scalable (SVG vetorial) — preferida quando há.
-            for cat in CATEGORIES {
-                // hicolor/Adwaita layout: theme/scalable/cat/<icon>.svg
-                let svg = base.join(theme).join("scalable").join(cat).join(format!("{}.svg", icon));
-                if svg.exists() {
-                    return Some(svg);
-                }
-                // Breeze layout: theme/cat/scalable/<icon>.svg (rare)
-                let svg2 = base.join(theme).join(cat).join("scalable").join(format!("{}.svg", icon));
-                if svg2.exists() {
-                    return Some(svg2);
-                }
-            }
-            // 3b. Tamanhos fixos. PNG > SVG na mesma resolução.
-            for size in SIZE_PREF {
-                for cat in CATEGORIES {
-                    // hicolor/Adwaita layout: theme/<size>x<size>/cat/<icon>.<ext>
-                    let hi_dir = base.join(theme).join(format!("{}x{}", size, size)).join(cat);
-                    for ext in &["png", "svg"] {
-                        let candidate = hi_dir.join(format!("{}.{}", icon, ext));
-                        if candidate.exists() {
-                            return Some(candidate);
-                        }
-                    }
-                    // Breeze layout: theme/cat/<size>/<icon>.<ext>  (size sem 'x')
-                    let bz_dir = base.join(theme).join(cat).join(size);
-                    for ext in &["svg", "png"] {
-                        let candidate = bz_dir.join(format!("{}.{}", icon, ext));
-                        if candidate.exists() {
-                            return Some(candidate);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
+    // 2. Lookup O(1) no índice (cobre Breeze, Adwaita, hicolor, pixmaps,
+    // e todas subpastas: apps, preferences, devices, status, emblems...).
+    icon_index().get(icon).cloned()
 }
 
 fn is_supported_ext(p: &std::path::Path) -> bool {
