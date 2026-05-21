@@ -3202,7 +3202,8 @@ pub fn init_winit(
                                 let title = if media.info.title.is_empty() {
                                     "—".to_string()
                                 } else {
-                                    media.info.title.clone()
+                                    // H46.media.8: ellipsis pra titulos longos.
+                                    truncate_chars(&media.info.title, 32)
                                 };
                                 let (px, w, h) =
                                     tx.rasterize_colored(&title, t.title_size, t.title_color);
@@ -3223,10 +3224,10 @@ pub fn init_winit(
                                 ))
                             });
                             let artist_buf = data.state.text.as_ref().and_then(|tx| {
-                                let artist = media.info.artist.clone();
-                                if artist.is_empty() {
+                                if media.info.artist.is_empty() {
                                     return None;
                                 }
+                                let artist = truncate_chars(&media.info.artist, 38);
                                 let (px, w, h) =
                                     tx.rasterize_colored(&artist, t.artist_size, t.artist_color);
                                 if w == 0 || h == 0 {
