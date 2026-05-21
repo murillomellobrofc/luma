@@ -1667,8 +1667,10 @@ pub fn init_winit(
                             }
                         }
 
-                        // H32.5.5: pílulas dos blocos + ícones do app, dentro
-                        // delas (8px padding esquerdo + ícone centralizado vert).
+                        // H33.taskbar.1: window list legada (pílulas com título)
+                        // desativada. Substituída por quadrados KDE-style 44×44
+                        // com tooltip em B.4-B.6. Mantemos o cálculo pra não
+                        // quebrar o resto do frame; o render fica sob `if false`.
                         let theme = crate::theme::current();
                         let start_x = crate::taskbar::blocks_start_x_with_pager(
                             data.state.workspaces.count(),
@@ -1680,6 +1682,11 @@ pub fn init_winit(
                         let block_top = bar_y + (crate::taskbar::taskbar_height() - bh) / 2;
                         let icon_size_px: i32 = theme.window_button.icon_size;
                         let icon_y_offset = (bh - icon_size_px) / 2;
+                        let _ = (&taskbar_icons, &taskbar_titles, &block_states,
+                                 &block_inactive, &block_hover, &block_active,
+                                 &block_minimized, start_x, bw, bh, bsp, block_top,
+                                 icon_size_px, icon_y_offset);
+                        if false {
                         // Ícones primeiro (vão em cima das pílulas no z-stack
                         // pq são pushed antes — Smithay renderiza fim→começo).
                         // H32.5.8: alpha 0.5 quando minimizado (default 1.0).
@@ -1786,6 +1793,7 @@ pub fn init_winit(
                                 custom_elements.push(LumaRenderElement::Memory(elem));
                             }
                         }
+                        } // fim do `if false` da H33.taskbar.1 (window list legada)
 
                         custom_elements
                             .extend(taskbar_solids.into_iter().map(LumaRenderElement::Solid));
