@@ -963,6 +963,70 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             return;
         }
 
+        // H50.2a.sel.2: cursor sobre uma célula do grid de ícones do
+        // desktop? Espaço sob o cursor pode ser o `DesktopIconsLayer`
+        // (z=5) quando nenhuma janela cobre essa área. Dispatch
+        // seleção e consome o click. Right-click sobre ícone também
+        // consume (não dispara context menu do desktop).
+        let icon_hit: Option<usize> = state
+            .desktop_icons
+            .as_ref()
+            .and_then(|l| l.hit_test_cell(pointer_pos));
+        if let Some(idx) = icon_hit {
+            let entries = state
+                .desktop_icons
+                .as_ref()
+                .map(|l| l.entries_snapshot())
+                .unwrap_or_default();
+            if let Some(entry) = entries.get(idx) {
+                if button == 0x110 {
+                    // Left click: substitui seleção; Ctrl+click toggla.
+                    let mut sel = state
+                        .desktop_icons
+                        .as_ref()
+                        .map(|l| l.selection_snapshot())
+                        .unwrap_or_default();
+                    let mods = state
+                        .seat
+                        .get_keyboard()
+                        .map(|kb| kb.modifier_state());
+                    let ctrl = mods.map(|m| m.ctrl).unwrap_or(false);
+                    if ctrl {
+                        if !sel.insert(entry.path.clone()) {
+                            sel.remove(&entry.path);
+                        }
+                    } else {
+                        sel.clear();
+                        sel.insert(entry.path.clone());
+                    }
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_selection(sel.clone());
+                    }
+                    state.desktop_selection = sel;
+                } else if button == 0x111 {
+                    // Right click sobre ícone só seleciona; não abre o
+                    // context menu do desktop.
+                    let mut sel = std::collections::HashSet::new();
+                    sel.insert(entry.path.clone());
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_selection(sel.clone());
+                    }
+                    state.desktop_selection = sel;
+                }
+            }
+            pointer.button(
+                state,
+                &ButtonEvent {
+                    button,
+                    state: button_state,
+                    serial,
+                    time: event.time_msec(),
+                },
+            );
+            pointer.frame(state);
+            return;
+        }
+
         match state
             .space
             .element_under(pointer_pos)

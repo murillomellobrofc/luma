@@ -115,6 +115,11 @@ pub struct DesktopIconsLayer {
     /// Cache de labels rasterizados por (texto_truncado, tamanho).
     /// Reseta toda vez que muda o tema (font size).
     label_cache: Mutex<HashMap<String, (MemoryRenderBuffer, Size<i32, Logical>)>>,
+    /// Paths dos ícones selecionados. Path-based (não índice) porque
+    /// o polling pode re-ordenar a lista. H50.2a.
+    selection: Mutex<std::collections::HashSet<PathBuf>>,
+    /// Cache do bg de seleção (rect arredondado) por size_chave.
+    selection_bg_cache: Mutex<Option<(MemoryRenderBuffer, i32, i32)>>,
 }
 
 impl DesktopIconsLayer {
@@ -124,6 +129,8 @@ impl DesktopIconsLayer {
             entries: Mutex::new(Vec::new()),
             icon_cache: Mutex::new(HashMap::new()),
             label_cache: Mutex::new(HashMap::new()),
+            selection: Mutex::new(std::collections::HashSet::new()),
+            selection_bg_cache: Mutex::new(None),
         }
     }
 
@@ -137,8 +144,58 @@ impl DesktopIconsLayer {
         *self.entries.lock().unwrap() = entries;
     }
 
+    /// Substitui o set de paths selecionados. Chamado pelo dispatch
+    /// de click em pointer.rs. H50.2a.
+    pub fn set_selection(&self, selection: std::collections::HashSet<PathBuf>) {
+        *self.selection.lock().unwrap() = selection;
+    }
+
+    /// Snapshot da seleção atual (path-based, estável entre re-scans).
+    pub fn selection_snapshot(&self) -> std::collections::HashSet<PathBuf> {
+        self.selection.lock().unwrap().clone()
+    }
+
+    /// Snapshot das entradas atuais.
+    pub fn entries_snapshot(&self) -> Vec<DesktopEntry> {
+        self.entries.lock().unwrap().clone()
+    }
+
     fn current_output_size(&self) -> Size<i32, Logical> {
         *self.output_size.lock().unwrap()
+    }
+
+    /// Hit-test do grid: dado um ponto em coords lógicas do output,
+    /// retorna o índice da entrada cuja célula contém o ponto.
+    /// Hitbox = célula inteira (cell_width × cell_height). H50.2a.sel.1.
+    pub fn hit_test_cell(&self, point: Point<f64, Logical>) -> Option<usize> {
+        let theme = crate::theme::current();
+        let t = &theme.desktop_icons;
+        let entries = self.entries.lock().ok()?;
+        if entries.is_empty() {
+            return None;
+        }
+        let output = self.current_output_size();
+        let taskbar_h = crate::taskbar::taskbar_height();
+        let usable_h = output.h - t.grid_margin - taskbar_h - 8;
+        let rows = (usable_h / t.cell_height).max(1);
+
+        for (idx, _) in entries.iter().enumerate() {
+            let col = (idx as i32) / rows;
+            let row = (idx as i32) % rows;
+            let cell_x = t.grid_margin + col * t.cell_width;
+            let cell_y = t.grid_margin + row * t.cell_height;
+            if cell_x + t.cell_width > output.w - t.grid_margin {
+                break;
+            }
+            let rect: Rectangle<i32, Logical> = Rectangle::new(
+                Point::from((cell_x, cell_y)),
+                Size::from((t.cell_width, t.cell_height)),
+            );
+            if rect.to_f64().contains(point) {
+                return Some(idx);
+            }
+        }
+        None
     }
 
     /// Lookup/cache de um SVG do pack `assets/branding/icons/`.
@@ -210,9 +267,12 @@ impl SpaceElement for DesktopIconsLayer {
     fn geometry(&self) -> Rectangle<i32, Logical> {
         Rectangle::from_size(self.current_output_size())
     }
-    fn is_in_input_region(&self, _point: &Point<f64, Logical>) -> bool {
-        // Fase 1: sem input. Clicks passam pra wallpaper / desktop.
-        false
+    fn is_in_input_region(&self, point: &Point<f64, Logical>) -> bool {
+        // H50.2a.sel.1: clicks sobre células de ícone são consumidos
+        // pela layer (pra seleção/open); área vazia entre/após ícones
+        // passa pra surface debaixo (wallpaper) — caller depois usa
+        // a posição vazia pra deselect / right-click → context menu.
+        self.hit_test_cell(*point).is_some()
     }
     fn set_activate(&self, _activated: bool) {}
     fn output_enter(&self, _output: &Output, _overlap: Rectangle<i32, Logical>) {}
@@ -257,6 +317,33 @@ where
 
         let mut out: Vec<C> = Vec::new();
         let text_r = crate::text::TextRenderer::load();
+        let selection = self.selection.lock().ok();
+        // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
+        // reusada pra todos selecionados; mesmo tamanho da célula
+        // menos um pequeno padding).
+        let sel_bg = {
+            let pad = 4i32;
+            let w = t.cell_width - pad * 2;
+            let h = t.cell_height - pad * 2;
+            let mut cache = self.selection_bg_cache.lock().ok();
+            let valid = cache
+                .as_ref()
+                .and_then(|c| c.as_ref())
+                .map(|(_, cw, ch)| *cw == w && *ch == h)
+                .unwrap_or(false);
+            if !valid {
+                if let Some(c) = cache.as_mut() {
+                    let buf = crate::gfx::make_rounded_panel(
+                        w,
+                        h,
+                        t.selection_corner_radius,
+                        t.selection_bg,
+                    );
+                    **c = Some((buf, w, h));
+                }
+            }
+            cache.as_ref().and_then(|c| c.as_ref().cloned())
+        };
         for (idx, entry) in entries.iter().enumerate() {
             let col = (idx as i32) / rows;
             let row = (idx as i32) % rows;
@@ -265,6 +352,31 @@ where
             // Para se sair pela direita do output (overflow horizontal).
             if cell_x + t.cell_width > output_size.w - t.grid_margin {
                 break;
+            }
+            // Bg de seleção (atrás do ícone) — só pros selecionados.
+            let is_selected = selection
+                .as_ref()
+                .map(|s| s.contains(&entry.path))
+                .unwrap_or(false);
+            if is_selected {
+                if let Some((sel_buf, sw, sh)) = sel_bg.as_ref() {
+                    let bg_x = cell_x + (t.cell_width - sw) / 2;
+                    let bg_y = cell_y + (t.cell_height - sh) / 2;
+                    let pos = Point::<i32, Logical>::from((bg_x, bg_y))
+                        .to_physical_precise_round(1.0);
+                    let loc = location + pos;
+                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                        renderer,
+                        loc.to_f64(),
+                        sel_buf,
+                        None,
+                        None,
+                        None,
+                        Kind::Unspecified,
+                    ) {
+                        out.push(C::from(LumaRenderElement::Memory(elem)));
+                    }
+                }
             }
             let icon_x = cell_x + (t.cell_width - t.icon_size) / 2;
             let icon_y = cell_y + 8;
