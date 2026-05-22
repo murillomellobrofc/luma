@@ -199,36 +199,50 @@ pub fn handle_motion_absolute<I: InputBackend>(
             let tokens = crate::theme::current().context_menu.clone();
             let menu_clone = state.context_menu.clone();
             if let Some(snap) = menu_clone {
-                // 1. Verifica submenu primeiro — se hover está nele,
-                // não muda hovered do main.
+                // Hovers (sub + main) atualizados sempre.
                 let sub_hover = snap.submenu_hit_test(&tokens, out, pos);
+                let main_hover = snap.hit_test(&tokens, pos);
+                // Região unificada: mantém o submenu aberto enquanto o
+                // cursor estiver dentro do main rect OU do submenu rect.
+                // Fecha só quando sai dos DOIS. Bug clássico: cursor
+                // viajando na diagonal do item-pai pro submenu cruza
+                // outros items (não-Submenu), e a versão antiga fechava
+                // o submenu no caminho. Agora só fecha quando sai
+                // mesmo, ou quando o cursor pousa em OUTRO item
+                // Submenu-kind (troca).
+                let in_main_rect = snap.rect(&tokens).to_f64().contains(pos);
+                let in_sub_rect = snap
+                    .submenu_rect(&tokens, out)
+                    .map(|r| r.to_f64().contains(pos))
+                    .unwrap_or(false);
+                let new_open_submenu: Option<usize> = if let Some(idx) = main_hover {
+                    let is_sub = snap
+                        .items
+                        .get(idx)
+                        .map(|i| matches!(
+                            i.kind,
+                            crate::context_menu::ItemKind::Submenu(_)
+                        ))
+                        .unwrap_or(false);
+                    if is_sub {
+                        Some(idx) // troca/abre pro item Submenu hovered
+                    } else {
+                        // Item non-Submenu no main → mantém o atual.
+                        // (User pode estar viajando pro submenu.)
+                        snap.open_submenu
+                    }
+                } else if in_main_rect || in_sub_rect {
+                    // Separator do main OU cursor sobre o próprio
+                    // submenu → mantém atual.
+                    snap.open_submenu
+                } else {
+                    // Fora dos dois rects → fecha.
+                    None
+                };
                 if let Some(m) = state.context_menu.as_mut() {
                     m.submenu_hovered = sub_hover;
-                }
-                // 2. Hover do menu main.
-                let main_hover = snap.hit_test(&tokens, pos);
-                if let Some(m) = state.context_menu.as_mut() {
                     m.hovered = main_hover;
-                }
-                // 3. Se hover caiu sobre Submenu-kind, abre. Senão se
-                // não está dentro do submenu, fecha.
-                if let Some(idx) = main_hover {
-                    if let Some(item) = snap.items.get(idx) {
-                        let is_sub =
-                            matches!(item.kind, crate::context_menu::ItemKind::Submenu(_));
-                        if let Some(m) = state.context_menu.as_mut() {
-                            if is_sub {
-                                m.open_submenu = Some(idx);
-                            } else {
-                                m.open_submenu = None;
-                            }
-                        }
-                    }
-                } else if sub_hover.is_none() {
-                    // Cursor fora do main E fora do submenu → fecha sub.
-                    if let Some(m) = state.context_menu.as_mut() {
-                        m.open_submenu = None;
-                    }
+                    m.open_submenu = new_open_submenu;
                 }
             }
         }
