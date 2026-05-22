@@ -1056,6 +1056,8 @@ impl Default for DesktopIconsTokens {
             label_max_chars: 14,
             selection_bg: hex_color("#3D2520", 0.65), // applet_bg_active alpha
             selection_corner_radius: 10,
+            rubber_band_bg: hex_color("#3D2520", 0.35),  // mais transparente
+            rubber_band_border: hex_color("#E89B3D", 0.85), // amber
         }
     }
 }
@@ -1772,6 +1774,12 @@ pub struct DesktopIconsTokens {
     pub selection_bg: Color32F,
     /// Raio dos cantos do bg de seleção.
     pub selection_corner_radius: i32,
+    /// Cor do rubber-band (caixa de seleção desenhada com drag em
+    /// área vazia). Mesma família do selection_bg, alpha um pouco
+    /// menor. H50.2c.
+    pub rubber_band_bg: Color32F,
+    /// Cor da borda do rubber-band (amber 1px).
+    pub rubber_band_border: Color32F,
 }
 
 /// Wallpaper padrão shipado com o luma. H49.
