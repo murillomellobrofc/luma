@@ -1,0 +1,109 @@
+<svg viewBox="0 0 1280 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#3D2520"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="1080" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Renomear Nativo (sem KDialog)</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">O nome do ícone vira um campo editável ali mesmo, estilo Windows/GNOME</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <!-- ===== 1. OS 3 ESTADOS ===== -->
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — OS 3 ESTADOS DO ÍCONE</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="340" fill="url(#wall)" rx="12"/>
+
+    <!-- Estado A: normal -->
+    <g transform="translate(80, 60)">
+      <rect x="-20" y="-20" width="200" height="200" rx="12" fill="#FBF6EE" opacity="0.03"/>
+      <g transform="translate(38, 20)">
+        <path d="M0 10 L0 56 L64 56 L64 18 L30 18 L22 10 Z" fill="#E89B3D"/>
+        <path d="M0 10 L22 10 L30 18 L0 18 Z" fill="#F5D5A8"/>
+      </g>
+      <text x="70" y="118" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle">Documentos</text>
+      <text x="70" y="170" font-family="system-ui, sans-serif" font-size="12" fill="#A89D92" text-anchor="middle" font-weight="600">A — Normal</text>
+    </g>
+
+    <!-- seta -->
+    <text x="320" y="135" font-family="system-ui, sans-serif" font-size="24" fill="#8B7D72">→</text>
+    <text x="320" y="160" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">Renomear</text>
+
+    <!-- Estado B: editando -->
+    <g transform="translate(420, 60)">
+      <rect x="-20" y="-20" width="200" height="200" rx="12" fill="#FBF6EE" opacity="0.06"/>
+      <g transform="translate(38, 20)">
+        <path d="M0 10 L0 56 L64 56 L64 18 L30 18 L22 10 Z" fill="#E89B3D"/>
+        <path d="M0 10 L22 10 L30 18 L0 18 Z" fill="#F5D5A8"/>
+      </g>
+      <!-- campo editavel -->
+      <rect x="2" y="100" width="136" height="30" rx="6" fill="#2A1F1A" stroke="#E89B3D" stroke-width="2"/>
+      <rect x="10" y="107" width="96" height="16" rx="2" fill="#D97757" opacity="0.4"/>
+      <text x="14" y="120" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE">Documentos</text>
+      <rect x="108" y="106" width="2" height="18" fill="#FBF6EE"/>
+      <text x="70" y="170" font-family="system-ui, sans-serif" font-size="12" fill="#F5D5A8" text-anchor="middle" font-weight="600">B — Editando</text>
+    </g>
+
+    <!-- seta -->
+    <text x="660" y="135" font-family="system-ui, sans-serif" font-size="24" fill="#8B7D72">→</text>
+    <text x="655" y="160" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72">Enter</text>
+
+    <!-- Estado C: renomeado -->
+    <g transform="translate(760, 60)">
+      <rect x="-20" y="-20" width="200" height="200" rx="12" fill="#FBF6EE" opacity="0.03"/>
+      <g transform="translate(38, 20)">
+        <path d="M0 10 L0 56 L64 56 L64 18 L30 18 L22 10 Z" fill="#E89B3D"/>
+        <path d="M0 10 L22 10 L30 18 L0 18 Z" fill="#F5D5A8"/>
+      </g>
+      <text x="70" y="118" font-family="system-ui, sans-serif" font-size="13" fill="#FBF6EE" text-anchor="middle">Projetos</text>
+      <text x="70" y="170" font-family="system-ui, sans-serif" font-size="12" fill="#6B8E7F" text-anchor="middle" font-weight="600">C — Renomeado</text>
+    </g>
+
+    <text x="580" y="310" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.6">tudo no desktop, sem janela externa — 100% Golden Hour</text>
+  </g>
+
+  <!-- ===== 2. COMPORTAMENTO ===== -->
+  <text x="60" y="556" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — COMPORTAMENTO</text>
+
+  <g transform="translate(60, 580)">
+    <rect width="1160" height="240" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <text x="30" y="44" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Ao entrar no modo editar:</text>
+    <text x="30" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">O texto do nome vira um campo. O nome inteiro vem pré-selecionado (destacado).</text>
+    <text x="30" y="88" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Cursor piscando no fim. Foco do teclado vai pro campo.</text>
+
+    <text x="30" y="124" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Teclas:</text>
+    <text x="30" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Enter → confirma, renomeia o arquivo de verdade, volta ao normal</text>
+    <text x="30" y="168" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Esc → cancela, descarta, mantém o nome antigo</text>
+    <text x="30" y="188" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Clicar fora do campo → mesmo que Enter (confirma)</text>
+
+    <text x="600" y="124" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">Casos de erro (nunca crashar):</text>
+    <text x="600" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Nome vazio → ignora, mantém o antigo</text>
+    <text x="600" y="168" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Nome já existe → mantém o antigo (ou avisa discreto)</text>
+    <text x="600" y="188" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Erro de permissão → mantém o antigo, loga o erro</text>
+    <text x="600" y="216" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">Nenhum caso pode crashar nem congelar o Luma</text>
+  </g>
+
+  <!-- ===== 3. TOKENS ===== -->
+  <text x="60" y="866" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 890)">
+    <rect width="1160" height="150" fill="#1F1611" rx="12"/>
+
+    <text x="30" y="36" font-family="monospace" font-size="11" fill="#A89D92">[desktop_icons.rename]</text>
+    <text x="30" y="58" font-family="monospace" font-size="11" fill="#FBF6EE">field_bg        = <tspan fill="#6B8E7F">"#2A1F1A"</tspan></text>
+    <text x="30" y="76" font-family="monospace" font-size="11" fill="#FBF6EE">field_border    = <tspan fill="#6B8E7F">"#E89B3D"</tspan>  <tspan fill="#A89D92"># borda âmbar = editando</tspan></text>
+    <text x="30" y="94" font-family="monospace" font-size="11" fill="#FBF6EE">field_text      = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+    <text x="30" y="112" font-family="monospace" font-size="11" fill="#FBF6EE">selection_bg    = <tspan fill="#6B8E7F">"#D97757"</tspan>  <tspan fill="#A89D92"># texto pré-selecionado</tspan></text>
+    <text x="30" y="130" font-family="monospace" font-size="11" fill="#FBF6EE">cursor_color    = <tspan fill="#6B8E7F">"#FBF6EE"</tspan></text>
+
+    <text x="600" y="58" font-family="monospace" font-size="11" fill="#FBF6EE">border_width    = <tspan fill="#E89B3D">2</tspan></text>
+    <text x="600" y="76" font-family="monospace" font-size="11" fill="#FBF6EE">corner_radius   = <tspan fill="#E89B3D">6</tspan></text>
+    <text x="600" y="94" font-family="monospace" font-size="11" fill="#FBF6EE">cursor_blink_ms = <tspan fill="#E89B3D">500</tspan></text>
+    <text x="600" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72"># o campo reaproveita a posição do label do ícone</text>
+  </g>
+</svg>

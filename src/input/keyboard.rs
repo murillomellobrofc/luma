@@ -47,6 +47,20 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         desktop_has_selection && no_window_focus;
     let mut desktop_arrow: Option<crate::desktop_icons::Direction> = None;
     let mut desktop_enter = false;
+    // H53.rename: campo inline aberto intercepta toda digitação.
+    // Prioridade ALTA — antes do kb_active e do desktop_has_selection.
+    let renaming_open = state.desktop_renaming.is_some();
+    enum RenameKey {
+        Commit,
+        Cancel,
+        Char(char),
+        Backspace,
+        Left,
+        Right,
+        Home,
+        End,
+    }
+    let mut rename_event: Option<RenameKey> = None;
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
@@ -77,6 +91,49 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                     close_context_menu = true;
                     return FilterResult::Intercept(());
                 }
+            }
+            // H53.rename: prioridade absoluta sobre os outros gates
+            // do desktop quando o campo está aberto.
+            if renaming_open && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    rename_event = Some(RenameKey::Cancel);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                    rename_event = Some(RenameKey::Commit);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::BackSpace {
+                    rename_event = Some(RenameKey::Backspace);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Left {
+                    rename_event = Some(RenameKey::Left);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Right {
+                    rename_event = Some(RenameKey::Right);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Home {
+                    rename_event = Some(RenameKey::Home);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::End {
+                    rename_event = Some(RenameKey::End);
+                    return FilterResult::Intercept(());
+                }
+                let codepoint = smithay::input::keyboard::xkb::keysym_to_utf32(sym);
+                if codepoint != 0 {
+                    if let Some(ch) = char::from_u32(codepoint) {
+                        if !ch.is_control() {
+                            rename_event = Some(RenameKey::Char(ch));
+                            return FilterResult::Intercept(());
+                        }
+                    }
+                }
+                // Outras teclas (modifiers só, F-keys etc) passam.
             }
             if desktop_has_selection && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
@@ -189,6 +246,74 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         state.desktop_selection.clear();
         if let Some(l) = state.desktop_icons.as_ref() {
             l.set_selection(std::collections::HashSet::new());
+        }
+        return;
+    }
+
+    if let Some(ev) = rename_event {
+        match ev {
+            RenameKey::Cancel => {
+                state.desktop_renaming = None;
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_renaming(None);
+                }
+            }
+            RenameKey::Commit => {
+                if let Some(r) = state.desktop_renaming.take() {
+                    commit_rename(state, r);
+                }
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_renaming(None);
+                }
+            }
+            RenameKey::Char(c) => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.insert_char(c);
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
+            RenameKey::Backspace => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.backspace();
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
+            RenameKey::Left => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.cursor_left();
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
+            RenameKey::Right => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.cursor_right();
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
+            RenameKey::Home => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.cursor_home();
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
+            RenameKey::End => {
+                if let Some(r) = state.desktop_renaming.as_mut() {
+                    r.cursor_end();
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_renaming(Some(r.clone()));
+                    }
+                }
+            }
         }
         return;
     }
@@ -349,6 +474,52 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if let Some(action) = action {
         apply(state, action);
+    }
+}
+
+/// Commit do rename: faz fs::rename, atualiza desktop_positions com
+/// a key nova (H53 decisão 3), atualiza selection pra apontar pro
+/// path novo. Nenhum caminho pode crashar — todo erro só loga warn.
+pub(crate) fn commit_rename(
+    state: &mut crate::state::LumaState,
+    rename: crate::desktop_icons::DesktopRename,
+) {
+    let new_name = rename.text.trim().to_string();
+    // Nome vazio OU igual ao original = cancel silencioso.
+    if new_name.is_empty() || new_name == rename.original_name {
+        return;
+    }
+    if new_name.contains('/') {
+        tracing::warn!("rename: rejeitado — nome com '/'");
+        return;
+    }
+    let new_path = rename.path.with_file_name(&new_name);
+    if new_path.exists() {
+        tracing::warn!("rename: ja existe {new_path:?}");
+        return;
+    }
+    match std::fs::rename(&rename.path, &new_path) {
+        Ok(()) => {
+            tracing::info!("rename: {:?} -> {:?}", rename.path, new_path);
+            // Atualiza positions: renomeia a key se existir.
+            if let Some(pos) = state.desktop_positions.remove(&rename.original_name) {
+                state
+                    .desktop_positions
+                    .insert(new_name.clone(), pos);
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_positions(state.desktop_positions.clone());
+                }
+                crate::desktop_icons::save_positions(&state.desktop_positions);
+            }
+            // Atualiza selection: troca old path por new path.
+            if state.desktop_selection.remove(&rename.path) {
+                state.desktop_selection.insert(new_path.clone());
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_selection(state.desktop_selection.clone());
+                }
+            }
+        }
+        Err(e) => tracing::warn!("rename: falhou ({e})"),
     }
 }
 

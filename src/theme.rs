@@ -1058,6 +1058,14 @@ impl Default for DesktopIconsTokens {
             selection_corner_radius: 10,
             rubber_band_bg: hex_color("#3D2520", 0.35),  // mais transparente
             rubber_band_border: hex_color("#E89B3D", 0.85), // amber
+            rename_field_bg: hex_color("#2A1F1A", 1.0),         // applet_bg
+            rename_field_border: hex_color("#E89B3D", 1.0),     // amber
+            rename_field_text: hex_color("#FBF6EE", 1.0),       // cream
+            rename_field_selection_bg: hex_color("#D97757", 1.0), // coral
+            rename_field_cursor: hex_color("#FBF6EE", 1.0),     // cream
+            rename_field_border_width: 2,
+            rename_field_corner_radius: 6,
+            rename_field_cursor_blink_ms: 500,
         }
     }
 }
@@ -1780,6 +1788,15 @@ pub struct DesktopIconsTokens {
     pub rubber_band_bg: Color32F,
     /// Cor da borda do rubber-band (amber 1px).
     pub rubber_band_border: Color32F,
+    /// Campo de renomear inline (H53). Substitui o KDialog.
+    pub rename_field_bg: Color32F,
+    pub rename_field_border: Color32F,
+    pub rename_field_text: Color32F,
+    pub rename_field_selection_bg: Color32F,
+    pub rename_field_cursor: Color32F,
+    pub rename_field_border_width: i32,
+    pub rename_field_corner_radius: i32,
+    pub rename_field_cursor_blink_ms: u64,
 }
 
 /// Wallpaper padrão shipado com o luma. H49.

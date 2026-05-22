@@ -102,6 +102,121 @@ pub fn kind_of(path: &std::path::Path, is_dir: bool) -> FileKind {
     }
 }
 
+/// Estado de renomear inline (H53). `text` começa = `original_name`
+/// com `all_selected = true` — primeiro Char/Backspace substitui
+/// todo o texto. cursor_byte é byte offset (utf-8 safe).
+#[derive(Debug, Clone)]
+pub struct DesktopRename {
+    pub path: PathBuf,
+    pub original_name: String,
+    pub text: String,
+    pub cursor_byte: usize,
+    pub all_selected: bool,
+    pub started_at: std::time::Instant,
+}
+
+impl DesktopRename {
+    pub fn new(path: PathBuf) -> Self {
+        let original_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let cursor_byte = original_name.len();
+        Self {
+            path,
+            text: original_name.clone(),
+            original_name,
+            cursor_byte,
+            all_selected: true,
+            started_at: std::time::Instant::now(),
+        }
+    }
+
+    /// `true` quando o cursor deve estar visível (blink on).
+    pub fn cursor_visible(&self, blink_ms: u64) -> bool {
+        if blink_ms == 0 {
+            return true;
+        }
+        let elapsed = self.started_at.elapsed().as_millis() as u64;
+        (elapsed / blink_ms) % 2 == 0
+    }
+
+    /// Move o cursor pra esquerda 1 char (utf-8). Não passa do 0.
+    pub fn cursor_left(&mut self) {
+        self.all_selected = false;
+        if self.cursor_byte == 0 {
+            return;
+        }
+        // Move até o byte anterior que começa um char.
+        let mut i = self.cursor_byte - 1;
+        while i > 0 && !self.text.is_char_boundary(i) {
+            i -= 1;
+        }
+        self.cursor_byte = i;
+    }
+
+    /// Move o cursor pra direita 1 char.
+    pub fn cursor_right(&mut self) {
+        self.all_selected = false;
+        if self.cursor_byte >= self.text.len() {
+            return;
+        }
+        let mut i = self.cursor_byte + 1;
+        while i < self.text.len() && !self.text.is_char_boundary(i) {
+            i += 1;
+        }
+        self.cursor_byte = i;
+    }
+
+    pub fn cursor_home(&mut self) {
+        self.all_selected = false;
+        self.cursor_byte = 0;
+    }
+
+    pub fn cursor_end(&mut self) {
+        self.all_selected = false;
+        self.cursor_byte = self.text.len();
+    }
+
+    /// Insere um char na posição do cursor. Se `all_selected`,
+    /// substitui o texto inteiro pelo char. H53.rename.4.
+    pub fn insert_char(&mut self, c: char) {
+        if c == '/' || c.is_control() {
+            return;
+        }
+        if self.all_selected {
+            self.text.clear();
+            self.cursor_byte = 0;
+            self.all_selected = false;
+        }
+        self.text.insert(self.cursor_byte, c);
+        self.cursor_byte += c.len_utf8();
+        self.started_at = std::time::Instant::now(); // re-arma blink visible
+    }
+
+    /// Backspace: se `all_selected`, limpa tudo. Senão remove o char
+    /// antes do cursor. H53.rename.4.
+    pub fn backspace(&mut self) {
+        if self.all_selected {
+            self.text.clear();
+            self.cursor_byte = 0;
+            self.all_selected = false;
+            return;
+        }
+        if self.cursor_byte == 0 {
+            return;
+        }
+        let mut i = self.cursor_byte - 1;
+        while i > 0 && !self.text.is_char_boundary(i) {
+            i -= 1;
+        }
+        self.text.replace_range(i..self.cursor_byte, "");
+        self.cursor_byte = i;
+        self.started_at = std::time::Instant::now();
+    }
+}
+
 /// Direção pra navegação por teclado. H50.2c.kb.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -293,6 +408,9 @@ pub struct DesktopIconsLayer {
     drag: Mutex<Option<DesktopDrag>>,
     /// Rubber-band ativo (drag em área vazia). H50.2c.
     rubber_band: Mutex<Option<RubberBand>>,
+    /// Renomear inline em curso (Some quando algum ícone está sendo
+    /// renomeado). H53.
+    renaming: Mutex<Option<DesktopRename>>,
 }
 
 impl DesktopIconsLayer {
@@ -307,6 +425,7 @@ impl DesktopIconsLayer {
             positions: Mutex::new(std::collections::HashMap::new()),
             drag: Mutex::new(None),
             rubber_band: Mutex::new(None),
+            renaming: Mutex::new(None),
         }
     }
 
@@ -386,6 +505,12 @@ impl DesktopIconsLayer {
     /// de click em pointer.rs. H50.2a.
     pub fn set_selection(&self, selection: std::collections::HashSet<PathBuf>) {
         *self.selection.lock().unwrap() = selection;
+    }
+
+    /// Substitui o estado de renomear inline (None = sem rename).
+    /// H53.
+    pub fn set_renaming(&self, rename: Option<DesktopRename>) {
+        *self.renaming.lock().unwrap() = rename;
     }
 
     /// Snapshot da seleção atual (path-based, estável entre re-scans).
@@ -503,6 +628,123 @@ impl DesktopIconsLayer {
         Some(buf)
     }
 
+    /// Renderiza o campo editável de rename inline no lugar do label
+    /// normal: bg arredondado + borda âmbar + texto + (seleção total
+    /// OU cursor blink). H53.rename.2-3.
+    #[allow(clippy::too_many_arguments)]
+    fn render_rename_field<R, C>(
+        &self,
+        rename: &DesktopRename,
+        text_r: &crate::text::TextRenderer,
+        cell_x: i32,
+        label_y: i32,
+        cell_w: i32,
+        renderer: &mut R,
+        location: Point<i32, Physical>,
+        out: &mut Vec<C>,
+    ) where
+        R: Renderer + ImportAll + ImportMem,
+        R::TextureId: smithay::backend::renderer::Texture + Clone + Send + 'static,
+        C: From<LumaRenderElement<R>>,
+    {
+        let theme = crate::theme::current();
+        let t = &theme.desktop_icons;
+        // Rasteriza o texto completo (cream).
+        let display_text = if rename.text.is_empty() {
+            " " // garante altura visível mesmo vazio
+        } else {
+            rename.text.as_str()
+        };
+        let (text_px, tw, th) = text_r.rasterize_colored(
+            display_text,
+            t.label_size,
+            t.rename_field_text,
+        );
+        if tw == 0 || th == 0 {
+            return;
+        }
+        // Field: padding interno + tamanho mínimo do cell_w * 0.9.
+        let pad_x = 6;
+        let pad_y = 3;
+        let field_w = (tw as i32 + pad_x * 2).max((cell_w as f32 * 0.9) as i32);
+        let field_h = th as i32 + pad_y * 2;
+        let field_x = cell_x + (cell_w - field_w) / 2;
+        let field_y = label_y - pad_y;
+        let bw = t.rename_field_border_width;
+        let cr = t.rename_field_corner_radius;
+        // Border (rounded panel maior atrás).
+        let border = crate::gfx::make_rounded_panel(
+            field_w + 2 * bw,
+            field_h + 2 * bw,
+            cr + bw,
+            t.rename_field_border,
+        );
+        let bg = crate::gfx::make_rounded_panel(
+            field_w,
+            field_h,
+            cr,
+            t.rename_field_bg,
+        );
+        let push_mem = |out: &mut Vec<C>, buf: &MemoryRenderBuffer, x: i32, y: i32, r: &mut R| {
+            let pos = Point::<i32, Logical>::from((x, y)).to_physical_precise_round(1.0);
+            let loc = location + pos;
+            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                r, loc.to_f64(), buf, None, None, None, Kind::Unspecified,
+            ) {
+                out.push(C::from(LumaRenderElement::Memory(elem)));
+            }
+        };
+        // Border atrás, bg em cima.
+        push_mem(out, &border, field_x - bw, field_y - bw, renderer);
+        push_mem(out, &bg, field_x, field_y, renderer);
+        // Seleção total (atrás do texto).
+        if rename.all_selected && !rename.text.is_empty() {
+            let sel_bg = crate::gfx::make_rounded_panel(
+                tw as i32 + 4,
+                th as i32 + 2,
+                3,
+                t.rename_field_selection_bg,
+            );
+            let sel_x = field_x + (field_w - tw as i32) / 2 - 2;
+            let sel_y = field_y + pad_y - 1;
+            push_mem(out, &sel_bg, sel_x, sel_y, renderer);
+        }
+        // Texto centralizado.
+        let text_x = field_x + (field_w - tw as i32) / 2;
+        let text_y = field_y + pad_y;
+        let text_buf = MemoryRenderBuffer::from_slice(
+            &text_px,
+            smithay::backend::allocator::Fourcc::Argb8888,
+            (tw as i32, th as i32),
+            1,
+            Transform::Normal,
+            None,
+        );
+        push_mem(out, &text_buf, text_x, text_y, renderer);
+        // Cursor blink (só quando NÃO está com tudo selecionado e
+        // cursor_visible). Linha vertical 1px na posição do cursor.
+        if !rename.all_selected && rename.cursor_visible(t.rename_field_cursor_blink_ms) {
+            // Calcula a largura do texto antes do cursor pra posicionar.
+            let prefix = &rename.text[..rename.cursor_byte.min(rename.text.len())];
+            let cursor_offset = if prefix.is_empty() {
+                0
+            } else {
+                let (_, pw, _) = text_r.rasterize_colored(
+                    prefix, t.label_size, t.rename_field_text,
+                );
+                pw as i32
+            };
+            let cur_w = 1;
+            let cur_h = th as i32 + 2;
+            let cur_buf = crate::gfx::make_rounded_panel(
+                cur_w, cur_h, 0, t.rename_field_cursor,
+            );
+            let cur_x = text_x + cursor_offset;
+            let cur_y = field_y + pad_y - 1;
+            push_mem(out, &cur_buf, cur_x, cur_y, renderer);
+        }
+    }
+
     /// Lookup/cache de label rasterizado. Truncado em `label_max_chars`
     /// chars + ellipsis. H50.icons.6.
     fn load_label(
@@ -614,6 +856,7 @@ where
         let layout = compute_layout(&entries, &positions_snap, rows);
         let drag_snap = self.drag.lock().ok().and_then(|g| g.clone());
         let rb_snap = self.rubber_band.lock().ok().and_then(|g| g.clone());
+        let rename_snap = self.renaming.lock().ok().and_then(|g| g.clone());
         // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
         // reusada pra todos selecionados; mesmo tamanho da célula
         // menos um pequeno padding).
@@ -713,9 +956,28 @@ where
                     out.push(C::from(LumaRenderElement::Memory(elem)));
                 }
             }
-            // Label (truncado + centralizado abaixo do ícone).
+            // H53: se este ícone está sendo renomeado, render o campo
+            // editável em vez do label normal.
+            let is_renaming = rename_snap
+                .as_ref()
+                .map(|r| r.path == entry.path)
+                .unwrap_or(false);
             if let Some(text_r) = text_r.as_ref() {
-                if let Some((lbuf, lsize)) = self.load_label(text_r, &entry.name) {
+                if is_renaming {
+                    if let Some(r) = rename_snap.as_ref() {
+                        let label_y = icon_y + t.icon_size + 4;
+                        self.render_rename_field(
+                            r,
+                            text_r,
+                            cell_x,
+                            label_y,
+                            t.cell_width,
+                            renderer,
+                            location,
+                            &mut out,
+                        );
+                    }
+                } else if let Some((lbuf, lsize)) = self.load_label(text_r, &entry.name) {
                     let label_x = cell_x + (t.cell_width - lsize.w) / 2;
                     let label_y = icon_y + t.icon_size + 4;
                     let pos = Point::<i32, Logical>::from((label_x, label_y))

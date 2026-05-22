@@ -367,6 +367,22 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H53.rename.6: click com rename inline aberto = commit
+        // (mesmo padrão que Enter). Comporta-se igual KDE/GNOME.
+        // Único caso onde não commita: nada a fazer aqui — o click
+        // se propaga normal pelo restante do handler (pode abrir
+        // outro menu, selecionar outro ícone, etc).
+        if state.desktop_renaming.is_some() {
+            if let Some(r) = state.desktop_renaming.take() {
+                crate::input::keyboard::commit_rename(state, r);
+            }
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_renaming(None);
+            }
+            // Não return — deixa o click prosseguir pra hit-tests
+            // normais (rubber band, menu, seleção, etc).
+        }
+
         // H48.ctx.1: context menu aberto tem prioridade absoluta.
         // Click dentro do menu/submenu = ação; click fora = fecha.
         if state.context_menu.is_some() {
@@ -1418,8 +1434,19 @@ fn dispatch_context_action(
             }
         }
         ContextAction::Rename => {
+            // H53: renomear inline (sem kdialog). Seta state + sincroniza
+            // o layer pra o render desenhar o campo. Foco de teclado vai
+            // pra None pro filter interceptar tudo que for digitado.
             if let Some(p) = icon_target.as_ref() {
-                crate::context_menu::rename_target(p);
+                let r = crate::desktop_icons::DesktopRename::new(p.clone());
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_renaming(Some(r.clone()));
+                }
+                state.desktop_renaming = Some(r);
+                if let Some(kb) = state.seat.get_keyboard() {
+                    let serial2 = smithay::utils::SERIAL_COUNTER.next_serial();
+                    kb.set_focus(state, Option::<WlSurface>::None, serial2);
+                }
             }
         }
         ContextAction::MoveToTrash => {
