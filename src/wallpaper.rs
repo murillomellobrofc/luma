@@ -26,9 +26,18 @@ use crate::render::LumaRenderElement;
 /// premultiplied (igual cursor e texto), `size` é a dimensão original
 /// da imagem em pixels — o caller passa pro RenderElement como size de
 /// destino esticando pra ocupar o output.
+/// Conteúdo carregado de um wallpaper (buffer rasterizado + size).
+/// Guardado dentro de `Mutex` no Wallpaper pra hot-swap (H51).
+#[derive(Clone)]
+struct WallpaperImage {
+    buffer: MemoryRenderBuffer,
+    size: Size<i32, Logical>,
+}
+
 pub struct Wallpaper {
-    pub buffer: MemoryRenderBuffer,
-    pub size: Size<i32, Logical>,
+    /// Imagem atual (buffer + tamanho). Substituida via `reload_from_path`
+    /// pra trocar o papel de parede sem restart. H51.
+    image: Mutex<WallpaperImage>,
     /// Tamanho atual do output onde o wallpaper é renderizado. Atualizado
     /// pelo backend quando a janela winit redimensiona. Mutex pra
     /// permitir &SpaceElement (interior mutability).
@@ -43,6 +52,23 @@ pub struct Wallpaper {
 impl Wallpaper {
     pub fn set_output_size(&self, size: Size<i32, Logical>) {
         *self.output_size.lock().unwrap() = size;
+    }
+
+    /// Substitui o conteúdo do wallpaper sem recriar o `Arc<Wallpaper>`
+    /// — Space + backend continuam usando a mesma instância. H51.
+    /// `false` se o decode falhou.
+    pub fn reload_from_path(&self, path: &Path) -> bool {
+        match try_load_image(path) {
+            Some(img) => {
+                *self.image.lock().unwrap() = img;
+                info!("wallpaper hot-reload de {:?}", path);
+                true
+            }
+            None => {
+                warn!("wallpaper hot-reload falhou em {:?}", path);
+                false
+            }
+        }
     }
 
     /// Vincula este wallpaper a um output específico. Clona o `Output`
@@ -76,7 +102,8 @@ impl Wallpaper {
             }
             match try_load(path) {
                 Some(w) => {
-                    info!("wallpaper do usuário {:?} ({}x{})", path, w.size.w, w.size.h);
+                    let sz = w.image.lock().unwrap().size;
+                    info!("wallpaper do usuário {:?} ({}x{})", path, sz.w, sz.h);
                     return Some(w);
                 }
                 None => warn!("falha ao decodificar {:?}", path),
@@ -87,10 +114,8 @@ impl Wallpaper {
         if default_path.exists() {
             match try_load(&default_path) {
                 Some(w) => {
-                    info!(
-                        "wallpaper padrão {:?} ({}x{})",
-                        default_path, w.size.w, w.size.h
-                    );
+                    let sz = w.image.lock().unwrap().size;
+                    info!("wallpaper padrão {:?} ({}x{})", default_path, sz.w, sz.h);
                     return Some(w);
                 }
                 None => warn!("falha ao decodificar wallpaper padrão {:?}", default_path),
@@ -131,10 +156,34 @@ fn try_load(path: &Path) -> Option<Wallpaper> {
         None,
     );
     Some(Wallpaper {
-        buffer,
-        size: Size::from((w, h)),
+        image: Mutex::new(WallpaperImage {
+            buffer,
+            size: Size::from((w, h)),
+        }),
         output_size: Mutex::new(Size::from((w, h))),
         output: Mutex::new(None),
+    })
+}
+
+/// Carrega o conteúdo (buffer + size) de um arquivo, sem criar um
+/// Wallpaper novo. Usado por `Wallpaper::reload_from_path`. H51.
+fn try_load_image(path: &Path) -> Option<WallpaperImage> {
+    let img = image::open(path).ok()?;
+    let rgba = img.to_rgba8();
+    let (w, h) = (rgba.width() as i32, rgba.height() as i32);
+    let pixels = swizzle_rgba_to_bgra_premultiplied(rgba.into_raw());
+
+    let buffer = MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    );
+    Some(WallpaperImage {
+        buffer,
+        size: Size::from((w, h)),
     })
 }
 
@@ -185,7 +234,9 @@ where
     ) -> Vec<C> {
         use crate::theme::WallpaperMode;
         let output = self.current_output_size();
-        let image = self.size;
+        // Lock + clone (MemoryRenderBuffer é Arc internamente, cheap).
+        let img_snap = self.image.lock().unwrap().clone();
+        let image = img_snap.size;
         let theme = crate::theme::current();
 
         let (dst_loc, dst_size) = match theme.wallpaper_mode {
@@ -214,7 +265,7 @@ where
         match MemoryRenderBufferRenderElement::from_buffer(
             renderer,
             dst_loc.to_f64(),
-            &self.buffer,
+            &img_snap.buffer,
             None,
             None,
             Some(dst_size),
