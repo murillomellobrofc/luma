@@ -34,6 +34,27 @@ pub fn handle_motion_absolute<I: InputBackend>(
         return;
     };
 
+    // H50.2b.drag.1-2: atualiza state.desktop_drag se estiver
+    // pendente/ativo. Threshold de 5px promove pra active; depois
+    // disso, cada motion atualiza current_screen pra ghost seguir.
+    if let Some(drag) = state.desktop_drag.as_mut() {
+        drag.current_screen = pos;
+        if !drag.active {
+            let dx = pos.x - drag.start_screen.x;
+            let dy = pos.y - drag.start_screen.y;
+            if (dx * dx + dy * dy).sqrt()
+                >= crate::desktop_icons::DRAG_THRESHOLD_PX
+            {
+                drag.active = true;
+            }
+        }
+        if drag.active {
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_drag(Some(drag.clone()));
+            }
+        }
+    }
+
     // Atualiza hover dos headers + escolhe cursor_kind por contexto numa
     // única passagem pelas janelas do topo pro fundo.
     let mut hover_set = false;
@@ -244,6 +265,61 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let button = event.button_code();
     let button_state = event.state();
     let pointer_pos = pointer.current_location();
+
+    // H50.2b.drag.3: mouseup com drag ativo → snap pra célula mais
+    // próxima + persiste. Drag sem active = só foi um click normal
+    // (já tratado no Pressed), só limpa o pending.
+    if button_state == ButtonState::Released {
+        if let Some(drag) = state.desktop_drag.take() {
+            if drag.active {
+                let layer = state.desktop_icons.as_ref().cloned();
+                if let Some(l) = layer.as_ref() {
+                    l.set_drag(None);
+                }
+                if let Some(l) = layer.as_ref() {
+                    // Top-left da célula = pointer - offset.
+                    let target = smithay::utils::Point::<f64, smithay::utils::Logical>::from((
+                        pointer_pos.x - drag.offset.x as f64,
+                        pointer_pos.y - drag.offset.y as f64,
+                    ));
+                    let (col, row) = l.nearest_cell(target);
+                    // Usa basename do path como chave.
+                    if let Some(name) = drag
+                        .path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                    {
+                        // Se outro ícone já tem essa célula, swap.
+                        let mut positions = state.desktop_positions.clone();
+                        let mut to_evict: Option<String> = None;
+                        for (k, v) in positions.iter() {
+                            if k != name && *v == (col, row) {
+                                to_evict = Some(k.clone());
+                                break;
+                            }
+                        }
+                        if let Some(evict_name) = to_evict {
+                            // Swap: o vizinho herda a posição antiga
+                            // do dragged (se tinha).
+                            if let Some(prev) = positions.get(name).copied() {
+                                positions.insert(evict_name, prev);
+                            } else {
+                                positions.remove(&evict_name);
+                            }
+                        }
+                        positions.insert(name.to_string(), (col, row));
+                        state.desktop_positions = positions.clone();
+                        l.set_positions(positions.clone());
+                        crate::desktop_icons::save_positions(&positions);
+                        tracing::info!(
+                            "desktop: moveu {:?} pra ({col}, {row})",
+                            drag.path
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
         // H48.ctx.1: context menu aberto tem prioridade absoluta.
@@ -980,6 +1056,51 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 .unwrap_or_default();
             if let Some(entry) = entries.get(idx) {
                 if button == 0x110 {
+                    // H50.2b.drag.1: registra pending drag (ainda não
+                    // ativo, só ativa depois de threshold em motion).
+                    let theme = crate::theme::current();
+                    let t = &theme.desktop_icons;
+                    let (col, row) = {
+                        let positions = state
+                            .desktop_icons
+                            .as_ref()
+                            .map(|l| {
+                                l.entries_snapshot();
+                                state.desktop_positions.clone()
+                            })
+                            .unwrap_or_default();
+                        let rows_per_col = {
+                            let output_h = state
+                                .space
+                                .output_geometry(state.output_under_cursor(pointer_pos))
+                                .map(|g| g.size.h)
+                                .unwrap_or(0);
+                            let usable = output_h
+                                - t.grid_margin
+                                - crate::taskbar::taskbar_height()
+                                - 8;
+                            (usable / t.cell_height).max(1)
+                        };
+                        let layout = crate::desktop_icons::compute_layout(
+                            &entries,
+                            &positions,
+                            rows_per_col,
+                        );
+                        layout.get(idx).copied().unwrap_or((0, 0))
+                    };
+                    let cell_x = t.grid_margin + col * t.cell_width;
+                    let cell_y = t.grid_margin + row * t.cell_height;
+                    let offset = smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                        pointer_pos.x.round() as i32 - cell_x,
+                        pointer_pos.y.round() as i32 - cell_y,
+                    ));
+                    state.desktop_drag = Some(crate::desktop_icons::DesktopDrag {
+                        path: entry.path.clone(),
+                        start_screen: pointer_pos,
+                        offset,
+                        current_screen: pointer_pos,
+                        active: false,
+                    });
                     // H50.2a.sel.4: detecta double-click (<=500ms,
                     // mesmo ícone) → abre via xdg-open. NÃO Ctrl+click.
                     let now = std::time::Instant::now();
