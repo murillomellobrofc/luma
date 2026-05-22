@@ -211,9 +211,20 @@ pub fn handle_motion_absolute<I: InputBackend>(
                 // mesmo, ou quando o cursor pousa em OUTRO item
                 // Submenu-kind (troca).
                 let in_main_rect = snap.rect(&tokens).to_f64().contains(pos);
+                // H47fix++: ALARGA o sub rect 12px à esquerda pra incluir
+                // o gap de 2px entre main e submenu + margem pro cursor
+                // viajando. Sem isso, 1-2 frames com cursor dentro do
+                // gap (vec, none-none) fecham o submenu permanentemente.
                 let in_sub_rect = snap
                     .submenu_rect(&tokens, out)
-                    .map(|r| r.to_f64().contains(pos))
+                    .map(|r| {
+                        let pad_left = 12;
+                        let extended = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                            smithay::utils::Point::from((r.loc.x - pad_left, r.loc.y)),
+                            smithay::utils::Size::from((r.size.w + pad_left, r.size.h)),
+                        );
+                        extended.to_f64().contains(pos)
+                    })
                     .unwrap_or(false);
                 let new_open_submenu: Option<usize> = if let Some(idx) = main_hover {
                     let is_sub = snap
