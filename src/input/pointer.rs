@@ -1192,14 +1192,31 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     }
                     state.desktop_selection = sel;
                 } else if button == 0x111 {
-                    // Right click sobre ícone só seleciona; não abre o
-                    // context menu do desktop.
+                    // H52: right-click sobre ícone seleciona + abre
+                    // o menu per-icon (Abrir / Copiar caminho /
+                    // Renomear / Mover pra Lixeira).
                     let mut sel = std::collections::HashSet::new();
                     sel.insert(entry.path.clone());
                     if let Some(l) = state.desktop_icons.as_ref() {
                         l.set_selection(sel.clone());
                     }
                     state.desktop_selection = sel;
+                    let output_size = state
+                        .space
+                        .output_geometry(state.output_under_cursor(pointer_pos))
+                        .map(|g| g.size);
+                    if let Some(out) = output_size {
+                        let tokens = crate::theme::current().context_menu.clone();
+                        let mut menu = crate::context_menu::ContextMenu::for_icon(
+                            smithay::utils::Point::from((
+                                pointer_pos.x.round() as i32,
+                                pointer_pos.y.round() as i32,
+                            )),
+                            entry.path.clone(),
+                        );
+                        menu.clamp_into(out, &tokens);
+                        state.context_menu = Some(menu);
+                    }
                 }
             }
             pointer.button(
@@ -1328,6 +1345,13 @@ fn dispatch_context_action(
         ItemKind::Action(a) => *a,
         _ => return,
     };
+    // H52: actions per-icon precisam do target path. Capture aqui
+    // antes de fechar o menu (o fluxo de fora limpa state.context_menu
+    // após o dispatch).
+    let icon_target = state
+        .context_menu
+        .as_ref()
+        .and_then(|m| m.target.clone());
     match action {
         ContextAction::OpenTerminal => crate::context_menu::open_terminal(),
         ContextAction::ChangeWallpaperPick => {
@@ -1350,6 +1374,32 @@ fn dispatch_context_action(
         ContextAction::ConfigureDisplay => {
             // Dim na UI; este arm cobre eventual desync (item enabled
             // mas action ConfigureDisplay). No-op.
+        }
+        ContextAction::OpenTarget => {
+            if let Some(p) = icon_target.as_ref() {
+                tracing::info!("desktop: open {:?}", p);
+                let _ = std::process::Command::new("xdg-open").arg(p).spawn();
+            }
+        }
+        ContextAction::CopyPath => {
+            if let Some(p) = icon_target.as_ref() {
+                crate::context_menu::copy_to_clipboard(&p.to_string_lossy());
+            }
+        }
+        ContextAction::Rename => {
+            if let Some(p) = icon_target.as_ref() {
+                crate::context_menu::rename_target(p);
+            }
+        }
+        ContextAction::MoveToTrash => {
+            if let Some(p) = icon_target.as_ref() {
+                crate::context_menu::move_to_trash(p);
+                // Limpa seleção desse path (vai sumir no próximo poll).
+                state.desktop_selection.remove(p);
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_selection(state.desktop_selection.clone());
+                }
+            }
         }
         ContextAction::Disabled => {}
     }

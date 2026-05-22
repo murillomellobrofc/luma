@@ -28,6 +28,14 @@ pub enum ContextAction {
     ConfigureDisplay,
     OpenTerminal,
     OpenLumaSettings,
+    /// Per-icon: abre o target via xdg-open. H52.
+    OpenTarget,
+    /// Per-icon: copia o path do target pro clipboard (wl-copy). H52.
+    CopyPath,
+    /// Per-icon: kdialog --inputbox pra novo nome → fs::rename. H52.
+    Rename,
+    /// Per-icon: gio trash <target> (fallback kioclient5). H52.
+    MoveToTrash,
     /// Placeholder pros 4 items que dependem de ícones no desktop.
     /// Nunca dispatcha (item fica enabled=false).
     Disabled,
@@ -77,6 +85,9 @@ pub struct ContextMenu {
     pub open_submenu: Option<usize>,
     /// Index do item do submenu sob hover (None = nenhum).
     pub submenu_hovered: Option<usize>,
+    /// Path do ícone-target quando o menu é per-icon (right-click num
+    /// ícone do desktop). `None` quando é menu do desktop. H52.
+    pub target: Option<std::path::PathBuf>,
 }
 
 impl ContextMenu {
@@ -89,6 +100,21 @@ impl ContextMenu {
             hovered: None,
             open_submenu: None,
             submenu_hovered: None,
+            target: None,
+        }
+    }
+
+    /// Constrói o menu per-icon (right-click sobre um ícone do
+    /// desktop). Items: Abrir / Copiar caminho / Renomear / Mover
+    /// pra Lixeira. Caller deve `clamp_into` depois. H52.
+    pub fn for_icon(cursor: Point<i32, Logical>, target: std::path::PathBuf) -> Self {
+        Self {
+            origin: cursor,
+            items: icon_items(),
+            hovered: None,
+            open_submenu: None,
+            submenu_hovered: None,
+            target: Some(target),
         }
     }
 
@@ -275,6 +301,178 @@ pub fn open_terminal() {
         }
     }
     tracing::warn!("ctx menu: nenhum terminal encontrado");
+}
+
+/// Items do menu per-icon. Abrir / Copiar caminho / Renomear / Mover
+/// pra Lixeira. Reaproveita os ícones do pack ctx-* + alguns extras.
+/// H52.
+fn icon_items() -> Vec<ContextItem> {
+    vec![
+        ContextItem {
+            label: "Abrir",
+            icon: Some("ctx-terminal"), // placeholder; sem SVG dedicado
+            kind: ItemKind::Action(ContextAction::OpenTarget),
+            enabled: true,
+            shortcut: Some("Enter"),
+        },
+        ContextItem {
+            label: "",
+            icon: None,
+            kind: ItemKind::Separator,
+            enabled: false,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "Copiar caminho",
+            icon: Some("ctx-paste"),
+            kind: ItemKind::Action(ContextAction::CopyPath),
+            enabled: true,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "Renomear…",
+            icon: Some("ctx-edit"),
+            kind: ItemKind::Action(ContextAction::Rename),
+            enabled: true,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "",
+            icon: None,
+            kind: ItemKind::Separator,
+            enabled: false,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "Mover pra Lixeira",
+            icon: Some("ctx-new"),
+            kind: ItemKind::Action(ContextAction::MoveToTrash),
+            enabled: true,
+            shortcut: None,
+        },
+    ]
+}
+
+/// Executa `wl-copy <text>`. Sem dep nova — usa o binário do
+/// wl-clipboard. Loga warn se ausente. H52.
+pub fn copy_to_clipboard(text: &str) {
+    let result = std::process::Command::new("wl-copy").arg(text).spawn();
+    match result {
+        Ok(_) => tracing::info!("ctx menu: clipboard <- {text}"),
+        Err(e) => tracing::warn!(
+            "ctx menu: wl-copy falhou ({e}) — instalar wl-clipboard"
+        ),
+    }
+}
+
+/// kdialog --inputbox pra novo nome do arquivo/pasta. Renomeia via
+/// fs::rename. Bloqueia até o user fechar o dialog. Falha (sem
+/// kdialog/zenity) → no-op. H52.
+pub fn rename_target(target: &std::path::Path) {
+    let Some(old_name) = target.file_name().and_then(|s| s.to_str()) else {
+        return;
+    };
+    let new_name = if which("kdialog") {
+        let out = std::process::Command::new("kdialog")
+            .args([
+                "--inputbox",
+                "Novo nome:",
+                old_name,
+            ])
+            .output()
+            .ok();
+        out.and_then(|o| {
+            if !o.status.success() {
+                return None;
+            }
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if s.is_empty() || s == old_name {
+                None
+            } else {
+                Some(s)
+            }
+        })
+    } else if which("zenity") {
+        let out = std::process::Command::new("zenity")
+            .args([
+                "--entry",
+                "--text=Novo nome:",
+                &format!("--entry-text={}", old_name),
+            ])
+            .output()
+            .ok();
+        out.and_then(|o| {
+            if !o.status.success() {
+                return None;
+            }
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if s.is_empty() || s == old_name {
+                None
+            } else {
+                Some(s)
+            }
+        })
+    } else {
+        tracing::warn!("ctx menu: nenhum dialog (kdialog/zenity) — sem renomear");
+        None
+    };
+    if let Some(new) = new_name {
+        if new.contains('/') {
+            tracing::warn!("ctx menu: rename rejeitado — nome com '/'");
+            return;
+        }
+        let new_path = target.with_file_name(&new);
+        if new_path.exists() {
+            tracing::warn!("ctx menu: já existe {new_path:?}");
+            return;
+        }
+        if let Err(e) = std::fs::rename(target, &new_path) {
+            tracing::warn!("ctx menu: rename falhou: {e}");
+        } else {
+            tracing::info!("ctx menu: renomeou {target:?} → {new_path:?}");
+        }
+    }
+}
+
+/// Move o target pra lixeira via `gio trash` (gvfs) ou
+/// `kioclient5 move trash:/` (KDE 5/6). Falha silenciosa se nenhum
+/// dos dois estiver instalado. Não usa `rm -rf` por segurança. H52.
+pub fn move_to_trash(target: &std::path::Path) {
+    if which("gio") {
+        let out = std::process::Command::new("gio")
+            .args(["trash", target.to_string_lossy().as_ref()])
+            .status();
+        match out {
+            Ok(s) if s.success() => {
+                tracing::info!("ctx menu: trash {target:?}");
+                return;
+            }
+            Ok(s) => {
+                tracing::warn!("ctx menu: gio trash exit {s:?}");
+            }
+            Err(e) => tracing::warn!("ctx menu: gio trash falhou: {e}"),
+        }
+    }
+    for kioclient in &["kioclient5", "kioclient"] {
+        if which(kioclient) {
+            let out = std::process::Command::new(kioclient)
+                .args(["move", target.to_string_lossy().as_ref(), "trash:/"])
+                .status();
+            match out {
+                Ok(s) if s.success() => {
+                    tracing::info!("ctx menu: {kioclient} trash {target:?}");
+                    return;
+                }
+                Ok(s) => {
+                    tracing::warn!("ctx menu: {kioclient} trash exit {s:?}");
+                }
+                Err(e) => tracing::warn!("ctx menu: {kioclient} falhou: {e}"),
+            }
+        }
+    }
+    tracing::warn!(
+        "ctx menu: trash falhou — sem gio nem kioclient5 instalado"
+    );
 }
 
 /// Items do submenu da galeria de wallpapers. 6 shipados +
