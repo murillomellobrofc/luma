@@ -538,10 +538,41 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                 let cx = pointer_pos.x.round() as i32;
                                 let cy = pointer_pos.y.round() as i32;
                                 if button == 0x111 {
-                                    // Right click: deixa o app desenhar o menu.
-                                    crate::sni::context_menu(
-                                        &item.service, &item.object_path, cx, cy,
-                                    );
+                                    // H47c: tenta renderizar o DBusMenu
+                                    // nativo. Se não tem menu_path ou
+                                    // GetLayout retorna vazio, cai pro
+                                    // delegate (app desenha).
+                                    let mut handled = false;
+                                    if !item.menu_path.is_empty() {
+                                        let layout =
+                                            crate::sni::get_menu_layout(
+                                                &item.service,
+                                                &item.menu_path,
+                                            );
+                                        if !layout.is_empty() {
+                                            let tokens = crate::theme::current()
+                                                .context_menu
+                                                .clone();
+                                            let mut menu =
+                                                crate::context_menu::ContextMenu::for_dbusmenu(
+                                                    smithay::utils::Point::from((cx, cy)),
+                                                    item.service.clone(),
+                                                    item.menu_path.clone(),
+                                                    layout,
+                                                );
+                                            menu.clamp_into(output, &tokens);
+                                            state.context_menu = Some(menu);
+                                            // Fecha o painel do tray
+                                            // pra menu virar único foco.
+                                            state.tray.overflow_open = false;
+                                            handled = true;
+                                        }
+                                    }
+                                    if !handled {
+                                        crate::sni::context_menu(
+                                            &item.service, &item.object_path, cx, cy,
+                                        );
+                                    }
                                 } else {
                                     crate::sni::activate(
                                         &item.service, &item.object_path, cx, cy,
@@ -1399,6 +1430,16 @@ fn dispatch_context_action(
                 if let Some(l) = state.desktop_icons.as_ref() {
                     l.set_selection(state.desktop_selection.clone());
                 }
+            }
+        }
+        ContextAction::DBusMenuClick(id) => {
+            // H47c: dispatch do click pra app via DBusMenu.Event.
+            let target = state
+                .context_menu
+                .as_ref()
+                .and_then(|m| m.dbus_menu.clone());
+            if let Some((service, menu_path)) = target {
+                crate::sni::send_menu_event(&service, &menu_path, id);
             }
         }
         ContextAction::Disabled => {}

@@ -2220,7 +2220,7 @@ pub fn init_winit(
                                                     t_ctx.item_disabled
                                                 };
                                                 let (pixels, w, hh) = text_r.rasterize_colored(
-                                                    item.label, t_ctx.item_text_size, label_color,
+                                                    &item.label, t_ctx.item_text_size, label_color,
                                                 );
                                                 if w > 0 && hh > 0 {
                                                     let buf = MemoryRenderBuffer::from_slice(

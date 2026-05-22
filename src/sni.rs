@@ -49,6 +49,20 @@ pub struct SniItem {
     /// Pixmaps raw quando o app não fornece icon_name. Vec por tamanho;
     /// o render escolhe o maior que cabe.
     pub icon_pixmaps: Vec<SniPixmap>,
+    /// Object path do DBusMenu desse item (property `Menu`).
+    /// Vazio se o app não expõe menu. H47c.
+    pub menu_path: String,
+}
+
+/// Item de DBusMenu retornado por `get_menu_layout`. Flat (sem
+/// children) na v1. H47c.
+#[derive(Debug, Clone)]
+pub struct DBusMenuItem {
+    pub id: i32,
+    pub label: String,
+    pub enabled: bool,
+    /// `true` quando type=="separator".
+    pub separator: bool,
 }
 
 /// Lista compartilhada entre thread D-Bus e main loop. Render lê em
@@ -87,6 +101,7 @@ pub fn spawn() -> SniList {
                     tooltip: format!("Fake item {} ({})", i + 1, name),
                     icon_name: name.to_string(),
                     icon_pixmaps: Vec::new(),
+                    menu_path: String::new(),
                 });
             }
         }
@@ -284,6 +299,8 @@ fn add_item(conn: &zbus::blocking::Connection, list: &SniList, raw_name: &str) {
     } else {
         Vec::new()
     };
+    // H47c: lê o path do DBusMenu (property "Menu" — object path).
+    let menu_path = read_menu_path(conn, &service, &path).unwrap_or_default();
     let item = SniItem {
         service: service.clone(),
         object_path: path.clone(),
@@ -291,6 +308,7 @@ fn add_item(conn: &zbus::blocking::Connection, list: &SniList, raw_name: &str) {
         tooltip,
         icon_name,
         icon_pixmaps,
+        menu_path,
     };
     if let Ok(mut guard) = list.lock() {
         guard.retain(|i| !(i.service == service && i.object_path == path));
@@ -316,6 +334,164 @@ pub fn activate(service: &str, path: &str, x: i32, y: i32) {
         &(x, y),
     ) {
         tracing::warn!("SNI: Activate({service}{path}) erro: {e}");
+    }
+}
+
+/// Lê o object path do DBusMenu do item (property `Menu`). H47c.
+fn read_menu_path(
+    conn: &zbus::blocking::Connection,
+    service: &str,
+    path: &str,
+) -> Option<String> {
+    let reply = conn
+        .call_method(
+            Some(service),
+            path,
+            Some("org.freedesktop.DBus.Properties"),
+            "Get",
+            &("org.kde.StatusNotifierItem", "Menu"),
+        )
+        .ok()?;
+    let body = reply.body();
+    let val: zbus::zvariant::Value = body.deserialize().ok()?;
+    // Menu vem como ObjectPath ('o' signature).
+    if let zbus::zvariant::Value::ObjectPath(p) = val {
+        let s = p.to_string();
+        if s.is_empty() || s == "/" {
+            None
+        } else {
+            Some(s)
+        }
+    } else {
+        None
+    }
+}
+
+/// Lê o layout (flat, sem recursão) do DBusMenu do item via
+/// `com.canonical.dbusmenu.GetLayout(parent_id=0, depth=1, props=[])`.
+/// Retorna a lista de items filhos do root. H47c.
+pub fn get_menu_layout(service: &str, menu_path: &str) -> Vec<DBusMenuItem> {
+    let conn = match zbus::blocking::Connection::session() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("SNI: GetLayout sem conexao: {e}");
+            return Vec::new();
+        }
+    };
+    // GetLayout(parent_id: i32, recursion_depth: i32, property_names: as)
+    // → (revision: u32, layout: (i32, a{sv}, av))
+    let property_names: Vec<&str> = vec!["label", "enabled", "type", "visible"];
+    let reply = match conn.call_method(
+        Some(service),
+        menu_path,
+        Some("com.canonical.dbusmenu"),
+        "GetLayout",
+        &(0i32, 1i32, property_names.as_slice()),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("SNI: GetLayout({service}{menu_path}) erro: {e}");
+            return Vec::new();
+        }
+    };
+    // Resposta: (u, (i, a{sv}, av))
+    let body = reply.body();
+    let parsed: Result<
+        (
+            u32,
+            (
+                i32,
+                std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+                Vec<zbus::zvariant::OwnedValue>,
+            ),
+        ),
+        _,
+    > = body.deserialize();
+    let (_revision, (_root_id, _root_props, children)) = match parsed {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("SNI: GetLayout parse erro: {e}");
+            return Vec::new();
+        }
+    };
+    let mut out = Vec::new();
+    for child in children {
+        // Cada child é Variant contendo (i, a{sv}, av).
+        // Deserializa o conteúdo do variant.
+        let inner: Result<
+            (
+                i32,
+                std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+                Vec<zbus::zvariant::OwnedValue>,
+            ),
+            _,
+        > = child.try_into();
+        let (id, props, _grandchildren) = match inner {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        let label = props
+            .get("label")
+            .and_then(|v| {
+                let val: zbus::zvariant::Value = (*v).clone().into();
+                String::try_from(val).ok()
+            })
+            .map(|s| s.replace('_', "")) // strip mnemonic underscores
+            .unwrap_or_default();
+        let enabled = props
+            .get("enabled")
+            .and_then(|v| {
+                let val: zbus::zvariant::Value = (*v).clone().into();
+                bool::try_from(val).ok()
+            })
+            .unwrap_or(true);
+        let visible = props
+            .get("visible")
+            .and_then(|v| {
+                let val: zbus::zvariant::Value = (*v).clone().into();
+                bool::try_from(val).ok()
+            })
+            .unwrap_or(true);
+        if !visible {
+            continue;
+        }
+        let typ = props
+            .get("type")
+            .and_then(|v| {
+                let val: zbus::zvariant::Value = (*v).clone().into();
+                String::try_from(val).ok()
+            })
+            .unwrap_or_default();
+        let separator = typ == "separator";
+        out.push(DBusMenuItem {
+            id,
+            label,
+            enabled,
+            separator,
+        });
+    }
+    out
+}
+
+/// Manda `Event(id, "clicked", data="", timestamp=0)` pro DBusMenu —
+/// dispara a ação ligada ao item. H47c.
+pub fn send_menu_event(service: &str, menu_path: &str, item_id: i32) {
+    let conn = match zbus::blocking::Connection::session() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("SNI: Event sem conexao: {e}");
+            return;
+        }
+    };
+    let data: zbus::zvariant::Value = "".into();
+    if let Err(e) = conn.call_method(
+        Some(service),
+        menu_path,
+        Some("com.canonical.dbusmenu"),
+        "Event",
+        &(item_id, "clicked", &data, 0u32),
+    ) {
+        tracing::warn!("SNI: Event({service}{menu_path} id={item_id}) erro: {e}");
     }
 }
 
