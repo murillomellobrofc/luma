@@ -36,6 +36,9 @@ pub enum ContextAction {
     Rename,
     /// Per-icon: gio trash <target> (fallback kioclient5). H52.
     MoveToTrash,
+    /// Click num item de DBusMenu nativo — dispatch envia Event(id)
+    /// pro app via `sni::send_menu_event`. H47c.
+    DBusMenuClick(i32),
     /// Placeholder pros 4 items que dependem de ícones no desktop.
     /// Nunca dispatcha (item fica enabled=false).
     Disabled,
@@ -55,7 +58,7 @@ pub enum ItemKind {
 /// Item individual do menu.
 #[derive(Debug, Clone)]
 pub struct ContextItem {
-    pub label: &'static str,
+    pub label: String,
     /// Nome do SVG no `icons_path`, sem prefixo `icon-` nem extensão.
     /// `None` = sem ícone (espaço reservado mantido pra alinhamento).
     pub icon: Option<&'static str>,
@@ -88,6 +91,11 @@ pub struct ContextMenu {
     /// Path do ícone-target quando o menu é per-icon (right-click num
     /// ícone do desktop). `None` quando é menu do desktop. H52.
     pub target: Option<std::path::PathBuf>,
+    /// (service, menu_path) do DBusMenu quando o menu foi construído
+    /// a partir de um item SNI. None pros outros menus. Items deste
+    /// menu disparam `DBusMenuClick(id)` que chama
+    /// `sni::send_menu_event(service, menu_path, id)`. H47c.
+    pub dbus_menu: Option<(String, String)>,
 }
 
 impl ContextMenu {
@@ -101,6 +109,7 @@ impl ContextMenu {
             open_submenu: None,
             submenu_hovered: None,
             target: None,
+            dbus_menu: None,
         }
     }
 
@@ -115,6 +124,45 @@ impl ContextMenu {
             open_submenu: None,
             submenu_hovered: None,
             target: Some(target),
+            dbus_menu: None,
+        }
+    }
+
+    /// Constrói o menu a partir de um DBusMenu já consultado (flat).
+    /// `service` + `menu_path` ficam guardados pro dispatch da ação.
+    /// H47c.
+    pub fn for_dbusmenu(
+        cursor: Point<i32, Logical>,
+        service: String,
+        menu_path: String,
+        items: Vec<crate::sni::DBusMenuItem>,
+    ) -> Self {
+        let ctx_items: Vec<ContextItem> = items
+            .into_iter()
+            .map(|i| ContextItem {
+                label: if i.separator {
+                    String::new()
+                } else {
+                    i.label
+                },
+                icon: None,
+                kind: if i.separator {
+                    ItemKind::Separator
+                } else {
+                    ItemKind::Action(ContextAction::DBusMenuClick(i.id))
+                },
+                enabled: i.enabled,
+                shortcut: None,
+            })
+            .collect();
+        Self {
+            origin: cursor,
+            items: ctx_items,
+            hovered: None,
+            open_submenu: None,
+            submenu_hovered: None,
+            target: None,
+            dbus_menu: Some((service, menu_path)),
         }
     }
 
@@ -309,42 +357,42 @@ pub fn open_terminal() {
 fn icon_items() -> Vec<ContextItem> {
     vec![
         ContextItem {
-            label: "Abrir",
+            label: "Abrir".into(),
             icon: Some("ctx-terminal"), // placeholder; sem SVG dedicado
             kind: ItemKind::Action(ContextAction::OpenTarget),
             enabled: true,
             shortcut: Some("Enter"),
         },
         ContextItem {
-            label: "",
+            label: "".into(),
             icon: None,
             kind: ItemKind::Separator,
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "Copiar caminho",
+            label: "Copiar caminho".into(),
             icon: Some("ctx-paste"),
             kind: ItemKind::Action(ContextAction::CopyPath),
             enabled: true,
             shortcut: None,
         },
         ContextItem {
-            label: "Renomear…",
+            label: "Renomear…".into(),
             icon: Some("ctx-edit"),
             kind: ItemKind::Action(ContextAction::Rename),
             enabled: true,
             shortcut: None,
         },
         ContextItem {
-            label: "",
+            label: "".into(),
             icon: None,
             kind: ItemKind::Separator,
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "Mover pra Lixeira",
+            label: "Mover pra Lixeira".into(),
             icon: Some("ctx-new"),
             kind: ItemKind::Action(ContextAction::MoveToTrash),
             enabled: true,
@@ -489,7 +537,7 @@ pub fn wallpaper_gallery_items() -> Vec<ContextItem> {
     let mut items: Vec<ContextItem> = entries
         .iter()
         .map(|(label, file)| ContextItem {
-            label,
+            label: label.to_string(),
             icon: Some("ctx-wallpaper"),
             kind: ItemKind::Action(ContextAction::SetWallpaper(file)),
             enabled: true,
@@ -497,14 +545,14 @@ pub fn wallpaper_gallery_items() -> Vec<ContextItem> {
         })
         .collect();
     items.push(ContextItem {
-        label: "",
+        label: "".into(),
         icon: None,
         kind: ItemKind::Separator,
         enabled: false,
         shortcut: None,
     });
     items.push(ContextItem {
-        label: "Escolher imagem…",
+        label: "Escolher imagem…".into(),
         icon: Some("ctx-wallpaper"),
         kind: ItemKind::Action(ContextAction::ChangeWallpaperPick),
         enabled: true,
@@ -644,18 +692,18 @@ fn which(bin: &str) -> bool {
 fn default_items() -> Vec<ContextItem> {
     vec![
         ContextItem {
-            label: "Criar novo",
+            label: "Criar novo".into(),
             icon: Some("ctx-new"),
             kind: ItemKind::Submenu(vec![
                 ContextItem {
-                    label: "Pasta",
+                    label: "Pasta".into(),
                     icon: Some("ctx-new"),
                     kind: ItemKind::Action(ContextAction::Disabled),
                     enabled: false,
                     shortcut: None,
                 },
                 ContextItem {
-                    label: "Arquivo de texto",
+                    label: "Arquivo de texto".into(),
                     icon: Some("ctx-new"),
                     kind: ItemKind::Action(ContextAction::Disabled),
                     enabled: false,
@@ -666,32 +714,32 @@ fn default_items() -> Vec<ContextItem> {
             shortcut: None,
         },
         ContextItem {
-            label: "Colar",
+            label: "Colar".into(),
             icon: Some("ctx-paste"),
             kind: ItemKind::Action(ContextAction::Disabled),
             enabled: false,
             shortcut: Some("Ctrl+V"),
         },
         ContextItem {
-            label: "Organizar ícones",
+            label: "Organizar ícones".into(),
             icon: Some("ctx-arrange"),
             kind: ItemKind::Submenu(vec![
                 ContextItem {
-                    label: "Por nome",
+                    label: "Por nome".into(),
                     icon: None,
                     kind: ItemKind::Action(ContextAction::Disabled),
                     enabled: false,
                     shortcut: None,
                 },
                 ContextItem {
-                    label: "Por tipo",
+                    label: "Por tipo".into(),
                     icon: None,
                     kind: ItemKind::Action(ContextAction::Disabled),
                     enabled: false,
                     shortcut: None,
                 },
                 ContextItem {
-                    label: "Por data",
+                    label: "Por data".into(),
                     icon: None,
                     kind: ItemKind::Action(ContextAction::Disabled),
                     enabled: false,
@@ -702,49 +750,49 @@ fn default_items() -> Vec<ContextItem> {
             shortcut: None,
         },
         ContextItem {
-            label: "Modo de edição",
+            label: "Modo de edição".into(),
             icon: Some("ctx-edit"),
             kind: ItemKind::Action(ContextAction::Disabled),
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "",
+            label: "".into(),
             icon: None,
             kind: ItemKind::Separator,
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "Abrir terminal aqui",
+            label: "Abrir terminal aqui".into(),
             icon: Some("ctx-terminal"),
             kind: ItemKind::Action(ContextAction::OpenTerminal),
             enabled: true,
             shortcut: None,
         },
         ContextItem {
-            label: "Mudar papel de parede",
+            label: "Mudar papel de parede".into(),
             icon: Some("ctx-wallpaper"),
             kind: ItemKind::Submenu(wallpaper_gallery_items()),
             enabled: true,
             shortcut: None,
         },
         ContextItem {
-            label: "",
+            label: "".into(),
             icon: None,
             kind: ItemKind::Separator,
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "Configurar tela",
+            label: "Configurar tela".into(),
             icon: Some("ctx-display"),
             kind: ItemKind::Action(ContextAction::ConfigureDisplay),
             enabled: false,
             shortcut: None,
         },
         ContextItem {
-            label: "Configurações do Luma",
+            label: "Configurações do Luma".into(),
             icon: Some("ctx-settings"),
             kind: ItemKind::Action(ContextAction::OpenLumaSettings),
             enabled: true,
