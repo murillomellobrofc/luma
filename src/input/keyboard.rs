@@ -40,6 +40,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         && !applet_popup_open
         && !tray_overflow_open;
     let mut clear_desktop_selection = false;
+    // H50.2c.kb: navegação por teclado quando há seleção + nenhuma
+    // window com keyboard focus.
+    let no_window_focus = keyboard.current_focus().is_none();
+    let desktop_kb_active =
+        desktop_has_selection && no_window_focus;
+    let mut desktop_arrow: Option<crate::desktop_icons::Direction> = None;
+    let mut desktop_enter = false;
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
@@ -75,6 +82,31 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
                     clear_desktop_selection = true;
+                    return FilterResult::Intercept(());
+                }
+            }
+            // H50.2c.kb.4-5: navegação por teclado no desktop.
+            if desktop_kb_active && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                use crate::desktop_icons::Direction;
+                if sym == Keysym::Up {
+                    desktop_arrow = Some(Direction::Up);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Down {
+                    desktop_arrow = Some(Direction::Down);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Left {
+                    desktop_arrow = Some(Direction::Left);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Right {
+                    desktop_arrow = Some(Direction::Right);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                    desktop_enter = true;
                     return FilterResult::Intercept(());
                 }
             }
@@ -157,6 +189,37 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         state.desktop_selection.clear();
         if let Some(l) = state.desktop_icons.as_ref() {
             l.set_selection(std::collections::HashSet::new());
+        }
+        return;
+    }
+
+    if let Some(dir) = desktop_arrow {
+        if let Some(layer) = state.desktop_icons.as_ref() {
+            // Single-selection (path mais lexicograficamente pequeno
+            // entre os selecionados, pra determinismo).
+            let current_path = state.desktop_selection.iter().min().cloned();
+            if let Some(curr) = current_path {
+                if let Some(target) = layer.neighbor_path(
+                    &curr,
+                    &state.desktop_positions,
+                    dir,
+                ) {
+                    let mut sel = std::collections::HashSet::new();
+                    sel.insert(target);
+                    layer.set_selection(sel.clone());
+                    state.desktop_selection = sel;
+                }
+            }
+        }
+        return;
+    }
+
+    if desktop_enter {
+        let paths: Vec<std::path::PathBuf> =
+            state.desktop_selection.iter().cloned().collect();
+        for p in paths {
+            tracing::info!("desktop: open {:?}", p);
+            let _ = std::process::Command::new("xdg-open").arg(&p).spawn();
         }
         return;
     }

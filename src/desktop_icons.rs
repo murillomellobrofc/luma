@@ -102,6 +102,15 @@ pub fn kind_of(path: &std::path::Path, is_dir: bool) -> FileKind {
     }
 }
 
+/// Direção pra navegação por teclado. H50.2c.kb.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
 /// Rubber-band em curso (drag em área vazia do desktop). H50.2c.
 #[derive(Debug, Clone)]
 pub struct RubberBand {
@@ -423,6 +432,44 @@ impl DesktopIconsLayer {
             );
             if rect.to_f64().contains(point) {
                 return Some(idx);
+            }
+        }
+        None
+    }
+
+    /// Encontra o path do vizinho em uma direção (Up/Down/Left/
+    /// Right). Sem wrap — retorna None se não há ícone naquela célula.
+    /// H50.2c.kb.4.
+    pub fn neighbor_path(
+        &self,
+        current: &std::path::Path,
+        positions: &std::collections::HashMap<String, (i32, i32)>,
+        dir: Direction,
+    ) -> Option<PathBuf> {
+        let theme = crate::theme::current();
+        let t = &theme.desktop_icons;
+        let entries = self.entries.lock().ok()?;
+        let output = self.current_output_size();
+        let taskbar_h = crate::taskbar::taskbar_height();
+        let usable_h = output.h - t.grid_margin - taskbar_h - 8;
+        let rows = (usable_h / t.cell_height).max(1);
+        let layout = compute_layout(&entries, positions, rows);
+        // Localiza a célula do current.
+        let curr_idx = entries.iter().position(|e| e.path == current)?;
+        let (cur_col, cur_row) = layout[curr_idx];
+        let (target_col, target_row) = match dir {
+            Direction::Up => (cur_col, cur_row - 1),
+            Direction::Down => (cur_col, cur_row + 1),
+            Direction::Left => (cur_col - 1, cur_row),
+            Direction::Right => (cur_col + 1, cur_row),
+        };
+        if target_col < 0 || target_row < 0 || target_row >= rows {
+            return None;
+        }
+        // Encontra a entry naquela célula.
+        for (idx, pos) in layout.iter().enumerate() {
+            if *pos == (target_col, target_row) {
+                return entries.get(idx).map(|e| e.path.clone());
             }
         }
         None
