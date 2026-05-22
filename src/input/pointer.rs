@@ -1394,12 +1394,11 @@ fn dispatch_context_action(
     match action {
         ContextAction::OpenTerminal => crate::context_menu::open_terminal(),
         ContextAction::ChangeWallpaperPick => {
-            // H51: file picker (kdialog/zenity) → copy → hot-reload.
-            if let Some(dst) = crate::context_menu::change_wallpaper() {
-                if let Some(wp) = state.wallpaper_arc.as_ref() {
-                    wp.reload_from_path(&dst);
-                }
-            }
+            // H51 → H47c.fix: file picker async — thread faz kdialog
+            // + copy + reload. Main loop livre durante o file picker.
+            crate::context_menu::change_wallpaper_async(
+                state.wallpaper_arc.clone(),
+            );
         }
         ContextAction::SetWallpaper(name) => {
             // H51: galeria shipada — copia + hot-reload sem dialog.

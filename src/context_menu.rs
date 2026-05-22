@@ -522,10 +522,28 @@ pub fn apply_shipped_wallpaper(filename: &str) -> Option<std::path::PathBuf> {
     Some(dst)
 }
 
+/// **Não bloqueia o main loop** — spawn thread que faz kdialog +
+/// copy + reload do wallpaper. Caller passa o `Arc<Wallpaper>` do
+/// state pra thread aplicar o reload sem voltar pro main thread.
+/// H48.ctx.6 → H47c.fix.
+pub fn change_wallpaper_async(wallpaper: Option<std::sync::Arc<crate::wallpaper::Wallpaper>>) {
+    std::thread::Builder::new()
+        .name("luma-wallpaper-picker".into())
+        .spawn(move || {
+            if let Some(dst) = change_wallpaper_blocking() {
+                if let Some(wp) = wallpaper {
+                    wp.reload_from_path(&dst);
+                }
+            }
+        })
+        .ok();
+}
+
 /// Abre o seletor de imagem (kdialog / zenity), copia o arquivo
-/// escolhido pra `~/.config/luma/wallpaper.png` e dispara o reload.
-/// Bloqueia até o user fechar o diálogo. H48.ctx.6.
-pub fn change_wallpaper() -> Option<std::path::PathBuf> {
+/// escolhido pra `~/.config/luma/wallpaper.png` e retorna o path.
+/// **Bloqueia** a thread chamadora — usar `change_wallpaper_async`
+/// quando chamado do main loop. H48.ctx.6.
+pub fn change_wallpaper_blocking() -> Option<std::path::PathBuf> {
     let home = std::env::var("HOME").ok()?;
     let pictures = format!("{}/Imagens", home);
     let pictures = if std::path::Path::new(&pictures).exists() {
