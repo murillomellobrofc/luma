@@ -181,6 +181,9 @@ pub struct LumaState {
     pub desktop_last_scan: Option<std::time::Instant>,
     /// Camada de ícones do desktop mapeada na Space (z_index=5). H50.
     pub desktop_icons: Option<std::sync::Arc<crate::desktop_icons::DesktopIconsLayer>>,
+    /// Paths selecionados no desktop. Mantido aqui pra acesso rápido;
+    /// espelhado dentro do layer pra render. H50.2a.
+    pub desktop_selection: std::collections::HashSet<std::path::PathBuf>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -605,6 +608,7 @@ impl LumaState {
             desktop_entries: Vec::new(),
             desktop_last_scan: None,
             desktop_icons: None,
+            desktop_selection: std::collections::HashSet::new(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),

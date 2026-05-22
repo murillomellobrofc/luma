@@ -1054,6 +1054,8 @@ impl Default for DesktopIconsTokens {
             label_color: hex_color("#FBF6EE", 1.0),
             label_size: 12.0,
             label_max_chars: 14,
+            selection_bg: hex_color("#3D2520", 0.65), // applet_bg_active alpha
+            selection_corner_radius: 10,
         }
     }
 }
@@ -1765,6 +1767,11 @@ pub struct DesktopIconsTokens {
     pub label_size: f32,
     /// Máximo de chars antes de truncar com '...'.
     pub label_max_chars: usize,
+    /// Cor do bg do ícone selecionado (rect arredondado atrás).
+    /// H50.2a.
+    pub selection_bg: Color32F,
+    /// Raio dos cantos do bg de seleção.
+    pub selection_corner_radius: i32,
 }
 
 /// Wallpaper padrão shipado com o luma. H49.
