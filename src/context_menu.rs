@@ -20,7 +20,11 @@ use smithay::utils::{Logical, Point, Rectangle, Size};
 /// Ações disparadas por items do menu. H48.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContextAction {
-    ChangeWallpaper,
+    /// Abre file picker (kdialog/zenity) pra escolher qualquer imagem.
+    ChangeWallpaperPick,
+    /// Aplica um dos wallpapers shipados em `assets/wallpapers/`.
+    /// O &'static str é o filename completo. H51.
+    SetWallpaper(&'static str),
     ConfigureDisplay,
     OpenTerminal,
     OpenLumaSettings,
@@ -273,6 +277,69 @@ pub fn open_terminal() {
     tracing::warn!("ctx menu: nenhum terminal encontrado");
 }
 
+/// Items do submenu da galeria de wallpapers. 6 shipados +
+/// "Escolher imagem..." que abre o file picker. H51.
+pub fn wallpaper_gallery_items() -> Vec<ContextItem> {
+    let entries: &[(&'static str, &'static str)] = &[
+        ("Pôr do Sol", "luma-sunset-peaks-1920x1080.png"),
+        ("Pôr do Sol Calmo", "luma-sunset-calm-1920x1080.png"),
+        ("Gradiente Aurora", "luma-gradient-dawn-1920x1080.png"),
+        ("Gradiente Crepúsculo", "luma-gradient-dusk-1920x1080.png"),
+        ("Geometria Suave", "luma-geometric-soft-1920x1080.png"),
+        ("Geometria Arcos", "luma-geometric-arcs-1920x1080.png"),
+    ];
+    let mut items: Vec<ContextItem> = entries
+        .iter()
+        .map(|(label, file)| ContextItem {
+            label,
+            icon: Some("ctx-wallpaper"),
+            kind: ItemKind::Action(ContextAction::SetWallpaper(file)),
+            enabled: true,
+            shortcut: None,
+        })
+        .collect();
+    items.push(ContextItem {
+        label: "",
+        icon: None,
+        kind: ItemKind::Separator,
+        enabled: false,
+        shortcut: None,
+    });
+    items.push(ContextItem {
+        label: "Escolher imagem…",
+        icon: Some("ctx-wallpaper"),
+        kind: ItemKind::Action(ContextAction::ChangeWallpaperPick),
+        enabled: true,
+        shortcut: None,
+    });
+    items
+}
+
+/// Aplica um wallpaper shipado: copia o PNG pra
+/// `~/.config/luma/wallpaper.png` (overwriting). Retorna o path
+/// final pro caller fazer reload. H51.
+pub fn apply_shipped_wallpaper(filename: &str) -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    let src = std::path::PathBuf::from(format!("assets/wallpapers/{}", filename));
+    if !src.exists() {
+        tracing::warn!("ctx menu: wallpaper shipado ausente: {filename}");
+        return None;
+    }
+    let cfg_dir = std::path::PathBuf::from(&home).join(".config/luma");
+    let _ = std::fs::create_dir_all(&cfg_dir);
+    // Remove .jpg/.jpeg pra não bagunçar; sempre escreve .png.
+    for ext in ["jpg", "jpeg"] {
+        let _ = std::fs::remove_file(cfg_dir.join(format!("wallpaper.{}", ext)));
+    }
+    let dst = cfg_dir.join("wallpaper.png");
+    if let Err(e) = std::fs::copy(&src, &dst) {
+        tracing::warn!("ctx menu: copy wallpaper falhou: {e}");
+        return None;
+    }
+    tracing::info!("ctx menu: wallpaper aplicado de {filename}");
+    Some(dst)
+}
+
 /// Abre o seletor de imagem (kdialog / zenity), copia o arquivo
 /// escolhido pra `~/.config/luma/wallpaper.png` e dispara o reload.
 /// Bloqueia até o user fechar o diálogo. H48.ctx.6.
@@ -458,9 +525,9 @@ fn default_items() -> Vec<ContextItem> {
             shortcut: None,
         },
         ContextItem {
-            label: "Mudar papel de parede…",
+            label: "Mudar papel de parede",
             icon: Some("ctx-wallpaper"),
-            kind: ItemKind::Action(ContextAction::ChangeWallpaper),
+            kind: ItemKind::Submenu(wallpaper_gallery_items()),
             enabled: true,
             shortcut: None,
         },

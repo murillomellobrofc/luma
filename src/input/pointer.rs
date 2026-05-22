@@ -1320,7 +1320,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
 /// Wallpaper bloqueia até o user fechar o file picker — aceitável
 /// porque o menu é modal de qualquer jeito.
 fn dispatch_context_action(
-    _state: &mut LumaState,
+    state: &mut LumaState,
     item: &crate::context_menu::ContextItem,
 ) {
     use crate::context_menu::{ContextAction, ItemKind};
@@ -1330,11 +1330,21 @@ fn dispatch_context_action(
     };
     match action {
         ContextAction::OpenTerminal => crate::context_menu::open_terminal(),
-        ContextAction::ChangeWallpaper => {
-            let _ = crate::context_menu::change_wallpaper();
-            // Reload do wallpaper exige reabrir a Wallpaper a partir
-            // do disco — debt em DEBT.md. Hoje o user precisa
-            // reiniciar o luma pra ver o novo wallpaper.
+        ContextAction::ChangeWallpaperPick => {
+            // H51: file picker (kdialog/zenity) → copy → hot-reload.
+            if let Some(dst) = crate::context_menu::change_wallpaper() {
+                if let Some(wp) = state.wallpaper_arc.as_ref() {
+                    wp.reload_from_path(&dst);
+                }
+            }
+        }
+        ContextAction::SetWallpaper(name) => {
+            // H51: galeria shipada — copia + hot-reload sem dialog.
+            if let Some(dst) = crate::context_menu::apply_shipped_wallpaper(name) {
+                if let Some(wp) = state.wallpaper_arc.as_ref() {
+                    wp.reload_from_path(&dst);
+                }
+            }
         }
         ContextAction::OpenLumaSettings => crate::context_menu::open_luma_settings(),
         ContextAction::ConfigureDisplay => {
