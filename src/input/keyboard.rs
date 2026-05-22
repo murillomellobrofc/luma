@@ -32,6 +32,14 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let tray_overflow_open = state.tray.overflow_open;
     // H48.ctx.1: context menu aberto intercepta Esc.
     let context_menu_open = state.context_menu.is_some();
+    // H50.2a.sel.3: Esc desseleciona ícones do desktop quando não há
+    // popup/menu aberto.
+    let desktop_has_selection = !state.desktop_selection.is_empty()
+        && !context_menu_open
+        && !menu_open_now
+        && !applet_popup_open
+        && !tray_overflow_open;
+    let mut clear_desktop_selection = false;
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
@@ -60,6 +68,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
                     close_context_menu = true;
+                    return FilterResult::Intercept(());
+                }
+            }
+            if desktop_has_selection && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    clear_desktop_selection = true;
                     return FilterResult::Intercept(());
                 }
             }
@@ -135,6 +150,14 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if close_context_menu {
         state.context_menu = None;
+        return;
+    }
+
+    if clear_desktop_selection {
+        state.desktop_selection.clear();
+        if let Some(l) = state.desktop_icons.as_ref() {
+            l.set_selection(std::collections::HashSet::new());
+        }
         return;
     }
 

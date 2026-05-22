@@ -980,17 +980,39 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 .unwrap_or_default();
             if let Some(entry) = entries.get(idx) {
                 if button == 0x110 {
+                    // H50.2a.sel.4: detecta double-click (<=500ms,
+                    // mesmo ícone) → abre via xdg-open. NÃO Ctrl+click.
+                    let now = std::time::Instant::now();
+                    let mods = state
+                        .seat
+                        .get_keyboard()
+                        .map(|kb| kb.modifier_state());
+                    let ctrl = mods.map(|m| m.ctrl).unwrap_or(false);
+                    let double_click = !ctrl
+                        && state
+                            .desktop_last_click
+                            .as_ref()
+                            .map(|(t, p)| {
+                                p == &entry.path
+                                    && now.duration_since(*t)
+                                        < std::time::Duration::from_millis(500)
+                            })
+                            .unwrap_or(false);
+                    if double_click {
+                        tracing::info!("desktop: open {:?}", entry.path);
+                        let _ = std::process::Command::new("xdg-open")
+                            .arg(&entry.path)
+                            .spawn();
+                        state.desktop_last_click = None;
+                    } else {
+                        state.desktop_last_click = Some((now, entry.path.clone()));
+                    }
                     // Left click: substitui seleção; Ctrl+click toggla.
                     let mut sel = state
                         .desktop_icons
                         .as_ref()
                         .map(|l| l.selection_snapshot())
                         .unwrap_or_default();
-                    let mods = state
-                        .seat
-                        .get_keyboard()
-                        .map(|kb| kb.modifier_state());
-                    let ctrl = mods.map(|m| m.ctrl).unwrap_or(false);
                     if ctrl {
                         if !sel.insert(entry.path.clone()) {
                             sel.remove(&entry.path);
@@ -1047,6 +1069,14 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 t.send_pending_configure();
             }
         } _ => {
+            // H50.2a.sel.3: left click em área vazia do desktop
+            // (sem janela e sem ícone sob o cursor) deseleciona tudo.
+            if button == 0x110 && !state.desktop_selection.is_empty() {
+                state.desktop_selection.clear();
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_selection(std::collections::HashSet::new());
+                }
+            }
             // H48.ctx.1: right-click no desktop (área vazia, sem
             // janela sob o cursor) abre menu de contexto. Botão
             // esquerdo segue defocando como antes.

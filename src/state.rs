@@ -184,6 +184,9 @@ pub struct LumaState {
     /// Paths selecionados no desktop. Mantido aqui pra acesso rápido;
     /// espelhado dentro do layer pra render. H50.2a.
     pub desktop_selection: std::collections::HashSet<std::path::PathBuf>,
+    /// Último click esquerdo sobre um ícone do desktop, pra detectar
+    /// double-click (~500ms). H50.2a.sel.4.
+    pub desktop_last_click: Option<(std::time::Instant, std::path::PathBuf)>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -609,6 +612,7 @@ impl LumaState {
             desktop_last_scan: None,
             desktop_icons: None,
             desktop_selection: std::collections::HashSet::new(),
+            desktop_last_click: None,
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),
