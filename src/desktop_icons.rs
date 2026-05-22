@@ -694,22 +694,13 @@ impl DesktopIconsLayer {
                 out.push(C::from(LumaRenderElement::Memory(elem)));
             }
         };
-        // Border atrás, bg em cima.
-        push_mem(out, &border, field_x - bw, field_y - bw, renderer);
-        push_mem(out, &bg, field_x, field_y, renderer);
-        // Seleção total (atrás do texto).
-        if rename.all_selected && !rename.text.is_empty() {
-            let sel_bg = crate::gfx::make_rounded_panel(
-                tw as i32 + 4,
-                th as i32 + 2,
-                3,
-                t.rename_field_selection_bg,
-            );
-            let sel_x = field_x + (field_w - tw as i32) / 2 - 2;
-            let sel_y = field_y + pad_y - 1;
-            push_mem(out, &sel_bg, sel_x, sel_y, renderer);
-        }
-        // Texto centralizado.
+        // H53.fix.1: ORDEM REVERSA dos pushes — Smithay renderiza
+        // end→start, então o ÚLTIMO pushed fica ATRÁS. Pra ter
+        // border atrás de tudo + cursor em cima, push cursor PRIMEIRO
+        // e border POR ÚLTIMO.
+        //
+        // Pré-cálculos do texto + cursor + sel_bg (precisam vir antes
+        // dos pushes pra calcular offsets).
         let text_x = field_x + (field_w - tw as i32) / 2;
         let text_y = field_y + pad_y;
         let text_buf = MemoryRenderBuffer::from_slice(
@@ -720,11 +711,10 @@ impl DesktopIconsLayer {
             Transform::Normal,
             None,
         );
-        push_mem(out, &text_buf, text_x, text_y, renderer);
-        // Cursor blink (só quando NÃO está com tudo selecionado e
-        // cursor_visible). Linha vertical 1px na posição do cursor.
-        if !rename.all_selected && rename.cursor_visible(t.rename_field_cursor_blink_ms) {
-            // Calcula a largura do texto antes do cursor pra posicionar.
+        // Cursor (só desenha se não tá tudo selecionado E visible).
+        let cursor_data = if !rename.all_selected
+            && rename.cursor_visible(t.rename_field_cursor_blink_ms)
+        {
             let prefix = &rename.text[..rename.cursor_byte.min(rename.text.len())];
             let cursor_offset = if prefix.is_empty() {
                 0
@@ -734,15 +724,42 @@ impl DesktopIconsLayer {
                 );
                 pw as i32
             };
-            let cur_w = 1;
-            let cur_h = th as i32 + 2;
             let cur_buf = crate::gfx::make_rounded_panel(
-                cur_w, cur_h, 0, t.rename_field_cursor,
+                1, th as i32 + 2, 0, t.rename_field_cursor,
             );
-            let cur_x = text_x + cursor_offset;
-            let cur_y = field_y + pad_y - 1;
-            push_mem(out, &cur_buf, cur_x, cur_y, renderer);
+            Some((cur_buf, text_x + cursor_offset, field_y + pad_y - 1))
+        } else {
+            None
+        };
+        // Sel_bg (só se all_selected).
+        let sel_data = if rename.all_selected && !rename.text.is_empty() {
+            let sel_bg = crate::gfx::make_rounded_panel(
+                tw as i32 + 4,
+                th as i32 + 2,
+                3,
+                t.rename_field_selection_bg,
+            );
+            let sel_x = field_x + (field_w - tw as i32) / 2 - 2;
+            let sel_y = field_y + pad_y - 1;
+            Some((sel_bg, sel_x, sel_y))
+        } else {
+            None
+        };
+        // PUSH ORDEM REVERSA (front → back).
+        // 1. Cursor (front)
+        if let Some((buf, x, y)) = cursor_data.as_ref() {
+            push_mem(out, buf, *x, *y, renderer);
         }
+        // 2. Texto
+        push_mem(out, &text_buf, text_x, text_y, renderer);
+        // 3. Sel_bg (atrás do texto)
+        if let Some((buf, x, y)) = sel_data.as_ref() {
+            push_mem(out, buf, *x, *y, renderer);
+        }
+        // 4. Bg do field (atrás da seleção)
+        push_mem(out, &bg, field_x, field_y, renderer);
+        // 5. Border (back)
+        push_mem(out, &border, field_x - bw, field_y - bw, renderer);
     }
 
     /// Lookup/cache de label rasterizado. Truncado em `label_max_chars`
