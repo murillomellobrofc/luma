@@ -413,78 +413,10 @@ pub fn copy_to_clipboard(text: &str) {
     }
 }
 
-/// Renomeia o target via kdialog --inputbox (fallback zenity).
-/// **NÃO bloqueia** o main loop — spawna thread dedicada. O polling
-/// 2s do desktop picks up a mudança naturalmente. Cancelar /
-/// nome vazio / nome duplicado / colisão / sem dialog instalado =
-/// no-op silencioso. H52 → H52.fix.1.
-pub fn rename_target(target: &std::path::Path) {
-    let path = target.to_path_buf();
-    std::thread::Builder::new()
-        .name("luma-rename".into())
-        .spawn(move || rename_blocking(&path))
-        .ok();
-}
-
-/// O trabalho real (kdialog blocking + fs::rename). Roda na thread
-/// spawnada em `rename_target`. Toda a I/O acontece aqui — main
-/// loop livre.
-fn rename_blocking(target: &std::path::Path) {
-    let old_name = match target.file_name().and_then(|s| s.to_str()) {
-        Some(n) => n.to_string(),
-        None => return,
-    };
-    let new_name = run_input_dialog(&old_name);
-    let new_name = match new_name {
-        Some(n) if !n.is_empty() && n != old_name => n,
-        _ => return,
-    };
-    if new_name.contains('/') {
-        tracing::warn!("ctx menu: rename rejeitado — nome com '/'");
-        return;
-    }
-    let new_path = target.with_file_name(&new_name);
-    if new_path.exists() {
-        tracing::warn!("ctx menu: já existe {new_path:?}");
-        return;
-    }
-    match std::fs::rename(target, &new_path) {
-        Ok(()) => tracing::info!("ctx menu: renomeou {target:?} → {new_path:?}"),
-        Err(e) => tracing::warn!("ctx menu: rename falhou: {e}"),
-    }
-}
-
-/// Abre kdialog --inputbox (fallback zenity) e retorna o texto
-/// digitado. Bloqueia a thread chamadora — caller deve garantir que
-/// não está no main loop. None = cancel/erro/ausência de dialog.
-fn run_input_dialog(initial: &str) -> Option<String> {
-    if which("kdialog") {
-        let out = Command::new("kdialog")
-            .args(["--inputbox", "Novo nome:", initial])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-    }
-    if which("zenity") {
-        let out = Command::new("zenity")
-            .args([
-                "--entry",
-                "--text=Novo nome:",
-                &format!("--entry-text={}", initial),
-            ])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-    }
-    tracing::warn!("ctx menu: nenhum dialog (kdialog/zenity) — sem renomear");
-    None
-}
+// H53: rename_target / rename_blocking / run_input_dialog (kdialog
+// + thread) REMOVIDOS. Substituídos por campo inline editável no
+// próprio ícone do desktop. Dispatch agora seta
+// `state.desktop_renaming` em pointer.rs.
 
 /// Move o target pra lixeira via `gio trash` (gvfs) ou
 /// `kioclient5 move trash:/` (KDE 5/6). Falha silenciosa se nenhum
