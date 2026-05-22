@@ -189,6 +189,8 @@ pub struct LumaState {
     pub desktop_last_click: Option<(std::time::Instant, std::path::PathBuf)>,
     /// Drag em curso (clicou num ícone e moveu mouse). H50.2b.
     pub desktop_drag: Option<crate::desktop_icons::DesktopDrag>,
+    /// Rubber-band ativo (drag em área vazia do desktop). H50.2c.
+    pub desktop_rubber_band: Option<crate::desktop_icons::RubberBand>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -621,6 +623,7 @@ impl LumaState {
             desktop_selection: std::collections::HashSet::new(),
             desktop_last_click: None,
             desktop_drag: None,
+            desktop_rubber_band: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

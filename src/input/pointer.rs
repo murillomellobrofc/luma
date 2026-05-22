@@ -55,6 +55,15 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // H50.2c.rb.2: rubber-band — atualiza current enquanto o user
+    // arrasta o mouse.
+    if let Some(rb) = state.desktop_rubber_band.as_mut() {
+        rb.current = pos;
+        if let Some(l) = state.desktop_icons.as_ref() {
+            l.set_rubber_band(Some(rb.clone()));
+        }
+    }
+
     // Atualiza hover dos headers + escolhe cursor_kind por contexto numa
     // única passagem pelas janelas do topo pro fundo.
     let mut hover_set = false;
@@ -265,6 +274,42 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     let button = event.button_code();
     let button_state = event.state();
     let pointer_pos = pointer.current_location();
+
+    // H50.2c.rb.3: mouseup com rubber-band ativo → seleciona todos
+    // os ícones cujas células intersectam o rect. Box muito pequena
+    // (< threshold) = só fecha sem seleção (era click curto, não
+    // drag real).
+    if button_state == ButtonState::Released {
+        if let Some(rb) = state.desktop_rubber_band.take() {
+            let dx = rb.current.x - rb.start.x;
+            let dy = rb.current.y - rb.start.y;
+            let dist = (dx * dx + dy * dy).sqrt();
+            if dist >= crate::desktop_icons::DRAG_THRESHOLD_PX {
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    let rect = rb.rect();
+                    let paths = l.entries_in_rect(rect);
+                    let mods = state
+                        .seat
+                        .get_keyboard()
+                        .map(|kb| kb.modifier_state());
+                    let ctrl = mods.map(|m| m.ctrl).unwrap_or(false);
+                    let mut sel = if ctrl {
+                        state.desktop_selection.clone()
+                    } else {
+                        std::collections::HashSet::new()
+                    };
+                    for p in paths {
+                        sel.insert(p);
+                    }
+                    l.set_selection(sel.clone());
+                    state.desktop_selection = sel;
+                }
+            }
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_rubber_band(None);
+            }
+        }
+    }
 
     // H50.2b.drag.3: mouseup com drag ativo → snap pra célula mais
     // próxima + persiste. Drag sem active = só foi um click normal
@@ -1196,6 +1241,20 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 state.desktop_selection.clear();
                 if let Some(l) = state.desktop_icons.as_ref() {
                     l.set_selection(std::collections::HashSet::new());
+                }
+            }
+            // H50.2c.rb.1: left mousedown em área vazia inicia
+            // rubber-band (caixa de seleção). Motion atualiza,
+            // mouseup escolhe os ícones que cruzam o rect.
+            // Right-click segue abrindo o context menu (lógica abaixo).
+            if button == 0x110 {
+                let rb = crate::desktop_icons::RubberBand {
+                    start: pointer_pos,
+                    current: pointer_pos,
+                };
+                state.desktop_rubber_band = Some(rb.clone());
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_rubber_band(Some(rb));
                 }
             }
             // H48.ctx.1: right-click no desktop (área vazia, sem

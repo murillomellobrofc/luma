@@ -102,6 +102,29 @@ pub fn kind_of(path: &std::path::Path, is_dir: bool) -> FileKind {
     }
 }
 
+/// Rubber-band em curso (drag em área vazia do desktop). H50.2c.
+#[derive(Debug, Clone)]
+pub struct RubberBand {
+    /// Ponto onde o drag começou (mousedown).
+    pub start: Point<f64, Logical>,
+    /// Ponto atual do cursor (motion).
+    pub current: Point<f64, Logical>,
+}
+
+impl RubberBand {
+    /// Retângulo normalizado (top-left, size) das duas pontas.
+    pub fn rect(&self) -> Rectangle<i32, Logical> {
+        let x0 = self.start.x.min(self.current.x) as i32;
+        let y0 = self.start.y.min(self.current.y) as i32;
+        let x1 = self.start.x.max(self.current.x) as i32;
+        let y1 = self.start.y.max(self.current.y) as i32;
+        Rectangle::new(
+            Point::from((x0, y0)),
+            Size::from(((x1 - x0).max(1), (y1 - y0).max(1))),
+        )
+    }
+}
+
 /// Drag em curso. Setado quando o user pressiona esquerdo sobre um
 /// ícone E move mais de `DRAG_THRESHOLD_PX`. H50.2b.
 #[derive(Debug, Clone)]
@@ -259,6 +282,8 @@ pub struct DesktopIconsLayer {
     positions: Mutex<std::collections::HashMap<String, (i32, i32)>>,
     /// Drag ativo. None = sem drag. H50.2b.
     drag: Mutex<Option<DesktopDrag>>,
+    /// Rubber-band ativo (drag em área vazia). H50.2c.
+    rubber_band: Mutex<Option<RubberBand>>,
 }
 
 impl DesktopIconsLayer {
@@ -272,6 +297,7 @@ impl DesktopIconsLayer {
             selection_bg_cache: Mutex::new(None),
             positions: Mutex::new(std::collections::HashMap::new()),
             drag: Mutex::new(None),
+            rubber_band: Mutex::new(None),
         }
     }
 
@@ -294,6 +320,57 @@ impl DesktopIconsLayer {
     /// não tá arrastando ou ainda não passou do threshold). H50.2b.
     pub fn set_drag(&self, drag: Option<DesktopDrag>) {
         *self.drag.lock().unwrap() = drag;
+    }
+
+    /// Substitui o rubber-band ativo. H50.2c.
+    pub fn set_rubber_band(&self, rb: Option<RubberBand>) {
+        *self.rubber_band.lock().unwrap() = rb;
+    }
+
+    /// Retorna o índice de todas as entradas cujas células intersectam
+    /// `rect`. Usado pelo mouseup do rubber-band pra selecionar. H50.2c.
+    pub fn entries_in_rect(
+        &self,
+        rect: Rectangle<i32, Logical>,
+    ) -> Vec<PathBuf> {
+        let theme = crate::theme::current();
+        let t = &theme.desktop_icons;
+        let entries = self.entries.lock().ok();
+        let Some(entries) = entries else { return Vec::new() };
+        if entries.is_empty() {
+            return Vec::new();
+        }
+        let output = self.current_output_size();
+        let taskbar_h = crate::taskbar::taskbar_height();
+        let usable_h = output.h - t.grid_margin - taskbar_h - 8;
+        let rows = (usable_h / t.cell_height).max(1);
+        let positions = self.positions.lock().ok();
+        let positions_snap = positions
+            .map(|g| (*g).clone())
+            .unwrap_or_default();
+        let layout = compute_layout(&entries, &positions_snap, rows);
+        let rect_f = rect.to_f64();
+        let mut out = Vec::new();
+        for (idx, (col, row)) in layout.iter().enumerate() {
+            let cell_x = t.grid_margin + col * t.cell_width;
+            let cell_y = t.grid_margin + row * t.cell_height;
+            let cell_rect = Rectangle::<i32, Logical>::new(
+                Point::from((cell_x, cell_y)),
+                Size::from((t.cell_width, t.cell_height)),
+            )
+            .to_f64();
+            // Intersect.
+            if cell_rect.loc.x < rect_f.loc.x + rect_f.size.w
+                && cell_rect.loc.x + cell_rect.size.w > rect_f.loc.x
+                && cell_rect.loc.y < rect_f.loc.y + rect_f.size.h
+                && cell_rect.loc.y + cell_rect.size.h > rect_f.loc.y
+            {
+                if let Some(e) = entries.get(idx) {
+                    out.push(e.path.clone());
+                }
+            }
+        }
+        out
     }
 
     /// Substitui o set de paths selecionados. Chamado pelo dispatch
@@ -489,6 +566,7 @@ where
             .unwrap_or_default();
         let layout = compute_layout(&entries, &positions_snap, rows);
         let drag_snap = self.drag.lock().ok().and_then(|g| g.clone());
+        let rb_snap = self.rubber_band.lock().ok().and_then(|g| g.clone());
         // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
         // reusada pra todos selecionados; mesmo tamanho da célula
         // menos um pequeno padding).
@@ -607,6 +685,72 @@ where
                     ) {
                         out.push(C::from(LumaRenderElement::Memory(elem)));
                     }
+                }
+            }
+        }
+        // H50.2c.rb.2: rubber-band rect (caixa de seleção) renderizada
+        // POR ÚLTIMO no Vec — fica POR CIMA dos ícones. Bg semi-
+        // transparente + borda âmbar 1px (4 rects finos no perímetro).
+        if let Some(rb) = rb_snap.as_ref() {
+            let rect = rb.rect();
+            // Bg semi-transparente.
+            let bg = crate::gfx::make_rounded_panel(
+                rect.size.w.max(1),
+                rect.size.h.max(1),
+                4,
+                t.rubber_band_bg,
+            );
+            let bg_loc = Point::<i32, Logical>::from((rect.loc.x, rect.loc.y))
+                .to_physical_precise_round(1.0);
+            let loc_phys = location + bg_loc;
+            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                renderer,
+                loc_phys.to_f64(),
+                &bg,
+                None,
+                None,
+                None,
+                Kind::Unspecified,
+            ) {
+                out.push(C::from(LumaRenderElement::Memory(elem)));
+            }
+            // Borda 1px (4 retângulos finos).
+            let border_w = 1i32;
+            let edges = [
+                // Top
+                (rect.loc.x, rect.loc.y, rect.size.w, border_w),
+                // Bottom
+                (
+                    rect.loc.x,
+                    rect.loc.y + rect.size.h - border_w,
+                    rect.size.w,
+                    border_w,
+                ),
+                // Left
+                (rect.loc.x, rect.loc.y, border_w, rect.size.h),
+                // Right
+                (
+                    rect.loc.x + rect.size.w - border_w,
+                    rect.loc.y,
+                    border_w,
+                    rect.size.h,
+                ),
+            ];
+            for (x, y, w, h) in edges {
+                let edge_buf =
+                    crate::gfx::make_rounded_panel(w.max(1), h.max(1), 0, t.rubber_band_border);
+                let pos = Point::<i32, Logical>::from((x, y)).to_physical_precise_round(1.0);
+                let loc = location + pos;
+                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                    renderer,
+                    loc.to_f64(),
+                    &edge_buf,
+                    None,
+                    None,
+                    None,
+                    Kind::Unspecified,
+                ) {
+                    out.push(C::from(LumaRenderElement::Memory(elem)));
                 }
             }
         }
