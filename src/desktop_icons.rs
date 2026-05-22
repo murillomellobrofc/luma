@@ -102,6 +102,141 @@ pub fn kind_of(path: &std::path::Path, is_dir: bool) -> FileKind {
     }
 }
 
+/// Drag em curso. Setado quando o user pressiona esquerdo sobre um
+/// ícone E move mais de `DRAG_THRESHOLD_PX`. H50.2b.
+#[derive(Debug, Clone)]
+pub struct DesktopDrag {
+    pub path: PathBuf,
+    /// Posição do cursor no início (mousedown), pra threshold.
+    pub start_screen: Point<f64, Logical>,
+    /// Offset do cursor relativo ao top-left da célula original.
+    pub offset: Point<i32, Logical>,
+    /// Posição atual do cursor (atualizada por motion).
+    pub current_screen: Point<f64, Logical>,
+    /// `false` enquanto não passou o threshold (ainda pode virar
+    /// só click). `true` = realmente em drag, ghost renderiza.
+    pub active: bool,
+}
+
+/// Distância mínima de movimento pra começar drag (pixels lógicos).
+pub const DRAG_THRESHOLD_PX: f64 = 5.0;
+
+/// Carrega posições persistidas em `~/.cache/luma/desktop-positions.
+/// toml`. Vazio se arquivo não existir ou parse falhar. H50.2b.drag.5.
+pub fn load_positions() -> std::collections::HashMap<String, (i32, i32)> {
+    let path = positions_path();
+    let Some(path) = path else {
+        return Default::default();
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return Default::default(),
+    };
+    let value: toml::Value = match toml::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("desktop-positions.toml parse falhou: {e}");
+            return Default::default();
+        }
+    };
+    let mut out = std::collections::HashMap::new();
+    if let toml::Value::Table(table) = value {
+        for (name, val) in table {
+            if let toml::Value::Array(arr) = val {
+                if arr.len() == 2 {
+                    let col = arr[0].as_integer().unwrap_or(-1) as i32;
+                    let row = arr[1].as_integer().unwrap_or(-1) as i32;
+                    if col >= 0 && row >= 0 {
+                        out.insert(name, (col, row));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Salva posições no disco (sobreescreve o arquivo). H50.2b.drag.4.
+/// Formato manual (toml crate só tem feature "parse" enabled).
+pub fn save_positions(positions: &std::collections::HashMap<String, (i32, i32)>) {
+    let Some(path) = positions_path() else { return };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut lines = String::from("# desktop-positions.toml — H50.2b\n");
+    lines.push_str("# basename = [col, row]\n\n");
+    let mut keys: Vec<&String> = positions.keys().collect();
+    keys.sort();
+    for name in keys {
+        let (col, row) = positions[name];
+        // Escape TOML basic-string: replace \ and " com escapes.
+        let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+        lines.push_str(&format!("\"{}\" = [{}, {}]\n", escaped, col, row));
+    }
+    if let Err(e) = std::fs::write(&path, lines) {
+        tracing::warn!("desktop-positions.toml write falhou: {e}");
+    }
+}
+
+fn positions_path() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))?;
+    Some(base.join("luma").join("desktop-positions.toml"))
+}
+
+/// Resolve (col, row) por entrada — usa positions custom se houver,
+/// senão auto-arrange column-major preenchendo as células livres.
+/// H50.2b.drag.5.
+pub fn compute_layout(
+    entries: &[DesktopEntry],
+    positions: &std::collections::HashMap<String, (i32, i32)>,
+    rows: i32,
+) -> Vec<(i32, i32)> {
+    let rows = rows.max(1);
+    let mut used: std::collections::HashSet<(i32, i32)> =
+        std::collections::HashSet::new();
+    // Primeiro fixa as customizadas.
+    let mut result: Vec<Option<(i32, i32)>> = vec![None; entries.len()];
+    for (i, e) in entries.iter().enumerate() {
+        if let Some(pos) = positions.get(&e.name) {
+            if !used.contains(pos) {
+                result[i] = Some(*pos);
+                used.insert(*pos);
+            }
+        }
+    }
+    // Depois preenche os ausentes column-major nas células livres.
+    let mut cursor_col = 0i32;
+    let mut cursor_row = 0i32;
+    let next_free = |c: &mut i32, r: &mut i32, used: &std::collections::HashSet<(i32, i32)>| {
+        loop {
+            if !used.contains(&(*c, *r)) {
+                return (*c, *r);
+            }
+            *r += 1;
+            if *r >= rows {
+                *r = 0;
+                *c += 1;
+            }
+        }
+    };
+    for slot in result.iter_mut() {
+        if slot.is_none() {
+            let pos = next_free(&mut cursor_col, &mut cursor_row, &used);
+            *slot = Some(pos);
+            used.insert(pos);
+            // Avança o cursor pra próxima célula candidata.
+            cursor_row += 1;
+            if cursor_row >= rows {
+                cursor_row = 0;
+                cursor_col += 1;
+            }
+        }
+    }
+    result.into_iter().map(|p| p.unwrap_or((0, 0))).collect()
+}
+
 /// Camada de ícones do desktop como `SpaceElement` com z_index=5 —
 /// entre o wallpaper (0) e janelas (10). Mapeada em (0,0) ocupando
 /// o output inteiro. Não recebe input nesta fase (fase 1 = só ler
@@ -120,6 +255,10 @@ pub struct DesktopIconsLayer {
     selection: Mutex<std::collections::HashSet<PathBuf>>,
     /// Cache do bg de seleção (rect arredondado) por size_chave.
     selection_bg_cache: Mutex<Option<(MemoryRenderBuffer, i32, i32)>>,
+    /// Posições customizadas (basename → (col, row)). H50.2b.
+    positions: Mutex<std::collections::HashMap<String, (i32, i32)>>,
+    /// Drag ativo. None = sem drag. H50.2b.
+    drag: Mutex<Option<DesktopDrag>>,
 }
 
 impl DesktopIconsLayer {
@@ -131,6 +270,8 @@ impl DesktopIconsLayer {
             label_cache: Mutex::new(HashMap::new()),
             selection: Mutex::new(std::collections::HashSet::new()),
             selection_bg_cache: Mutex::new(None),
+            positions: Mutex::new(std::collections::HashMap::new()),
+            drag: Mutex::new(None),
         }
     }
 
@@ -142,6 +283,17 @@ impl DesktopIconsLayer {
     /// `state.rs::poll_desktop_icons` quando muda. H50.icons.7.
     pub fn set_entries(&self, entries: Vec<DesktopEntry>) {
         *self.entries.lock().unwrap() = entries;
+    }
+
+    /// Substitui o mapa de posições customizadas. H50.2b.
+    pub fn set_positions(&self, positions: std::collections::HashMap<String, (i32, i32)>) {
+        *self.positions.lock().unwrap() = positions;
+    }
+
+    /// Substitui o estado de drag (Some quando active, None quando
+    /// não tá arrastando ou ainda não passou do threshold). H50.2b.
+    pub fn set_drag(&self, drag: Option<DesktopDrag>) {
+        *self.drag.lock().unwrap() = drag;
     }
 
     /// Substitui o set de paths selecionados. Chamado pelo dispatch
@@ -166,7 +318,8 @@ impl DesktopIconsLayer {
 
     /// Hit-test do grid: dado um ponto em coords lógicas do output,
     /// retorna o índice da entrada cuja célula contém o ponto.
-    /// Hitbox = célula inteira (cell_width × cell_height). H50.2a.sel.1.
+    /// Hitbox = célula inteira (cell_width × cell_height). Usa
+    /// compute_layout pra honrar posições customizadas. H50.2a/2b.
     pub fn hit_test_cell(&self, point: Point<f64, Logical>) -> Option<usize> {
         let theme = crate::theme::current();
         let t = &theme.desktop_icons;
@@ -178,14 +331,14 @@ impl DesktopIconsLayer {
         let taskbar_h = crate::taskbar::taskbar_height();
         let usable_h = output.h - t.grid_margin - taskbar_h - 8;
         let rows = (usable_h / t.cell_height).max(1);
-
-        for (idx, _) in entries.iter().enumerate() {
-            let col = (idx as i32) / rows;
-            let row = (idx as i32) % rows;
+        let positions = self.positions.lock().ok()?;
+        let layout = compute_layout(&entries, &positions, rows);
+        drop(positions);
+        for (idx, (col, row)) in layout.iter().enumerate() {
             let cell_x = t.grid_margin + col * t.cell_width;
             let cell_y = t.grid_margin + row * t.cell_height;
             if cell_x + t.cell_width > output.w - t.grid_margin {
-                break;
+                continue;
             }
             let rect: Rectangle<i32, Logical> = Rectangle::new(
                 Point::from((cell_x, cell_y)),
@@ -196,6 +349,16 @@ impl DesktopIconsLayer {
             }
         }
         None
+    }
+
+    /// Encontra a célula (col, row) mais próxima de um ponto. Usado
+    /// pelo drop do drag pra snap. H50.2b.drag.3.
+    pub fn nearest_cell(&self, point: Point<f64, Logical>) -> (i32, i32) {
+        let theme = crate::theme::current();
+        let t = &theme.desktop_icons;
+        let col = ((point.x - t.grid_margin as f64) / t.cell_width as f64).round() as i32;
+        let row = ((point.y - t.grid_margin as f64) / t.cell_height as f64).round() as i32;
+        (col.max(0), row.max(0))
     }
 
     /// Lookup/cache de um SVG do pack `assets/branding/icons/`.
@@ -318,6 +481,14 @@ where
         let mut out: Vec<C> = Vec::new();
         let text_r = crate::text::TextRenderer::load();
         let selection = self.selection.lock().ok();
+        let positions_snap = self
+            .positions
+            .lock()
+            .ok()
+            .map(|g| (*g).clone())
+            .unwrap_or_default();
+        let layout = compute_layout(&entries, &positions_snap, rows);
+        let drag_snap = self.drag.lock().ok().and_then(|g| g.clone());
         // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
         // reusada pra todos selecionados; mesmo tamanho da célula
         // menos um pequeno padding).
@@ -345,13 +516,34 @@ where
             cache.as_ref().and_then(|c| c.as_ref().cloned())
         };
         for (idx, entry) in entries.iter().enumerate() {
-            let col = (idx as i32) / rows;
-            let row = (idx as i32) % rows;
-            let cell_x = t.grid_margin + col * t.cell_width;
-            let cell_y = t.grid_margin + row * t.cell_height;
+            let (col, row) = layout[idx];
+            // H50.2b.drag.2: se o ícone arrastado está ativo, renderiza
+            // ele seguindo o cursor (ghost) e pula a célula original.
+            let is_dragging = drag_snap
+                .as_ref()
+                .map(|d| d.active && d.path == entry.path)
+                .unwrap_or(false);
+            let (cell_x, cell_y) = if is_dragging {
+                if let Some(d) = drag_snap.as_ref() {
+                    let cx = d.current_screen.x.round() as i32 - d.offset.x;
+                    let cy = d.current_screen.y.round() as i32 - d.offset.y;
+                    (cx, cy)
+                } else {
+                    (
+                        t.grid_margin + col * t.cell_width,
+                        t.grid_margin + row * t.cell_height,
+                    )
+                }
+            } else {
+                (
+                    t.grid_margin + col * t.cell_width,
+                    t.grid_margin + row * t.cell_height,
+                )
+            };
             // Para se sair pela direita do output (overflow horizontal).
-            if cell_x + t.cell_width > output_size.w - t.grid_margin {
-                break;
+            // Não pula se for o ghost (pode estar em qualquer lugar).
+            if !is_dragging && cell_x + t.cell_width > output_size.w - t.grid_margin {
+                continue;
             }
             // Bg de seleção (atrás do ícone) — só pros selecionados.
             let is_selected = selection

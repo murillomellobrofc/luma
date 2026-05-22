@@ -235,6 +235,8 @@ pub fn init_winit(
         layer.set_output_size(initial_size);
         let entries = crate::desktop_icons::scan();
         layer.set_entries(entries.clone());
+        // H50.2b.drag.5: aplica positions persistidas no layer.
+        layer.set_positions(data.state.desktop_positions.clone());
         data.state.desktop_entries = entries;
         data.state.desktop_last_scan = Some(std::time::Instant::now());
         data.state.space.map_element(

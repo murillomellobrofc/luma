@@ -187,6 +187,13 @@ pub struct LumaState {
     /// Último click esquerdo sobre um ícone do desktop, pra detectar
     /// double-click (~500ms). H50.2a.sel.4.
     pub desktop_last_click: Option<(std::time::Instant, std::path::PathBuf)>,
+    /// Drag em curso (clicou num ícone e moveu mouse). H50.2b.
+    pub desktop_drag: Option<crate::desktop_icons::DesktopDrag>,
+    /// Posições customizadas (basename → (col, row)) persistidas em
+    /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
+    /// caem no auto-arrange (column-major). H50.2b.
+    pub desktop_positions:
+        std::collections::HashMap<String, (i32, i32)>,
     /// State visual do overview (buffers). H36.11.
     pub overview: crate::overview::OverviewState,
     /// Posições salvas das janelas movidas off-screen ao trocar de
@@ -613,6 +620,8 @@ impl LumaState {
             desktop_icons: None,
             desktop_selection: std::collections::HashSet::new(),
             desktop_last_click: None,
+            desktop_drag: None,
+            desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
             wallpaper: crate::wallpaper::Wallpaper::load(),
