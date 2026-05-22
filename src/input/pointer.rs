@@ -554,40 +554,32 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                 let cx = pointer_pos.x.round() as i32;
                                 let cy = pointer_pos.y.round() as i32;
                                 if button == 0x111 {
-                                    // H47c: tenta renderizar o DBusMenu
-                                    // nativo. Se não tem menu_path ou
-                                    // GetLayout retorna vazio, cai pro
-                                    // delegate (app desenha).
-                                    let mut handled = false;
-                                    if !item.menu_path.is_empty() {
-                                        let layout =
-                                            crate::sni::get_menu_layout(
-                                                &item.service,
-                                                &item.menu_path,
-                                            );
-                                        if !layout.is_empty() {
-                                            let tokens = crate::theme::current()
-                                                .context_menu
-                                                .clone();
-                                            let mut menu =
-                                                crate::context_menu::ContextMenu::for_dbusmenu(
-                                                    smithay::utils::Point::from((cx, cy)),
-                                                    item.service.clone(),
-                                                    item.menu_path.clone(),
-                                                    layout,
-                                                );
-                                            menu.clamp_into(output, &tokens);
-                                            state.context_menu = Some(menu);
-                                            // Fecha o painel do tray
-                                            // pra menu virar único foco.
-                                            state.tray.overflow_open = false;
-                                            handled = true;
-                                        }
-                                    }
-                                    if !handled {
+                                    // H47c.fix: query DBusMenu ASYNC pra
+                                    // não bloquear o main loop. Cria
+                                    // pending_dbus_menu; render polla
+                                    // o slot cada frame e abre o menu
+                                    // quando chegar. Timeout 3s. Sem
+                                    // menu_path = delegate imediato.
+                                    if item.menu_path.is_empty() {
                                         crate::sni::context_menu(
                                             &item.service, &item.object_path, cx, cy,
                                         );
+                                    } else {
+                                        let result = crate::sni::get_menu_layout_async(
+                                            &item.service,
+                                            &item.menu_path,
+                                        );
+                                        state.pending_dbus_menu =
+                                            Some(crate::sni::PendingDBusMenu {
+                                                service: item.service.clone(),
+                                                menu_path: item.menu_path.clone(),
+                                                cursor_x: cx,
+                                                cursor_y: cy,
+                                                started_at: std::time::Instant::now(),
+                                                result,
+                                            });
+                                        // Fecha o painel do tray.
+                                        state.tray.overflow_open = false;
                                     }
                                 } else {
                                     crate::sni::activate(

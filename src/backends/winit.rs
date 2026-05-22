@@ -589,6 +589,50 @@ pub fn init_winit(
                     // H50.icons.7: polling 2s do ~/Desktop. Re-scan e
                     // só atualiza o layer se mudou (path/mtime). Cheap:
                     // read_dir + sort ordena 5-50 entries em <1ms.
+                    // H47c.fix: polling do pending_dbus_menu — thread
+                    // bloqueante do D-Bus pode demorar. Quando o slot
+                    // virar Some, constrói ContextMenu::for_dbusmenu
+                    // no cursor original. Timeout (3s) descarta.
+                    if let Some(pending) = data.state.pending_dbus_menu.as_ref() {
+                        let ready: Option<Vec<crate::sni::DBusMenuItem>> = pending
+                            .result
+                            .lock()
+                            .ok()
+                            .and_then(|g| g.clone());
+                        if let Some(items) = ready {
+                            if items.is_empty() {
+                                // Sem items → fallback delegate.
+                                crate::sni::context_menu(
+                                    &pending.service,
+                                    &pending.menu_path,
+                                    pending.cursor_x,
+                                    pending.cursor_y,
+                                );
+                            } else {
+                                let tokens =
+                                    crate::theme::current().context_menu.clone();
+                                let mut menu =
+                                    crate::context_menu::ContextMenu::for_dbusmenu(
+                                        smithay::utils::Point::from((
+                                            pending.cursor_x,
+                                            pending.cursor_y,
+                                        )),
+                                        pending.service.clone(),
+                                        pending.menu_path.clone(),
+                                        items,
+                                    );
+                                menu.clamp_into(output_size_logical, &tokens);
+                                data.state.context_menu = Some(menu);
+                            }
+                            data.state.pending_dbus_menu = None;
+                        } else if pending.expired() {
+                            tracing::warn!(
+                                "SNI: DBusMenu timeout ({}ms) — app não respondeu",
+                                crate::sni::PendingDBusMenu::TIMEOUT_MS
+                            );
+                            data.state.pending_dbus_menu = None;
+                        }
+                    }
                     let stale_icons = data
                         .state
                         .desktop_last_scan
