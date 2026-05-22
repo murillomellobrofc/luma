@@ -195,6 +195,10 @@ pub struct LumaState {
     /// editável; teclado vai direto pro buffer + Enter commita,
     /// Esc cancela.
     pub desktop_renaming: Option<crate::desktop_icons::DesktopRename>,
+    /// DBusMenu pendente: thread está consultando o app SNI. Cada
+    /// frame, render path checa o slot — quando vier Some, abre o
+    /// ContextMenu nativo no cursor_pos guardado. Timeout 3s. H47c.fix.
+    pub pending_dbus_menu: Option<crate::sni::PendingDBusMenu>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -629,6 +633,7 @@ impl LumaState {
             desktop_drag: None,
             desktop_rubber_band: None,
             desktop_renaming: None,
+            pending_dbus_menu: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

@@ -367,9 +367,58 @@ fn read_menu_path(
     }
 }
 
+/// Slot compartilhado entre thread e main loop pra entregar o
+/// resultado de `get_menu_layout` async. None = ainda esperando;
+/// Some(vec) = pronto (vazio se falhou). H47c.fix.
+pub type DBusMenuResult = std::sync::Arc<std::sync::Mutex<Option<Vec<DBusMenuItem>>>>;
+
+/// Estado de uma query DBusMenu em curso. Main loop chega o slot
+/// cada frame; quando preenche, constrói o menu no cursor_pos.
+/// Timeout 3s — se a thread não respondeu até lá, descarta. H47c.fix.
+#[derive(Debug, Clone)]
+pub struct PendingDBusMenu {
+    pub service: String,
+    pub menu_path: String,
+    pub cursor_x: i32,
+    pub cursor_y: i32,
+    pub started_at: std::time::Instant,
+    pub result: DBusMenuResult,
+}
+
+impl PendingDBusMenu {
+    pub const TIMEOUT_MS: u64 = 3000;
+
+    pub fn expired(&self) -> bool {
+        self.started_at.elapsed().as_millis() as u64 >= Self::TIMEOUT_MS
+    }
+}
+
+/// Query async do DBusMenu (não bloqueia o main loop). Caller
+/// recebe um slot que é preenchido pela thread quando a resposta
+/// chega. Timeout fica a cargo do caller via `started_at` em outro
+/// state. H47c.fix.
+pub fn get_menu_layout_async(service: &str, menu_path: &str) -> DBusMenuResult {
+    let slot: DBusMenuResult =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
+    let s = service.to_string();
+    let p = menu_path.to_string();
+    let slot_thread = slot.clone();
+    std::thread::Builder::new()
+        .name("luma-dbusmenu-getlayout".into())
+        .spawn(move || {
+            let items = get_menu_layout(&s, &p);
+            if let Ok(mut g) = slot_thread.lock() {
+                *g = Some(items);
+            }
+        })
+        .ok();
+    slot
+}
+
 /// Lê o layout (flat, sem recursão) do DBusMenu do item via
 /// `com.canonical.dbusmenu.GetLayout(parent_id=0, depth=1, props=[])`.
-/// Retorna a lista de items filhos do root. H47c.
+/// Retorna a lista de items filhos do root. **Bloqueia** — usar
+/// `get_menu_layout_async` quando chamado do main loop. H47c.
 pub fn get_menu_layout(service: &str, menu_path: &str) -> Vec<DBusMenuItem> {
     let conn = match zbus::blocking::Connection::session() {
         Ok(c) => c,
@@ -474,8 +523,20 @@ pub fn get_menu_layout(service: &str, menu_path: &str) -> Vec<DBusMenuItem> {
 }
 
 /// Manda `Event(id, "clicked", data="", timestamp=0)` pro DBusMenu —
-/// dispara a ação ligada ao item. H47c.
+/// dispara a ação ligada ao item. **Não bloqueia o main loop**:
+/// spawna thread fire-and-forget. Se o app SNI travar, nada
+/// acontece (esperado). H47c → H47c.fix.
 pub fn send_menu_event(service: &str, menu_path: &str, item_id: i32) {
+    let s = service.to_string();
+    let p = menu_path.to_string();
+    std::thread::Builder::new()
+        .name("luma-dbusmenu-event".into())
+        .spawn(move || send_menu_event_blocking(&s, &p, item_id))
+        .ok();
+}
+
+/// O blocking real do `send_menu_event`. Roda na thread spawnada.
+fn send_menu_event_blocking(service: &str, menu_path: &str, item_id: i32) {
     let conn = match zbus::blocking::Connection::session() {
         Ok(c) => c,
         Err(e) => {
