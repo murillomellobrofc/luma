@@ -34,6 +34,39 @@ pub fn handle_motion_absolute<I: InputBackend>(
         return;
     };
 
+    // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
+    // Quando cursor sai de todos os rects, retoma — acumula
+    // paused_total e zera pause_started_at em cada entry.
+    {
+        let any_hover = state
+            .notification_rects
+            .iter()
+            .any(|(_, nx, ny, nw, nh)| {
+                pos.x >= *nx as f64
+                    && pos.x < (*nx + *nw) as f64
+                    && pos.y >= *ny as f64
+                    && pos.y < (*ny + *nh) as f64
+            });
+        if let Ok(mut g) = state.notifications.lock() {
+            if any_hover && !g.hover_paused {
+                g.hover_paused = true;
+                let now = std::time::Instant::now();
+                for e in g.visible.iter_mut() {
+                    if e.pause_started_at.is_none() {
+                        e.pause_started_at = Some(now);
+                    }
+                }
+            } else if !any_hover && g.hover_paused {
+                g.hover_paused = false;
+                for e in g.visible.iter_mut() {
+                    if let Some(t) = e.pause_started_at.take() {
+                        e.paused_total += t.elapsed();
+                    }
+                }
+            }
+        }
+    }
+
     // H50.2b.drag.1-2: atualiza state.desktop_drag se estiver
     // pendente/ativo. Threshold de 5px promove pra active; depois
     // disso, cada motion atualiza current_screen pra ghost seguir.
@@ -392,31 +425,35 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
-        // H54.notifications: click sobre o toast fecha imediatamente
-        // (reason=2 dismissed). Sem actions na v1, qualquer click
-        // = dismiss.
-        if let Some((nx, ny, nw, nh)) = state.notification_rect {
-            let inside = pointer_pos.x >= nx as f64
-                && pointer_pos.x < (nx + nw) as f64
-                && pointer_pos.y >= ny as f64
-                && pointer_pos.y < (ny + nh) as f64;
+        // H54 P3: click sobre algum toast → fecha SÓ esse (reason=2).
+        // O hit-test usa o vetor de rects cacheado pelo render. Itera
+        // do topo do stack pra baixo; primeiro match consome o click.
+        let mut hit_id: Option<u32> = None;
+        for (id, nx, ny, nw, nh) in state.notification_rects.iter() {
+            let inside = pointer_pos.x >= *nx as f64
+                && pointer_pos.x < (*nx + *nw) as f64
+                && pointer_pos.y >= *ny as f64
+                && pointer_pos.y < (*ny + *nh) as f64;
             if inside {
-                if let Ok(mut g) = state.notifications.lock() {
-                    *g = None;
-                }
-                state.notification_rect = None;
-                pointer.button(
-                    state,
-                    &ButtonEvent {
-                        button,
-                        state: button_state,
-                        serial,
-                        time: event.time_msec(),
-                    },
-                );
-                pointer.frame(state);
-                return;
+                hit_id = Some(*id);
+                break;
             }
+        }
+        if let Some(id) = hit_id {
+            if let Ok(mut g) = state.notifications.lock() {
+                crate::notifications::close_by_id(&mut g, id);
+            }
+            pointer.button(
+                state,
+                &ButtonEvent {
+                    button,
+                    state: button_state,
+                    serial,
+                    time: event.time_msec(),
+                },
+            );
+            pointer.frame(state);
+            return;
         }
 
         // H53.rename.6: click com rename inline aberto = commit

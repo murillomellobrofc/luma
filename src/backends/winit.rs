@@ -3968,64 +3968,49 @@ pub fn init_winit(
                             }
                         }
 
-                        // H54.notifications: toast no canto sup-direito.
-                        // Lê snapshot do slot compartilhado (escrito pela
-                        // thread D-Bus). Auto-dismiss quando elapsed
-                        // passou do timeout. Slide-in + fade-in nos
-                        // primeiros fade_ms; slide-out + fade-out nos
-                        // últimos fade_ms antes do timeout.
-                        let notif_snap = data
-                            .state
-                            .notifications
-                            .lock()
-                            .ok()
-                            .and_then(|g| g.clone());
-                        if let Some(notif) = notif_snap {
-                            let t_n = crate::theme::current().notifications.clone();
-                            let effective_timeout = if notif.expire_timeout_ms > 0 {
-                                notif.expire_timeout_ms as u64
-                            } else {
-                                t_n.timeout_ms
+                        // H54 P3: stack de toasts (até MAX_VISIBLE_TOASTS=4)
+                        // no canto sup-direito. Tick processa expiração,
+                        // promoção da queue, e remoção de closing entries.
+                        // Render itera visible top-down (newest-on-top
+                        // configurável). Cada entry tem slide-in + fade-in
+                        // nos primeiros ENTRY_ANIM_MS, fade-out linear
+                        // nos últimos EXIT_ANIM_MS, reflow interp em
+                        // REFLOW_ANIM_MS. Hover-pause global.
+                        let _ = crate::notifications::tick(&data.state.notifications);
+                        // Snapshot da lista visible.
+                        let mut visible_snap: Vec<crate::notifications::NotificationEntry> =
+                            match data.state.notifications.lock() {
+                                Ok(g) => g.visible.clone(),
+                                Err(_) => Vec::new(),
                             };
-                            let elapsed = notif.received_at.elapsed().as_millis() as u64;
-                            if elapsed >= effective_timeout {
-                                if let Ok(mut g) = data.state.notifications.lock() {
-                                    *g = None;
-                                }
-                            } else {
-                                // Calcula alpha + slide offset.
-                                let fade = t_n.fade_ms.max(1);
-                                let alpha = if elapsed < fade {
-                                    elapsed as f32 / fade as f32
-                                } else if elapsed + fade > effective_timeout {
-                                    let remain = (effective_timeout - elapsed) as f32;
-                                    (remain / fade as f32).clamp(0.0, 1.0)
-                                } else {
-                                    1.0
-                                };
-                                // Slide offset (px da direita) — 32 → 0
-                                // durante fade-in; 0 → 32 durante fade-out.
-                                let slide_max = 32i32;
-                                let slide_off = if elapsed < fade {
-                                    let p = elapsed as f32 / fade as f32;
-                                    ((1.0 - p) * slide_max as f32) as i32
-                                } else if elapsed + fade > effective_timeout {
-                                    let remain = (effective_timeout - elapsed) as f32;
-                                    ((1.0 - (remain / fade as f32).clamp(0.0, 1.0))
-                                        * slide_max as f32)
-                                        as i32
-                                } else {
-                                    0
-                                };
-                                // Mede o card.
-                                let card_w = t_n.width;
-                                let icon_size = t_n.icon_size;
-                                let pad = t_n.padding;
-                                // Render dos textos (lazy, sem cache —
-                                // 1 toast por vez).
-                                let text_r = data.state.text.as_ref();
+                        if !visible_snap.is_empty() {
+                            let t_n = crate::theme::current().notifications.clone();
+                            // Helper local pra rasterizar texto.
+                            let text_r = data.state.text.as_ref();
+                            // ESTRUTURA: pra cada entry, computar card_h
+                            // (depende do body wrap), rasterizar textos
+                            // uma vez, computar target_y top-down, interp
+                            // current_y, render.
+                            struct ToastRender {
+                                id: u32,
+                                card_w: i32,
+                                card_h: i32,
+                                icon: Option<MemoryRenderBuffer>,
+                                icon_size: i32,
+                                title_buf: Option<(MemoryRenderBuffer, i32, i32)>,
+                                body_bufs: Vec<(MemoryRenderBuffer, i32, i32)>,
+                                time_buf: Option<(MemoryRenderBuffer, i32, i32)>,
+                                target_y: f32,
+                                current_y: f32,
+                                slide_offset_x: f32,
+                                alpha: f32,
+                            }
+                            let mut toasts: Vec<ToastRender> = Vec::new();
+                            let mut layout_y = t_n.margin as f32;
+                            for entry in visible_snap.iter() {
+                                // Rasteriza title.
                                 let title_buf = text_r.and_then(|t| {
-                                    let label = truncate_chars(&notif.summary, 36);
+                                    let label = truncate_chars(&entry.summary, 36);
                                     let (px, w, h) = t.rasterize_colored(
                                         &label, t_n.title_size, t_n.title_color,
                                     );
@@ -4045,46 +4030,49 @@ pub fn init_winit(
                                         h as i32,
                                     ))
                                 });
-                                let body_lines: Vec<String> = if notif.body.is_empty() {
+                                let body_lines: Vec<String> = if entry.body.is_empty() {
                                     Vec::new()
                                 } else {
                                     wrap_to_lines(
-                                        &notif.body,
+                                        &entry.body,
                                         t_n.max_body_lines,
                                         48,
                                     )
                                 };
-                                let body_bufs: Vec<(MemoryRenderBuffer, i32, i32)> =
-                                    text_r
-                                        .map(|t| {
-                                            body_lines
-                                                .iter()
-                                                .filter_map(|line| {
-                                                    let (px, w, h) = t.rasterize_colored(
-                                                        line, t_n.body_size, t_n.body_color,
-                                                    );
-                                                    if w == 0 || h == 0 {
-                                                        return None;
-                                                    }
-                                                    Some((
-                                                        MemoryRenderBuffer::from_slice(
-                                                            &px,
-                                                            smithay::backend::allocator::Fourcc::Argb8888,
-                                                            (w as i32, h as i32),
-                                                            1,
-                                                            Transform::Normal,
-                                                            None,
-                                                        ),
-                                                        w as i32,
-                                                        h as i32,
-                                                    ))
-                                                })
-                                                .collect()
-                                        })
-                                        .unwrap_or_default();
+                                let body_bufs: Vec<(MemoryRenderBuffer, i32, i32)> = text_r
+                                    .map(|t| {
+                                        body_lines
+                                            .iter()
+                                            .filter_map(|line| {
+                                                let (px, w, h) = t.rasterize_colored(
+                                                    line,
+                                                    t_n.body_size,
+                                                    t_n.body_color,
+                                                );
+                                                if w == 0 || h == 0 {
+                                                    return None;
+                                                }
+                                                Some((
+                                                    MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1,
+                                                        Transform::Normal,
+                                                        None,
+                                                    ),
+                                                    w as i32,
+                                                    h as i32,
+                                                ))
+                                            })
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
                                 let time_buf = text_r.and_then(|t| {
                                     let (px, w, h) = t.rasterize_colored(
-                                        "agora", t_n.time_size, t_n.time_color,
+                                        "agora",
+                                        t_n.time_size,
+                                        t_n.time_color,
                                     );
                                     if w == 0 || h == 0 {
                                         return None;
@@ -4102,40 +4090,95 @@ pub fn init_winit(
                                         h as i32,
                                     ))
                                 });
-                                // Altura do card: padding + icon ou padding
-                                // + título + body_lines + horário, o que
-                                // for maior.
-                                let title_h = title_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(16);
-                                let body_h_total: i32 = body_bufs
-                                    .iter()
-                                    .map(|(_, _, h)| h + 2)
-                                    .sum();
-                                let time_h = time_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(12);
+                                let title_h =
+                                    title_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(16);
+                                let body_h_total: i32 =
+                                    body_bufs.iter().map(|(_, _, h)| h + 2).sum();
+                                let time_h =
+                                    time_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(12);
                                 let text_block_h = title_h + body_h_total + 4 + time_h;
-                                let card_h = (pad * 2 + icon_size).max(pad * 2 + text_block_h);
-                                let card_x = output_size_logical.w
-                                    - t_n.margin
-                                    - card_w
-                                    + slide_off;
-                                let card_y = t_n.margin;
-                                // (1) Card bg arredondado.
-                                let bg = crate::gfx::make_rounded_panel(
-                                    card_w, card_h, t_n.corner, t_n.bg,
-                                );
-                                // (2) Texto do título.
-                                let title_x = card_x + pad + icon_size + pad;
-                                let title_y = card_y + pad;
-                                // (3) Body lines.
-                                let body_y_start = title_y + title_h + 4;
-                                // (4) Tempo "agora".
-                                let time_y = body_y_start + body_h_total + 2;
-
-                                // Z-stack: bg primeiro (BACK), texts/ícone
-                                // depois. Pra fade, usa from_buffer com alpha.
-                                let mk_alpha_n = |buf: &MemoryRenderBuffer,
-                                                  x: i32,
-                                                  y: i32,
-                                                  r: &mut GlesRenderer|
+                                let card_h =
+                                    (t_n.padding * 2 + t_n.icon_size).max(t_n.padding * 2 + text_block_h);
+                                // Anim: slide-in + fade-in nos primeiros
+                                // ENTRY_ANIM_MS; fade-out linear nos últimos
+                                // EXIT_ANIM_MS.
+                                let entered_ms =
+                                    entry.entered_at.elapsed().as_millis() as u64;
+                                let entry_anim = crate::notifications::ENTRY_ANIM_MS;
+                                let exit_anim = crate::notifications::EXIT_ANIM_MS;
+                                let in_progress = if entered_ms < entry_anim {
+                                    crate::notifications::ease_out_cubic(
+                                        entered_ms as f32 / entry_anim as f32,
+                                    )
+                                } else {
+                                    1.0
+                                };
+                                let exit_progress = entry
+                                    .closing_since
+                                    .map(|t| {
+                                        (t.elapsed().as_millis() as f32 / exit_anim as f32)
+                                            .clamp(0.0, 1.0)
+                                    })
+                                    .unwrap_or(0.0);
+                                let alpha = in_progress * (1.0 - exit_progress);
+                                let slide_max = 32.0;
+                                let slide_offset_x =
+                                    (1.0 - in_progress) * slide_max
+                                        + exit_progress * slide_max;
+                                toasts.push(ToastRender {
+                                    id: entry.id,
+                                    card_w: t_n.width,
+                                    card_h,
+                                    icon: entry.icon.clone(),
+                                    icon_size: t_n.icon_size,
+                                    title_buf,
+                                    body_bufs,
+                                    time_buf,
+                                    target_y: layout_y,
+                                    current_y: entry.current_y,
+                                    slide_offset_x,
+                                    alpha,
+                                });
+                                layout_y += card_h as f32 + 10.0; // GAP=10
+                            }
+                            // Interp current_y → target_y via reflow anim.
+                            // Atualiza o state real (não snapshot) com novo
+                            // target/current/anim_started.
+                            if let Ok(mut g) = data.state.notifications.lock() {
+                                let reflow_anim = crate::notifications::REFLOW_ANIM_MS;
+                                for (i, entry) in g.visible.iter_mut().enumerate() {
+                                    if let Some(t) = toasts.get_mut(i) {
+                                        // Se target mudou (mais de 1px), inicia anim.
+                                        if (entry.target_y - t.target_y).abs() > 1.0 {
+                                            entry.anim_started_at = std::time::Instant::now();
+                                            entry.anim_start_y = entry.current_y;
+                                            entry.target_y = t.target_y;
+                                        }
+                                        // Interp.
+                                        let anim_ms =
+                                            entry.anim_started_at.elapsed().as_millis() as u64;
+                                        let p = if reflow_anim == 0 {
+                                            1.0
+                                        } else {
+                                            crate::notifications::ease_out_cubic(
+                                                anim_ms as f32 / reflow_anim as f32,
+                                            )
+                                        };
+                                        entry.current_y = entry.anim_start_y
+                                            + (entry.target_y - entry.anim_start_y) * p;
+                                        t.current_y = entry.current_y;
+                                    }
+                                }
+                            }
+                            // Rect cache pro hover/click.
+                            data.state.notification_rects.clear();
+                            // Render.
+                            let mk_alpha_n =
+                                |buf: &MemoryRenderBuffer,
+                                 x: i32,
+                                 y: i32,
+                                 alpha: f32,
+                                 r: &mut GlesRenderer|
                                  -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
                                     let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                         smithay::utils::Point::<i32, smithay::utils::Logical>
@@ -4152,56 +4195,66 @@ pub fn init_winit(
                                     )
                                     .ok()
                                 };
-
-                                // Push bg primeiro (ficará no índice mais alto
-                                // = BACK depois de inserts seguintes).
-                                if let Some(elem) = mk_alpha_n(&bg, card_x, card_y, renderer)
+                            for t in &toasts {
+                                let card_x = output_size_logical.w
+                                    - t_n.margin
+                                    - t.card_w
+                                    + t.slide_offset_x as i32;
+                                let card_y = t.current_y as i32;
+                                let bg = crate::gfx::make_rounded_panel(
+                                    t.card_w, t.card_h, t_n.corner, t_n.bg,
+                                );
+                                if let Some(elem) =
+                                    mk_alpha_n(&bg, card_x, card_y, t.alpha, renderer)
                                 {
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
-                                // Icon (se houver).
-                                if let Some(icon_buf) = notif.icon.as_ref() {
-                                    let ix = card_x + pad;
-                                    let iy = card_y + (card_h - icon_size) / 2;
+                                if let Some(icon_buf) = t.icon.as_ref() {
+                                    let ix = card_x + t_n.padding;
+                                    let iy = card_y + (t.card_h - t.icon_size) / 2;
                                     if let Some(elem) =
-                                        mk_alpha_n(icon_buf, ix, iy, renderer)
+                                        mk_alpha_n(icon_buf, ix, iy, t.alpha, renderer)
                                     {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
-                                // Title.
-                                if let Some((tbuf, _tw, _th)) = title_buf.as_ref() {
+                                let title_x = card_x + t_n.padding + t.icon_size + t_n.padding;
+                                let title_y = card_y + t_n.padding;
+                                let title_h = t.title_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(16);
+                                if let Some((tbuf, _, _)) = t.title_buf.as_ref() {
                                     if let Some(elem) =
-                                        mk_alpha_n(tbuf, title_x, title_y, renderer)
+                                        mk_alpha_n(tbuf, title_x, title_y, t.alpha, renderer)
                                     {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
-                                // Body lines.
+                                let body_y_start = title_y + title_h + 4;
                                 let mut body_y = body_y_start;
-                                for (bbuf, _bw, bh) in body_bufs.iter() {
+                                let mut body_h_total = 0;
+                                for (bbuf, _bw, bh) in t.body_bufs.iter() {
                                     if let Some(elem) =
-                                        mk_alpha_n(bbuf, title_x, body_y, renderer)
+                                        mk_alpha_n(bbuf, title_x, body_y, t.alpha, renderer)
                                     {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                     body_y += bh + 2;
+                                    body_h_total += bh + 2;
                                 }
-                                // Time.
-                                if let Some((tbuf, _tw, _th)) = time_buf.as_ref() {
+                                let time_y = body_y_start + body_h_total + 2;
+                                if let Some((tbuf, _, _)) = t.time_buf.as_ref() {
                                     if let Some(elem) =
-                                        mk_alpha_n(tbuf, title_x, time_y, renderer)
+                                        mk_alpha_n(tbuf, title_x, time_y, t.alpha, renderer)
                                     {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
-                                // Cache do rect pro hit-test do click.
-                                data.state.notification_rect = Some((
-                                    card_x, card_y, card_w, card_h,
+                                data.state.notification_rects.push((
+                                    t.id, card_x, card_y, t.card_w, t.card_h,
                                 ));
                             }
+                            let _ = visible_snap; // explícito: snapshot só
                         } else {
-                            data.state.notification_rect = None;
+                            data.state.notification_rects.clear();
                         }
 
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).

@@ -427,3 +427,52 @@ futuras.
 Quando alguma feature acima virar incômodo real. Empilhar é a mais
 provável (apps que disparam várias notif em sequência). Central
 faz sentido após H55+ (UI de configurações nativa).
+
+---
+
+## Notificações P3 — calloop one-shot wake (H54.P3)
+
+**Status:** funcional em modo aninhado, debt em DRM nativo.
+
+A Phase 3 do toast estilo macOS pediu um calloop one-shot timer
+armado pro deadline mais próximo do stack, re-armado em
+add/remove/pause/resume/replace, e que dispare `request_redraw`
+quando expira.
+
+### O que está em vigor
+
+Implementação atual usa **elapsed-based no render loop** —
+luma chama `backend.window().request_redraw()` a cada `WinitEvent::Redraw`,
+mantendo a cadência contínua. Cada frame chama `notifications::tick()`
+que processa expiração + promoção da queue + remoção das closing.
+Em ~16ms de granularidade, o expire é detectado e o fade-out começa.
+
+Em modo aninhado (KDE host) isso funciona perfeito — luma renderiza
+continuamente.
+
+### O que falta (DRM nativo / power-save)
+
+Em DRM nativo no futuro, se quisermos parar de renderizar quando
+ocioso (power-saving), o timer one-shot precisa ser real:
+1. Patchar smithay vendored pra expor `Arc<WinitWindow>` (ou
+   equivalente no path DRM).
+2. Stashar essa Arc em LumaState.
+3. Adicionar calloop `Timer::from_deadline` no event_loop, armado
+   pelo `tick()` quando há toast com timer ativo.
+4. Callback do Timer chama `window.request_redraw()` → próximo
+   frame processa.
+5. Re-armar quando add/remove/pause/resume/replace mudar o conjunto.
+
+### Quando desbloqueia
+
+Etapa de DRM nativo OU quando começar a importar economia de
+energia (laptop). O código atual já funciona — só rende mais
+frames do que o estritamente necessário.
+
+### Pílula "+N" da queue (H54.P3.5)
+
+A queue funciona (overflow do `MAX_VISIBLE_TOASTS=4`) mas não há
+indicador visual. Adicionar um chip pequeno tipo "+N" no canto
+inferior do último toast quando `queue.len() > 0`. Custo: layout +
+1 SolidColorBuffer + 1 text rasterize. Pequeno, vale virar etapa
+separada (P3.5) pra não acumular escopo na P3.
