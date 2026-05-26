@@ -4180,13 +4180,14 @@ pub fn init_winit(
                                 let mut buttons_block_h: i32 = 0;
                                 if !entry.actions.is_empty() {
                                     if let Some(tr) = text_r {
-                                        let btn_h_unit = (t_n.action_btn_label_size as i32)
-                                            + 4 // ascender slop
-                                            + t_n.action_btn_padding_v * 2;
-                                        let avail_w = t_n.width - t_n.padding * 2;
+                                        let btn_h_unit = t_n.action_btn_height;
+                                        // Coluna de conteúdo (alinhada com título/body, após o ícone).
+                                        let content_left_x =
+                                            t_n.padding + t_n.icon_size + t_n.padding;
+                                        let content_right_x = t_n.width - t_n.padding;
                                         let row_top_y = t_n.padding + text_block_h
                                             + t_n.action_btn_top_margin;
-                                        let mut cur_x: i32 = t_n.padding;
+                                        let mut cur_x: i32 = content_left_x;
                                         let mut cur_y: i32 = row_top_y;
                                         for (key, label) in entry.actions.iter() {
                                             let (px, w, h) = tr.rasterize_colored(
@@ -4208,10 +4209,10 @@ pub fn init_winit(
                                             let btn_w =
                                                 w as i32 + t_n.action_btn_padding_h * 2;
                                             // Wrap se passa da largura disponível.
-                                            if cur_x + btn_w > t_n.padding + avail_w
-                                                && cur_x > t_n.padding
+                                            if cur_x + btn_w > content_right_x
+                                                && cur_x > content_left_x
                                             {
-                                                cur_x = t_n.padding;
+                                                cur_x = content_left_x;
                                                 cur_y += btn_h_unit + t_n.action_btn_gap;
                                             }
                                             buttons.push(ToastButton {

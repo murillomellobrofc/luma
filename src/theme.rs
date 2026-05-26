@@ -1082,12 +1082,17 @@ impl Default for NotificationsTokens {
             action_btn_bg: hex_color("#3D2520", 0.55),
             action_btn_bg_hover: hex_color("#5A3A30", 0.75),
             action_btn_label_color: hex_color("#FBF6EE", 1.0),
-            action_btn_corner: 8,
-            action_btn_padding_h: 14,
-            action_btn_padding_v: 7,
-            action_btn_gap: 8,
-            action_btn_label_size: 12.0,
-            action_btn_top_margin: 8,
+            action_btn_corner: 10,
+            action_btn_padding_h: 18,
+            action_btn_gap: 10,
+            action_btn_label_size: 13.0,
+            // H54.P4.fix: bump 8 → 16 pra respirar entre "agora" e a
+            // linha de botões.
+            action_btn_top_margin: 16,
+            // Alvo de clique confortável (PCD-first). Hit target = altura
+            // visível, sem padding invisível.
+            action_btn_height: 40,
+            action_btn_height_pcd: 48,
             title_color: hex_color("#FBF6EE", 1.0),
             // H54.P3.fix: body bumpado pra contraste AAA (~12:1) —
             // cream-cinza claro. Antes #C9BDB0 era ~8:1 (passa AAA mas
@@ -1867,11 +1872,16 @@ pub struct NotificationsTokens {
     pub action_btn_label_color: Color32F,
     pub action_btn_corner: i32,
     pub action_btn_padding_h: i32,
-    pub action_btn_padding_v: i32,
     pub action_btn_gap: i32,
     pub action_btn_label_size: f32,
     /// Espaço entre o body do toast e a linha de botões.
     pub action_btn_top_margin: i32,
+    /// H54.P4.fix: altura visível do botão (= hit target, sem padding
+    /// invisível). PCD-first: alvo de clique confortável. Default 40,
+    /// PCD Max 48+ via `action_btn_height_pcd`.
+    pub action_btn_height: i32,
+    #[allow(dead_code)]
+    pub action_btn_height_pcd: i32,
     pub title_color: Color32F,
     pub body_color: Color32F,
     pub time_color: Color32F,
