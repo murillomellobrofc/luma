@@ -250,6 +250,15 @@ pub struct LumaState {
     /// Wayland). Populado por Copiar/Recortar do per-icon menu;
     /// consumido por Colar do menu do desktop. H56 parte 3.
     pub luma_clipboard: Option<crate::desktop_icons::LumaClipboard>,
+    /// Estado do power-profiles-daemon (popup de bateria). Snapshot
+    /// refrescado ao abrir o popup e após cada slider click. None
+    /// quando o daemon não está rodando — o slider some do popup.
+    /// H57.
+    pub power_profiles: Option<crate::power::PowerProfilesState>,
+    /// Rects clicáveis do slider de modo de energia (popup de
+    /// bateria). 3 zonas, cada uma um stop. Cacheadas pelo render
+    /// pra hit-test do click/drag. H57.
+    pub battery_mode_zones: Vec<(String, smithay::utils::Rectangle<i32, Logical>)>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -709,6 +718,8 @@ impl LumaState {
             calendar_next_rect: None,
             calendar_hoje_rect: None,
             luma_clipboard: None,
+            power_profiles: None,
+            battery_mode_zones: Vec::new(),
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

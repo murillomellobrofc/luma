@@ -1991,6 +1991,18 @@ pub fn init_winit(
                                          bat_icon_x, center_y_for(bat_sz.h), renderer);
                                 push_mem(&mut custom_elements, lbl_buf,
                                          bat_label_x, center_y_for(lbl_sz.h), renderer);
+                                // H57: cacheia rect do bloco da bateria
+                                // (ícone + label) pro click handler.
+                                let bar_y_l = output_size_logical.h
+                                    - crate::taskbar::taskbar_height();
+                                let tb_h = crate::taskbar::taskbar_height();
+                                let bat_block_w = bat_label_x + lbl_sz.w - bat_icon_x;
+                                data.state.tray.last_battery_rect = Some(
+                                    smithay::utils::Rectangle::new(
+                                        smithay::utils::Point::from((bat_icon_x, bar_y_l)),
+                                        smithay::utils::Size::from((bat_block_w, tb_h)),
+                                    ),
+                                );
                             }
                             if let Some((buf, sz)) = wifi_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
@@ -3049,12 +3061,338 @@ pub fn init_winit(
                             let theme = crate::theme::current();
                             let t_popup = &theme.popup;
                             let o = popup.origin(output_size_logical);
-                            // H55 Fatia 1: branch por kind. Calendar
-                            // renderiza só a casca + placeholder pra
-                            // verificar grab/Esc/click fora/toggle.
-                            // Conteúdo (grade, header, footer) vem nas
-                            // Fatias 2-4.
-                            if popup.kind == crate::popup::AppletKind::Calendar {
+                            // H57: branch Battery. Header + hero
+                            // (% grande + estado + barra) + slider
+                            // de modo de energia (se PPD presente).
+                            if popup.kind == crate::popup::AppletKind::Battery {
+                                let t_bp = &theme.battery_popup;
+                                // Bg gradient (mesma casca de applet).
+                                let bg = crate::gfx::make_titlebar_bg(
+                                    popup.size.w, popup.size.h,
+                                    t_popup.corner_radius,
+                                    theme.window.titlebar_bg_top,
+                                    theme.window.titlebar_bg_bottom,
+                                );
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    o.to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, bg_loc.to_f64(), &bg,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                let bat = data.state.tray.battery_info;
+                                let ppd = data.state.power_profiles.clone();
+                                let pct = bat.map(|b| b.capacity).unwrap_or(0);
+                                let charging = bat.map(|b| b.charging).unwrap_or(false);
+                                let is_low = pct < t_bp.low_threshold_pct;
+                                let pct_color = if is_low {
+                                    t_bp.hero_pct_low_color
+                                } else {
+                                    t_bp.hero_pct_color
+                                };
+                                let bar_fill_color = if is_low {
+                                    t_bp.level_bar_fill_low_color
+                                } else {
+                                    t_bp.level_bar_fill_color
+                                };
+                                let state_text = if charging && pct >= 100 {
+                                    "Carregada"
+                                } else if charging {
+                                    "Carregando"
+                                } else {
+                                    "Descarregando"
+                                };
+                                let inner_x = o.x + t_bp.padding;
+                                let inner_w = popup.size.w - t_bp.padding * 2;
+                                let text_r_ref = data.state.text.as_ref();
+                                // Header "Bateria" centralizado.
+                                if let Some(tr) = text_r_ref {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        "Bateria", t_bp.header_size, t_bp.header_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let lx = inner_x + (inner_w - w as i32) / 2;
+                                        let ly = o.y + (t_bp.header_height - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
+                                let mut cur_y = o.y + t_bp.header_height;
+                                // % grande centralizado.
+                                let pct_str = format!("{}%", pct);
+                                let text_r_ref = data.state.text.as_ref();
+                                if let Some(tr) = text_r_ref {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        &pct_str, t_bp.hero_pct_size, pct_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let lx = inner_x + (inner_w - w as i32) / 2;
+                                        let ly = cur_y + 8;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        cur_y = ly + h as i32 + 6;
+                                    }
+                                }
+                                // State text centralizado abaixo do %.
+                                if let Some(tr) = text_r_ref {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        state_text, t_bp.hero_state_size, t_bp.hero_state_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let lx = inner_x + (inner_w - w as i32) / 2;
+                                        let ly = cur_y;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        cur_y = ly + h as i32 + 14;
+                                    }
+                                }
+                                // Barra de nível (track + fill).
+                                {
+                                    let bar_w = inner_w;
+                                    let bar_h = t_bp.level_bar_height;
+                                    let bar_x = inner_x;
+                                    let bar_y = cur_y;
+                                    let bar_bg = crate::gfx::make_rounded_panel(
+                                        bar_w, bar_h, t_bp.level_bar_corner,
+                                        t_bp.level_bar_bg_color,
+                                    );
+                                    let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((bar_x, bar_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, bg_loc.to_f64(), &bar_bg,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let fill_w = ((pct as i32) * bar_w / 100).max(0);
+                                    if fill_w > 0 {
+                                        let fill = crate::gfx::make_rounded_panel(
+                                            fill_w, bar_h, t_bp.level_bar_corner,
+                                            bar_fill_color,
+                                        );
+                                        let fl_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((bar_x, bar_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, fl_loc.to_f64(), &fill,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    cur_y = bar_y + bar_h + 20;
+                                }
+                                // Divider antes da seção de modo.
+                                if ppd.is_some() {
+                                    let div = crate::gfx::make_rounded_panel(
+                                        inner_w, 1, 0, t_bp.divider_color,
+                                    );
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((inner_x, cur_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, loc.to_f64(), &div,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    cur_y += 12;
+                                }
+                                // "MODO DE ENERGIA" label + slider.
+                                data.state.battery_mode_zones.clear();
+                                if let Some(ppd) = ppd.as_ref() {
+                                    if let Some(tr) = text_r_ref {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "MODO DE ENERGIA",
+                                            t_bp.mode_label_size,
+                                            t_bp.mode_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((inner_x, cur_y))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                            cur_y += h as i32 + 12;
+                                        }
+                                    }
+                                    // Slider track (com bg) + fill + thumb.
+                                    let stops = ppd.available.len() as i32;
+                                    let active_idx = ppd.active_idx().unwrap_or(0) as i32;
+                                    let track_x = inner_x + t_bp.mode_slider_thumb_radius;
+                                    let track_w = inner_w - t_bp.mode_slider_thumb_radius * 2;
+                                    let track_y = cur_y + t_bp.mode_slider_thumb_radius
+                                        - t_bp.mode_slider_track_height / 2;
+                                    let track_bg = crate::gfx::make_rounded_panel(
+                                        track_w, t_bp.mode_slider_track_height,
+                                        t_bp.mode_slider_track_height / 2,
+                                        t_bp.mode_slider_track_color,
+                                    );
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((track_x, track_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, loc.to_f64(), &track_bg,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // Posição do thumb: centro da zona ativa.
+                                    let thumb_step = if stops > 1 {
+                                        track_w / (stops - 1)
+                                    } else {
+                                        0
+                                    };
+                                    let thumb_center_x = track_x + active_idx * thumb_step;
+                                    // Fill: do início do track até o thumb.
+                                    let fill_w = (thumb_center_x - track_x).max(0);
+                                    if fill_w > 0 {
+                                        let fill = crate::gfx::make_rounded_panel(
+                                            fill_w, t_bp.mode_slider_track_height,
+                                            t_bp.mode_slider_track_height / 2,
+                                            t_bp.mode_slider_fill_color,
+                                        );
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((track_x, track_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &fill,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    // Thumb ring + thumb.
+                                    let r = t_bp.mode_slider_thumb_radius;
+                                    let thumb_y = cur_y;
+                                    let ring = crate::gfx::make_rounded_panel(
+                                        r * 2 + 4, r * 2 + 4, r + 2,
+                                        t_bp.mode_slider_thumb_ring_color,
+                                    );
+                                    let r_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((thumb_center_x - r - 2, thumb_y - 2))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, r_loc.to_f64(), &ring,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let thumb = crate::gfx::make_rounded_panel(
+                                        r * 2, r * 2, r, t_bp.mode_slider_thumb_color,
+                                    );
+                                    let t_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((thumb_center_x - r, thumb_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, t_loc.to_f64(), &thumb,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    cur_y += r * 2 + 10;
+                                    // Labels embaixo + hit zones (1/3 cada).
+                                    let zone_w = inner_w / stops.max(1);
+                                    for (i, name) in ppd.available.iter().enumerate() {
+                                        let label = crate::power::profile_label(name);
+                                        let active = i as i32 == active_idx;
+                                        let color = if active {
+                                            t_bp.mode_stop_label_active_color
+                                        } else {
+                                            t_bp.mode_stop_label_color
+                                        };
+                                        if let Some(tr) = text_r_ref {
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                label, t_bp.mode_stop_label_size, color,
+                                            );
+                                            if w > 0 && h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (w as i32, h as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let zone_x = inner_x + (i as i32) * zone_w;
+                                                let lx = zone_x + (zone_w - w as i32) / 2;
+                                                let ly = cur_y;
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
+                                        // Cache zone rect pra hit-test.
+                                        // Zona é vertical: cobre o track
+                                        // + thumb + label (~50px alto).
+                                        let zone_x = inner_x + (i as i32) * zone_w;
+                                        let zone_top = track_y - r;
+                                        let zone_height = (r * 2) + 30;
+                                        data.state.battery_mode_zones.push((
+                                            name.clone(),
+                                            smithay::utils::Rectangle::new(
+                                                smithay::utils::Point::from((zone_x, zone_top)),
+                                                smithay::utils::Size::from((zone_w, zone_height)),
+                                            ),
+                                        ));
+                                    }
+                                }
+                            } else if popup.kind == crate::popup::AppletKind::Calendar {
                                 let bg = crate::gfx::make_titlebar_bg(
                                     popup.size.w,
                                     popup.size.h,

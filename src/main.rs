@@ -17,6 +17,7 @@ mod osd;
 mod overview;
 mod pager;
 mod popup;
+mod power;
 mod render;
 mod search;
 mod sni;

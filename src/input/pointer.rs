@@ -1051,6 +1051,36 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         pointer.frame(state);
                         return;
                     }
+                    // H57: dispatch interno do battery — slider de modo.
+                    let is_battery = popup_clone
+                        .as_ref()
+                        .map(|p| p.kind == crate::popup::AppletKind::Battery)
+                        .unwrap_or(false);
+                    if is_battery {
+                        // Hit-test nas 3 zonas do slider.
+                        let zones = state.battery_mode_zones.clone();
+                        let mut profile_hit: Option<String> = None;
+                        for (name, rect) in zones.iter() {
+                            if rect.to_f64().contains(pointer_pos) {
+                                profile_hit = Some(name.clone());
+                                break;
+                            }
+                        }
+                        if let Some(name) = profile_hit {
+                            // PPD set + refresh snapshot. Falha silent.
+                            if crate::power::set_active(&name) {
+                                state.power_profiles = crate::power::read_state();
+                            }
+                        }
+                        // Click dentro do popup Battery: consome (fora
+                        // dos hits cai no consume genérico abaixo).
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial,
+                            time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
                     // H44.volume.2: tab click muda aba ativa.
                     if let Some(tab) = popup_clone
                         .as_ref()
@@ -1385,6 +1415,31 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         "volume popup={} sinks={}",
                         state.applet_popup.is_some(),
                         state.audio_sinks.len()
+                    );
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // H57: click no bloco da bateria abre/fecha o popup.
+            if let Some(zone) = state.tray.last_battery_rect {
+                if zone.to_f64().contains(pointer_pos) {
+                    let was_open = state.applet_popup.is_some()
+                        && state.applet_popup.as_ref().unwrap().kind
+                            == crate::popup::AppletKind::Battery;
+                    if was_open {
+                        state.applet_popup = None;
+                    } else {
+                        // Refresh do PPD state ao abrir.
+                        state.power_profiles = crate::power::read_state();
+                        state.applet_popup = Some(crate::popup::AppletPopup::new(
+                            crate::popup::AppletKind::Battery,
+                            zone.loc.x + zone.size.w / 2,
+                        ));
+                    }
+                    tracing::info!(
+                        "battery popup={} ppd={:?}",
+                        state.applet_popup.is_some(),
+                        state.power_profiles.as_ref().map(|p| p.active.clone()),
                     );
                     pointer.frame(state);
                     return;
