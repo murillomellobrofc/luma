@@ -44,7 +44,7 @@ desktop environment.
 Development is split into steps. The realistic timeline is roughly two
 years to version 1.0.
 
-### Visual foundation — done or in progress
+### Visual foundation — done
 
 - Working Wayland compositor
 - Fullscreen application menu
@@ -53,20 +53,46 @@ years to version 1.0.
 - System tray reading real data
 - Icon resolver compatible with GTK and KDE applications
 - Window decorations
+- File icons on the desktop, with selection, drag, rubber-band and
+  inline rename
+- Desktop context menu and wallpaper gallery
+- Volume applet and media OSD (now playing)
+
+### Notification system — done (H54)
+
+Complete D-Bus `org.freedesktop.Notifications` server, split into seven
+phases:
+
+- macOS-style toast in the upper right corner
+- Stacking with hover-pause, overflow queue, animated reflow
+- Action buttons (`ActionInvoked`) and `resident` hint (toast stays
+  open after click)
+- Notification center as a right-edge panel, with session-only history,
+  unread badge and Do Not Disturb (critical urgency breaks through)
+- Notification sound via libcanberra, with debounce and a sound toggle
+  in the panel
+- Visual bell (screen flash) with photosensitivity limits, default off
+  (only the PCD Max preset turns it on)
 
 ### Living system — next steps
 
-- Notification system
-- Clickable applets: volume, network, bluetooth, battery
 - Calendar on clicking the clock
-- Expandable tray, with support for third-party icons
+- Remaining applets: network, bluetooth, battery (full popups)
+- Light up the four dim items in the context menu (Create new, Paste,
+  Arrange icons, Edit mode)
 
 ### Applications and polish
 
-- Native Luma applications
+- Configurable widget system (KDE plasmoid-style, but Luma-native in
+  Rust — a large architectural foundation)
+- Unified edit mode (reposition desktop icons and widgets in one place)
+- Native Luma applications: file manager, screenshot tool, text editor,
+  image viewer, calculator
+- Native settings panel
 - HiDPI and scaling support
 - DRM backend, to run directly without depending on another environment
 - Multi-window support
+- GTK/Qt theme generation so third-party apps wear Golden Hour
 
 ### Version 1.0
 

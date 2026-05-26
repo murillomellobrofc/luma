@@ -45,7 +45,7 @@ de desktop existente.
 O desenvolvimento é dividido em etapas. A linha do tempo realista é de
 cerca de dois anos até a versão 1.0.
 
-### Fundação visual — concluído ou em curso
+### Fundação visual — concluído
 
 - Compositor Wayland funcional
 - Menu de aplicativos em tela cheia
@@ -54,20 +54,48 @@ cerca de dois anos até a versão 1.0.
 - Bandeja do sistema lendo dados reais
 - Resolvedor de ícones compatível com aplicativos GTK e KDE
 - Decoração de janelas
+- Ícones de arquivo no desktop, com seleção, drag, rubber-band e
+  renomear inline
+- Menu de contexto do desktop e galeria de wallpapers
+- Applet de volume e OSD de mídia (música tocando)
+
+### Sistema de notificações — concluído (H54)
+
+Sistema completo D-Bus `org.freedesktop.Notifications`, dividido em
+sete fases:
+
+- Toast estilo macOS no canto superior direito
+- Empilhamento com pausa por hover, fila de overflow, reflow animado
+- Botões de ação (`ActionInvoked`) e hint `resident` (toast continua
+  aberto após click)
+- Central de notificações em painel direito, com histórico session-only,
+  badge de não-vistas e Do Not Disturb (urgência crítica fura)
+- Som de notificação via libcanberra, com debounce e toggle no painel
+- Piscada de tela (visual bell) com limites de fotossensibilidade,
+  default desligada (só PCD Max liga)
 
 ### Sistema vivo — próximos passos
 
-- Sistema de notificações
-- Applets clicáveis: volume, rede, bluetooth, bateria
 - Calendário ao clicar no relógio
-- Bandeja expansível, com suporte a ícones de terceiros
+- Applets restantes: rede, bluetooth, bateria (popups completos)
+- Acender os 4 itens dim do menu de contexto (Criar novo, Colar,
+  Organizar ícones, Modo de edição)
 
 ### Aplicativos e refino
 
-- Aplicativos nativos do Luma
+- Sistema de widgets configuráveis (estilo plasmoids do KDE, mas
+  Luma-native em Rust — fundação arquitetural grande)
+- Modo de edição unificado (reposiciona ícones do desktop e widgets
+  num lugar só)
+- Aplicativos nativos do Luma: gerenciador de arquivos, ferramenta
+  de captura de tela, editor de texto, visualizador de imagem,
+  calculadora
+- Tela de configurações nativa
 - Suporte a HiDPI e escalonamento
 - Backend DRM, para rodar direto sem depender de outro ambiente
 - Suporte a múltiplas janelas
+- Geração de tema GTK/Qt para que apps de terceiros vistam o
+  Golden Hour
 
 ### Versão 1.0
 
