@@ -4023,7 +4023,17 @@ pub fn init_winit(
                         // nos primeiros ENTRY_ANIM_MS, fade-out linear
                         // nos últimos EXIT_ANIM_MS, reflow interp em
                         // REFLOW_ANIM_MS. Hover-pause global.
-                        let _ = crate::notifications::tick(&data.state.notifications);
+                        // H54.P4: tick retorna (id, reason) das removidas →
+                        // emite NotificationClosed signal por cada.
+                        let closed_in_tick =
+                            crate::notifications::tick(&data.state.notifications);
+                        for (cid, reason) in closed_in_tick {
+                            crate::notifications::emit_notification_closed(
+                                &data.state.notifications_conn,
+                                cid,
+                                reason,
+                            );
+                        }
                         // Snapshot da lista visible.
                         let mut visible_snap: Vec<crate::notifications::NotificationEntry> =
                             match data.state.notifications.lock() {
@@ -4038,6 +4048,14 @@ pub fn init_winit(
                             // (depende do body wrap), rasterizar textos
                             // uma vez, computar target_y top-down, interp
                             // current_y, render.
+                            struct ToastButton {
+                                key: String,
+                                label_buf: MemoryRenderBuffer,
+                                label_w: i32,
+                                label_h: i32,
+                                /// (x, y, w, h) relativos ao card top-left.
+                                rect_local: (i32, i32, i32, i32),
+                            }
                             struct ToastRender {
                                 id: u32,
                                 card_w: i32,
@@ -4047,6 +4065,7 @@ pub fn init_winit(
                                 title_buf: Option<(MemoryRenderBuffer, i32, i32)>,
                                 body_bufs: Vec<(MemoryRenderBuffer, i32, i32)>,
                                 time_buf: Option<(MemoryRenderBuffer, i32, i32)>,
+                                buttons: Vec<ToastButton>,
                                 target_y: f32,
                                 current_y: f32,
                                 slide_offset_x: f32,
@@ -4154,8 +4173,66 @@ pub fn init_winit(
                                 let time_h =
                                     time_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(12);
                                 let text_block_h = title_h + body_h_total + 4 + time_h;
-                                let card_h =
-                                    (t_n.padding * 2 + t_n.icon_size).max(t_n.padding * 2 + text_block_h);
+                                // H54.P4: layout dos action buttons. Rasteriza
+                                // cada label, computa rect_local, wrap pra
+                                // próxima linha se exceder largura.
+                                let mut buttons: Vec<ToastButton> = Vec::new();
+                                let mut buttons_block_h: i32 = 0;
+                                if !entry.actions.is_empty() {
+                                    if let Some(tr) = text_r {
+                                        let btn_h_unit = (t_n.action_btn_label_size as i32)
+                                            + 4 // ascender slop
+                                            + t_n.action_btn_padding_v * 2;
+                                        let avail_w = t_n.width - t_n.padding * 2;
+                                        let row_top_y = t_n.padding + text_block_h
+                                            + t_n.action_btn_top_margin;
+                                        let mut cur_x: i32 = t_n.padding;
+                                        let mut cur_y: i32 = row_top_y;
+                                        for (key, label) in entry.actions.iter() {
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                label,
+                                                t_n.action_btn_label_size,
+                                                t_n.action_btn_label_color,
+                                            );
+                                            if w == 0 || h == 0 {
+                                                continue;
+                                            }
+                                            let label_buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1,
+                                                Transform::Normal,
+                                                None,
+                                            );
+                                            let btn_w =
+                                                w as i32 + t_n.action_btn_padding_h * 2;
+                                            // Wrap se passa da largura disponível.
+                                            if cur_x + btn_w > t_n.padding + avail_w
+                                                && cur_x > t_n.padding
+                                            {
+                                                cur_x = t_n.padding;
+                                                cur_y += btn_h_unit + t_n.action_btn_gap;
+                                            }
+                                            buttons.push(ToastButton {
+                                                key: key.clone(),
+                                                label_buf,
+                                                label_w: w as i32,
+                                                label_h: h as i32,
+                                                rect_local: (cur_x, cur_y, btn_w, btn_h_unit),
+                                            });
+                                            cur_x += btn_w + t_n.action_btn_gap;
+                                        }
+                                        // Total occupied = última cur_y + btn_h - row_top_y.
+                                        if let Some(last) = buttons.last() {
+                                            let (_, by, _, bh) = last.rect_local;
+                                            buttons_block_h =
+                                                (by + bh) - text_block_h - t_n.padding;
+                                        }
+                                    }
+                                }
+                                let card_h = (t_n.padding * 2 + t_n.icon_size)
+                                    .max(t_n.padding * 2 + text_block_h + buttons_block_h);
                                 // Anim: slide-in + fade-in nos primeiros
                                 // ENTRY_ANIM_MS; fade-out linear nos últimos
                                 // EXIT_ANIM_MS.
@@ -4191,6 +4268,7 @@ pub fn init_winit(
                                     title_buf,
                                     body_bufs,
                                     time_buf,
+                                    buttons,
                                     target_y: layout_y,
                                     current_y: entry.current_y,
                                     slide_offset_x,
@@ -4227,8 +4305,9 @@ pub fn init_winit(
                                     }
                                 }
                             }
-                            // Rect cache pro hover/click.
+                            // Rect cache pro hover/click. Inclui buttons.
                             data.state.notification_rects.clear();
+                            data.state.notification_button_rects.clear();
                             // Render.
                             let mk_alpha_n =
                                 |buf: &MemoryRenderBuffer,
@@ -4414,6 +4493,54 @@ pub fn init_winit(
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
+                                // H54.P4: action buttons.
+                                let hover_pair: Option<(u32, &str)> = data
+                                    .state
+                                    .notification_button_hover
+                                    .as_ref()
+                                    .map(|(i, k)| (*i, k.as_str()));
+                                for btn in t.buttons.iter() {
+                                    let (lx, ly, lw, lh) = btn.rect_local;
+                                    let bx = card_x + lx;
+                                    let by = card_y + ly;
+                                    let is_hover = hover_pair == Some((t.id, btn.key.as_str()));
+                                    let bg_color = if is_hover {
+                                        t_n.action_btn_bg_hover
+                                    } else {
+                                        t_n.action_btn_bg
+                                    };
+                                    let bg_btn = crate::gfx::make_rounded_panel(
+                                        lw, lh, t_n.action_btn_corner, bg_color,
+                                    );
+                                    if let Some(elem) =
+                                        mk_alpha_n(&bg_btn, bx, by, t.alpha, renderer)
+                                    {
+                                        custom_elements
+                                            .insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // Label centralizada.
+                                    let label_x = bx + (lw - btn.label_w) / 2;
+                                    let label_y = by + (lh - btn.label_h) / 2;
+                                    if let Some(elem) = mk_alpha_n(
+                                        &btn.label_buf,
+                                        label_x,
+                                        label_y,
+                                        t.alpha,
+                                        renderer,
+                                    ) {
+                                        custom_elements
+                                            .insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // Cache do rect pro hit-test.
+                                    data.state.notification_button_rects.push((
+                                        t.id,
+                                        btn.key.clone(),
+                                        bx,
+                                        by,
+                                        lw,
+                                        lh,
+                                    ));
+                                }
                                 data.state.notification_rects.push((
                                     t.id, card_x, card_y, t.card_w, t.card_h,
                                 ));
@@ -4421,6 +4548,8 @@ pub fn init_winit(
                             let _ = visible_snap; // explícito: snapshot só
                         } else {
                             data.state.notification_rects.clear();
+                            data.state.notification_button_rects.clear();
+                            data.state.notification_button_hover = None;
                         }
 
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).

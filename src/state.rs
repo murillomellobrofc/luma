@@ -202,10 +202,20 @@ pub struct LumaState {
     /// Stack de notificações compartilhado com a thread D-Bus.
     /// H54 P3: passou de Option pra Vec + queue + hover_paused.
     pub notifications: crate::notifications::NotificationsSlot,
+    /// Conexão D-Bus do servidor de notif, usada pra emitir signals
+    /// `ActionInvoked` / `NotificationClosed`. H54.P4.
+    pub notifications_conn: crate::notifications::NotificationsConn,
     /// Rects (id, x, y, w, h) dos toasts visíveis cacheados pelo
     /// render. Usado pelo motion handler pra detectar hover (pause)
     /// e pelo click handler pra dismiss por id. H54 P3.
     pub notification_rects: Vec<(u32, i32, i32, i32, i32)>,
+    /// Rects de botões de ação (notif_id, action_key, x, y, w, h)
+    /// cacheados pelo render. Hit-test tem prioridade sobre
+    /// notification_rects. H54.P4.
+    pub notification_button_rects: Vec<(u32, String, i32, i32, i32, i32)>,
+    /// Botão hovered atualmente: (notif_id, action_key). Pintado com
+    /// bg_hover. H54.P4.
+    pub notification_button_hover: Option<(u32, String)>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -560,6 +570,10 @@ impl LumaState {
             tracing::warn!("tema XCursor não encontrado, cursor não será desenhado");
         }
 
+        // H54.P4: spawn de notif retorna (slot, conn_handle). Conn é
+        // populada pela thread server quando RequestName tem sucesso.
+        let (notifications_slot, notifications_conn_handle) =
+            crate::notifications::spawn();
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -641,8 +655,11 @@ impl LumaState {
             desktop_rubber_band: None,
             desktop_renaming: None,
             pending_dbus_menu: None,
-            notifications: crate::notifications::spawn(),
+            notifications: notifications_slot,
+            notifications_conn: notifications_conn_handle,
             notification_rects: Vec::new(),
+            notification_button_rects: Vec::new(),
+            notification_button_hover: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

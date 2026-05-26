@@ -1077,6 +1077,17 @@ impl Default for NotificationsTokens {
             shadow_contact_offset_y: 3,
             shadow_ambient_blur: 28,
             shadow_ambient_offset_y: 10,
+            // Action buttons (H54.P4): ghost sobre o scrim coffee.
+            // Fill sutil pra textura sem ofuscar o body.
+            action_btn_bg: hex_color("#3D2520", 0.55),
+            action_btn_bg_hover: hex_color("#5A3A30", 0.75),
+            action_btn_label_color: hex_color("#FBF6EE", 1.0),
+            action_btn_corner: 8,
+            action_btn_padding_h: 14,
+            action_btn_padding_v: 7,
+            action_btn_gap: 8,
+            action_btn_label_size: 12.0,
+            action_btn_top_margin: 8,
             title_color: hex_color("#FBF6EE", 1.0),
             // H54.P3.fix: body bumpado pra contraste AAA (~12:1) —
             // cream-cinza claro. Antes #C9BDB0 era ~8:1 (passa AAA mas
@@ -1849,6 +1860,18 @@ pub struct NotificationsTokens {
     pub shadow_ambient_blur: i32,
     /// Offset vertical da ambient shadow (px). Maior.
     pub shadow_ambient_offset_y: i32,
+    /// Botões de ação (H54.P4). Estilo ghost com fill sutil; hover
+    /// destaca. Sem distinção de "primary" — todos iguais nesta fase.
+    pub action_btn_bg: Color32F,
+    pub action_btn_bg_hover: Color32F,
+    pub action_btn_label_color: Color32F,
+    pub action_btn_corner: i32,
+    pub action_btn_padding_h: i32,
+    pub action_btn_padding_v: i32,
+    pub action_btn_gap: i32,
+    pub action_btn_label_size: f32,
+    /// Espaço entre o body do toast e a linha de botões.
+    pub action_btn_top_margin: i32,
     pub title_color: Color32F,
     pub body_color: Color32F,
     pub time_color: Color32F,

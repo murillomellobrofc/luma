@@ -87,8 +87,21 @@ pub struct NotificationEntry {
     pub anim_start_y: f32,
     /// Estado de saída: Some(closed_at) → fade-out + remoção. H54.P3.c.
     pub closing_since: Option<Instant>,
+    /// Reason pro `NotificationClosed` signal quando finalmente
+    /// remover: 1=expired, 2=dismissed (user), 3=closed-by-call,
+    /// 4=undefined (replaces_id). H54.P4.
+    pub closing_reason: u32,
     /// Quando criada: pra slide-in + fade-in nos primeiros ENTRY_ANIM_MS.
     pub entered_at: Instant,
+    /// Pares (key, label) das ações visíveis (botões). A key
+    /// `"default"` é separada em `default_action` e não vira botão.
+    /// H54.P4.
+    pub actions: Vec<(String, String)>,
+    /// Key da ação "default" (body-click). None se não houver.
+    pub default_action: Option<String>,
+    /// Hint `resident`: se true, não fecha após `ActionInvoked` —
+    /// timer continua normal. H54.P4.
+    pub resident: bool,
 }
 
 impl NotificationEntry {
@@ -129,16 +142,60 @@ pub struct NotificationsState {
 
 pub type NotificationsSlot = Arc<Mutex<NotificationsState>>;
 
+/// Conexão D-Bus compartilhada com a thread server, pra emitir
+/// signals (`ActionInvoked`, `NotificationClosed`) a partir do main
+/// loop. None até a thread conseguir RequestName (ou pra sempre se
+/// LUMA_TAKE_NOTIFICATIONS está unset). H54.P4.
+pub type NotificationsConn =
+    Arc<Mutex<Option<zbus::blocking::Connection>>>;
+
+/// Emite `ActionInvoked(id, action_key)`. No-op se sem conexão.
+pub fn emit_action_invoked(conn: &NotificationsConn, id: u32, action_key: &str) {
+    if let Ok(g) = conn.lock() {
+        if let Some(c) = g.as_ref() {
+            let _ = c.emit_signal(
+                None::<&str>,
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                "ActionInvoked",
+                &(id, action_key),
+            );
+        }
+    }
+}
+
+/// Emite `NotificationClosed(id, reason)`. No-op se sem conexão.
+/// Reasons (per spec): 1=expired, 2=dismissed by user, 3=closed by
+/// CloseNotification call, 4=undefined/other.
+pub fn emit_notification_closed(
+    conn: &NotificationsConn,
+    id: u32,
+    reason: u32,
+) {
+    if let Ok(g) = conn.lock() {
+        if let Some(c) = g.as_ref() {
+            let _ = c.emit_signal(
+                None::<&str>,
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                "NotificationClosed",
+                &(id, reason),
+            );
+        }
+    }
+}
+
 /// Spawna a thread D-Bus em background (se LUMA_TAKE_NOTIFICATIONS).
 /// Retorna o slot compartilhado. Se LUMA_FAKE_NOTIFICATION é setado,
 /// injeta fakes pra teste visual.
-pub fn spawn() -> NotificationsSlot {
+pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
     let slot: NotificationsSlot = Arc::new(Mutex::new(NotificationsState {
         visible: Vec::new(),
         queue: VecDeque::new(),
         hover_paused: false,
         next_id: 1,
     }));
+    let conn_handle: NotificationsConn = Arc::new(Mutex::new(None));
     if let Ok(val) = std::env::var("LUMA_FAKE_NOTIFICATION") {
         let count: usize = val.parse().unwrap_or(1).max(1);
         for i in 0..count {
@@ -153,59 +210,61 @@ pub fn spawn() -> NotificationsSlot {
         tracing::info!(
             "notifications: nao registrado (LUMA_TAKE_NOTIFICATIONS unset)"
         );
-        return slot;
+        return (slot, conn_handle);
     }
     let slot_for_thread = slot.clone();
+    let conn_for_thread = conn_handle.clone();
     std::thread::Builder::new()
         .name("luma-notifications".into())
         .spawn(move || {
-            if let Err(e) = run(slot_for_thread) {
+            if let Err(e) = run(slot_for_thread, conn_for_thread) {
                 tracing::warn!("notifications: thread encerrou com erro: {e}");
             }
         })
         .ok();
-    slot
+    (slot, conn_handle)
 }
 
 /// Faz a manutenção do stack: expira, remove fechadas após exit-anim,
 /// promove queue→visible. Chamado a cada frame pelo render path.
-/// Retorna `true` se mudou algo (sinaliza dirty).
-pub fn tick(slot: &NotificationsSlot) -> bool {
+/// Retorna `Vec<(id, reason)>` das entries removidas — caller emite
+/// `NotificationClosed` signal pra cada. H54.P4.
+pub fn tick(slot: &NotificationsSlot) -> Vec<(u32, u32)> {
     let mut g = match slot.lock() {
         Ok(g) => g,
-        Err(_) => return false,
+        Err(_) => return Vec::new(),
     };
-    let mut dirty = false;
-    // 1. Marca como closing as que expiraram.
+    // 1. Marca como closing as que expiraram (reason=1).
     for e in g.visible.iter_mut() {
         if e.closing_since.is_some() {
             continue;
         }
         if e.is_expired() {
             e.closing_since = Some(Instant::now());
-            dirty = true;
+            e.closing_reason = 1;
         }
     }
-    // 2. Remove as que terminaram a anim de exit.
-    let before = g.visible.len();
+    // 2. Remove as que terminaram a anim de exit. Coleta (id, reason)
+    //    pra emitir signal depois.
+    let mut closed: Vec<(u32, u32)> = Vec::new();
     g.visible.retain(|e| {
-        e.closing_since
-            .map(|t| t.elapsed().as_millis() as u64 <= EXIT_ANIM_MS)
-            .unwrap_or(true)
+        if let Some(t) = e.closing_since {
+            if t.elapsed().as_millis() as u64 > EXIT_ANIM_MS {
+                closed.push((e.id, e.closing_reason));
+                return false;
+            }
+        }
+        true
     });
-    if g.visible.len() != before {
-        dirty = true;
-    }
     // 3. Promove queue→visible enquanto houver espaço.
     while g.visible.len() < MAX_VISIBLE_TOASTS {
         if let Some(next) = g.queue.pop_front() {
             push_visible(&mut g, next);
-            dirty = true;
         } else {
             break;
         }
     }
-    dirty
+    closed
 }
 
 /// Insere um entry no slot visible respeitando STACK_NEWEST_ON_TOP.
@@ -288,25 +347,38 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
     enqueue_or_visible(state, entry)
 }
 
-/// Fecha por id externo: visible → marca closing_since; queue → remove.
+/// Fecha por id externo (reason=3 = closed-by-call default).
 pub fn close_by_id(state: &mut NotificationsState, id: u32) {
+    close_by_reason(state, id, 3)
+}
+
+/// Fecha por id com reason específica. Reasons (spec):
+/// 1=expired, 2=dismissed by user, 3=closed by CloseNotification,
+/// 4=undefined (ex: replaces_id evicted). H54.P4.
+pub fn close_by_reason(state: &mut NotificationsState, id: u32, reason: u32) {
     if let Some(e) = state.visible.iter_mut().find(|e| e.id == id) {
         if e.closing_since.is_none() {
             e.closing_since = Some(Instant::now());
+            e.closing_reason = reason;
         }
         return;
     }
     state.queue.retain(|e| e.id != id);
 }
 
-fn run(slot: NotificationsSlot) -> Result<(), Box<dyn std::error::Error>> {
-    let server = NotificationServer {
-        slot,
-    };
-    let _conn = zbus::blocking::connection::Builder::session()?
+fn run(
+    slot: NotificationsSlot,
+    conn_handle: NotificationsConn,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let server = NotificationServer { slot };
+    let conn = zbus::blocking::connection::Builder::session()?
         .name("org.freedesktop.Notifications")?
         .serve_at("/org/freedesktop/Notifications", server)?
         .build()?;
+    // Compartilha a conexão com o main loop pra emitir signals.
+    if let Ok(mut g) = conn_handle.lock() {
+        *g = Some(conn.clone());
+    }
     tracing::info!(
         "notifications: registrado em /org/freedesktop/Notifications"
     );
@@ -343,6 +415,22 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
     ];
     let (icon_buf, icon_size) =
         decode_icon(&HashMap::new(), icon_name);
+    // Alguns fakes ganham actions pra testar buttons + body click.
+    let (actions, default_action): (Vec<(String, String)>, Option<String>) =
+        match idx % 3 {
+            0 => (
+                vec![
+                    ("reply".to_string(), "Responder".to_string()),
+                    ("dismiss".to_string(), "Dispensar".to_string()),
+                ],
+                Some("default".to_string()),
+            ),
+            1 => (
+                Vec::new(),
+                Some("default".to_string()),
+            ),
+            _ => (Vec::new(), None),
+        };
     let entry = NotificationEntry {
         id: 0,
         app_name: titles[idx % titles.len()].to_string(),
@@ -359,7 +447,11 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
         anim_started_at: Instant::now(),
         anim_start_y: 0.0,
         closing_since: None,
+        closing_reason: 4,
         entered_at: Instant::now(),
+        actions,
+        default_action,
+        resident: false,
     };
     if let Ok(mut g) = slot.lock() {
         apply_notify(&mut g, entry);
@@ -373,7 +465,7 @@ struct NotificationServer {
 #[zbus::interface(name = "org.freedesktop.Notifications")]
 impl NotificationServer {
     fn get_capabilities(&self) -> Vec<String> {
-        vec!["body".to_string()]
+        vec!["body".to_string(), "actions".to_string()]
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -384,7 +476,7 @@ impl NotificationServer {
         app_icon: String,
         summary: String,
         body: String,
-        _actions: Vec<String>,
+        actions: Vec<String>,
         hints: HashMap<String, zbus::zvariant::OwnedValue>,
         expire_timeout: i32,
     ) -> u32 {
@@ -393,7 +485,6 @@ impl NotificationServer {
             .and_then(|v| u8::try_from(v.clone()).ok())
             .map(Urgency::from_byte)
             .unwrap_or(Urgency::Normal);
-        // Per spec H54.P3: critical OU expire_timeout=0 = never-expire.
         let timeout_ms: Option<u64> = if urgency == Urgency::Critical {
             None
         } else {
@@ -404,8 +495,26 @@ impl NotificationServer {
             }
         };
         let (icon, icon_size) = decode_icon(&hints, &app_icon);
+        // H54.P4: parse actions [key, label, key, label, ...]. Separa
+        // "default" (body-click) das visíveis. Numero ímpar = ignora
+        // sobra (defensivo, sem crash).
+        let mut parsed_actions: Vec<(String, String)> = Vec::new();
+        let mut default_action: Option<String> = None;
+        for chunk in actions.chunks_exact(2) {
+            let key = &chunk[0];
+            let label = &chunk[1];
+            if key == "default" {
+                default_action = Some("default".to_string());
+            } else {
+                parsed_actions.push((key.clone(), label.clone()));
+            }
+        }
+        let resident = hints
+            .get("resident")
+            .and_then(|v| bool::try_from(v.clone()).ok())
+            .unwrap_or(false);
         let entry = NotificationEntry {
-            id: replaces_id, // 0 = novo, será reescrito pelo apply_notify
+            id: replaces_id,
             app_name,
             summary,
             body,
@@ -420,7 +529,11 @@ impl NotificationServer {
             anim_started_at: Instant::now(),
             anim_start_y: 0.0,
             closing_since: None,
+            closing_reason: 4,
             entered_at: Instant::now(),
+            actions: parsed_actions,
+            default_action,
+            resident,
         };
         let id = if let Ok(mut g) = self.slot.lock() {
             apply_notify(&mut g, entry)

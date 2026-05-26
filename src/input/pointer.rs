@@ -34,6 +34,24 @@ pub fn handle_motion_absolute<I: InputBackend>(
         return;
     };
 
+    // H54.P4: hover sobre algum action button — pinta com bg_hover.
+    {
+        let mut new_hover: Option<(u32, String)> = None;
+        for (id, key, bx, by, bw, bh) in state.notification_button_rects.iter() {
+            let inside = pos.x >= *bx as f64
+                && pos.x < (*bx + *bw) as f64
+                && pos.y >= *by as f64
+                && pos.y < (*by + *bh) as f64;
+            if inside {
+                new_hover = Some((*id, key.clone()));
+                break;
+            }
+        }
+        if state.notification_button_hover != new_hover {
+            state.notification_button_hover = new_hover;
+        }
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
@@ -425,9 +443,54 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
-        // H54 P3: click sobre algum toast → fecha SÓ esse (reason=2).
-        // O hit-test usa o vetor de rects cacheado pelo render. Itera
-        // do topo do stack pra baixo; primeiro match consome o click.
+        // H54.P4: action buttons têm prioridade sobre o body.
+        // Primeiro testa contra notification_button_rects; se hit,
+        // emite ActionInvoked + fecha (a menos que resident=true).
+        let mut button_hit: Option<(u32, String)> = None;
+        for (id, key, bx, by, bw, bh) in state.notification_button_rects.iter() {
+            let inside = pointer_pos.x >= *bx as f64
+                && pointer_pos.x < (*bx + *bw) as f64
+                && pointer_pos.y >= *by as f64
+                && pointer_pos.y < (*by + *bh) as f64;
+            if inside {
+                button_hit = Some((*id, key.clone()));
+                break;
+            }
+        }
+        if let Some((id, key)) = button_hit {
+            crate::notifications::emit_action_invoked(
+                &state.notifications_conn,
+                id,
+                &key,
+            );
+            // Fecha a menos que seja resident.
+            let mut should_close = true;
+            if let Ok(g) = state.notifications.lock() {
+                if let Some(e) = g.visible.iter().find(|e| e.id == id) {
+                    if e.resident {
+                        should_close = false;
+                    }
+                }
+            }
+            if should_close {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::close_by_reason(&mut g, id, 2);
+                }
+            }
+            pointer.button(
+                state,
+                &ButtonEvent {
+                    button,
+                    state: button_state,
+                    serial,
+                    time: event.time_msec(),
+                },
+            );
+            pointer.frame(state);
+            return;
+        }
+        // H54 P3+P4: click no body. Se a notif tem default_action,
+        // emite ActionInvoked("default") + fecha; senão só dispensa.
         let mut hit_id: Option<u32> = None;
         for (id, nx, ny, nw, nh) in state.notification_rects.iter() {
             let inside = pointer_pos.x >= *nx as f64
@@ -440,8 +503,25 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             }
         }
         if let Some(id) = hit_id {
-            if let Ok(mut g) = state.notifications.lock() {
-                crate::notifications::close_by_id(&mut g, id);
+            let mut default_key: Option<String> = None;
+            let mut resident = false;
+            if let Ok(g) = state.notifications.lock() {
+                if let Some(e) = g.visible.iter().find(|e| e.id == id) {
+                    default_key = e.default_action.clone();
+                    resident = e.resident;
+                }
+            }
+            if let Some(key) = default_key.as_ref() {
+                crate::notifications::emit_action_invoked(
+                    &state.notifications_conn,
+                    id,
+                    key,
+                );
+            }
+            if !resident {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::close_by_reason(&mut g, id, 2);
+                }
             }
             pointer.button(
                 state,
