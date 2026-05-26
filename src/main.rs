@@ -20,6 +20,7 @@ mod popup;
 mod render;
 mod search;
 mod sni;
+mod sound;
 mod workspace;
 mod space_item;
 mod state;

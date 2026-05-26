@@ -235,6 +235,11 @@ pub struct LumaState {
     pub notification_history_item_rects: Vec<(u32, i32, i32, i32, i32)>,
     /// Hover no histórico: id da entrada sob cursor (mostra o X). H54.P5.
     pub notification_history_hover: Option<u32>,
+    /// Rect do toggle de som no header (x, y, w, h). H54.P6.
+    pub notification_sound_rect: Option<(i32, i32, i32, i32)>,
+    /// Engine de som via libcanberra. None se a .so não estiver
+    /// instalada ou o contexto falhar — sons caem em silêncio. H54.P6.
+    pub sound: Option<crate::sound::SoundEngine>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -686,6 +691,10 @@ impl LumaState {
             notification_history_dismiss_rects: Vec::new(),
             notification_history_item_rects: Vec::new(),
             notification_history_hover: None,
+            notification_sound_rect: None,
+            sound: crate::sound::SoundEngine::try_new(
+                crate::theme::current().notifications.sound_debounce_ms,
+            ),
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

@@ -1160,6 +1160,13 @@ impl Default for NotificationsTokens {
             bell_badge_text_color: hex_color("#FBF6EE", 1.0),
             bell_badge_size: 16,
             bell_badge_font_size: 10.0,
+            // H54.P6: paths dos assets de áudio. Resolvidos via
+            // crate::theme::asset_path() (cwd ou exe-dir). Se o arquivo
+            // não existir em runtime, falha em silêncio.
+            sound_default_path: "assets/sounds/notification-default.ogg".into(),
+            sound_critical_path: "assets/sounds/notification-critical.ogg".into(),
+            sound_debounce_ms: 200,
+            sound_enabled_default: true,
         }
     }
 }
@@ -1993,6 +2000,15 @@ pub struct NotificationsTokens {
     /// Diâmetro do círculo do badge.
     pub bell_badge_size: i32,
     pub bell_badge_font_size: f32,
+    /// H54.P6 som de notificação.
+    /// Path dos assets de áudio (resolvidos contra cwd ou assets/).
+    /// Se ausente em runtime, falha em silêncio (per spec).
+    pub sound_default_path: String,
+    pub sound_critical_path: String,
+    /// Intervalo mínimo entre dois plays — rajada de 6 notif = 1 som.
+    pub sound_debounce_ms: u64,
+    /// Estado inicial do toggle de som no painel. Default = on.
+    pub sound_enabled_default: bool,
 }
 
 /// Grid de ícones de arquivo no desktop. H50.
