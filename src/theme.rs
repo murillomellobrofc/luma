@@ -2294,6 +2294,21 @@ struct ThemeFile {
     window_controls: Option<WindowControlsTokensFile>,
     show_desktop: Option<ShowDesktopTokensFile>,
     clock: Option<ClockTokensFile>,
+    notifications: Option<NotificationsTokensFile>,
+}
+
+/// Overrides do bloco `[notifications]` no luma.toml.
+/// Apenas tokens com motivo válido pra serem mutados por user moram
+/// aqui — toggles de gate de alerta (acessibilidade). Cores/tamanhos
+/// ficam fora pra preservar a estética Golden Hour curada.
+#[derive(Debug, Deserialize, Default)]
+struct NotificationsTokensFile {
+    /// H54.P7: liga a piscada de tela. Default false. PCD Max preset
+    /// põe true. Pode ser sobrescrita por qualquer user no luma.toml.
+    flash_enabled_default: Option<bool>,
+    /// H54.P6: idem pro som. Default true. Inverter no toml = mudo
+    /// por default sem precisar do toggle no painel.
+    sound_enabled_default: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -2849,6 +2864,10 @@ impl ThemeFile {
             .clock
             .map(|t| t.into_tokens(&default.clock))
             .unwrap_or(default.clock);
+        let notifications = self
+            .notifications
+            .map(|t| t.into_tokens(&default.notifications))
+            .unwrap_or_else(|| default.notifications.clone());
 
         // Campos legados: parser pré-H32.5 mantido por compat. Quando
         // ausente no toml, deriva dos novos tokens (que já têm Golden Hour).
@@ -2943,7 +2962,7 @@ impl ThemeFile {
             context_menu: default.context_menu.clone(),
             wallpaper: default.wallpaper.clone(),
             desktop_icons: default.desktop_icons.clone(),
-            notifications: default.notifications.clone(),
+            notifications,
         }
     }
 }
@@ -3409,6 +3428,23 @@ impl WindowControlsTokensFile {
                 .and_then(parse_color)
                 .unwrap_or(def.inactive_color),
         }
+    }
+}
+
+impl NotificationsTokensFile {
+    /// Override mínimo: só flags de gate de alerta. Todos os outros
+    /// tokens vêm do default Golden Hour pra preservar a estética
+    /// curada. Cores/tamanhos não são overridáveis por design — se
+    /// alguém quiser mudar, edita theme.rs.
+    fn into_tokens(self, def: &NotificationsTokens) -> NotificationsTokens {
+        let mut t = def.clone();
+        if let Some(v) = self.flash_enabled_default {
+            t.flash_enabled_default = v;
+        }
+        if let Some(v) = self.sound_enabled_default {
+            t.sound_enabled_default = v;
+        }
+        t
     }
 }
 
