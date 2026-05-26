@@ -4086,44 +4086,57 @@ pub fn init_winit(
                                 reason,
                             );
                         }
-                        // H54.P6: itera visible coletando os que têm
-                        // sound_pending=true. Aplica regras de silêncio
-                        // (DND-on para !critical, sound toggle off) e
-                        // toca via SoundEngine. Limpa o flag — toca uma
-                        // vez por toast (entry de fila herda o flag).
-                        {
-                            let to_play: Vec<(Option<String>, crate::notifications::Urgency)> =
-                                match data.state.notifications.lock() {
-                                    Ok(mut g) => {
-                                        let sound_on = g.sound_enabled;
-                                        let dnd_on = g.dnd_enabled;
-                                        let mut acc: Vec<_> = Vec::new();
-                                        for e in g.visible.iter_mut() {
-                                            if !e.sound_pending {
-                                                continue;
-                                            }
-                                            e.sound_pending = false;
-                                            // DND on suprime som de !critical.
-                                            if dnd_on && e.urgency != crate::notifications::Urgency::Critical {
-                                                continue;
-                                            }
-                                            // Toggle de som desligado: nada toca.
-                                            if !sound_on {
-                                                continue;
-                                            }
-                                            acc.push((e.sound_file.clone(), e.urgency));
+                        // H54.P6+P7: gate único de alerta. Itera visible
+                        // coletando entries com alert_pending=true, aplica
+                        // filtro DND (não-critical sob DND não alerta) e
+                        // limpa o flag. Sound e flash são consumidores
+                        // independentes desse gate. suppress_sound é
+                        // filtro extra só-do-som.
+                        struct AlertInfo {
+                            sound_file: Option<String>,
+                            urgency: crate::notifications::Urgency,
+                            suppress_sound: bool,
+                        }
+                        let (alerts, sound_on, flash_on) =
+                            match data.state.notifications.lock() {
+                                Ok(mut g) => {
+                                    let sound_on = g.sound_enabled;
+                                    let flash_on = g.flash_enabled;
+                                    let dnd_on = g.dnd_enabled;
+                                    let mut acc: Vec<AlertInfo> = Vec::new();
+                                    for e in g.visible.iter_mut() {
+                                        if !e.alert_pending {
+                                            continue;
                                         }
-                                        acc
+                                        e.alert_pending = false;
+                                        if dnd_on
+                                            && e.urgency
+                                                != crate::notifications::Urgency::Critical
+                                        {
+                                            continue;
+                                        }
+                                        acc.push(AlertInfo {
+                                            sound_file: e.sound_file.clone(),
+                                            urgency: e.urgency,
+                                            suppress_sound: e.suppress_sound,
+                                        });
                                     }
-                                    Err(_) => Vec::new(),
-                                };
-                            if !to_play.is_empty() {
+                                    (acc, sound_on, flash_on)
+                                }
+                                Err(_) => (Vec::new(), false, false),
+                            };
+                        if !alerts.is_empty() {
+                            let t_n_p = crate::theme::current().notifications.clone();
+                            // Consumer 1: som. Filtra suppress_sound + toggle.
+                            if sound_on {
                                 if let Some(eng) = data.state.sound.as_ref() {
-                                    let t_n_p = crate::theme::current().notifications.clone();
-                                    for (file, urgency) in to_play {
-                                        let path_str = match file {
-                                            Some(p) => p,
-                                            None => match urgency {
+                                    for a in alerts.iter() {
+                                        if a.suppress_sound {
+                                            continue;
+                                        }
+                                        let path_str = match &a.sound_file {
+                                            Some(p) => p.clone(),
+                                            None => match a.urgency {
                                                 crate::notifications::Urgency::Critical => {
                                                     t_n_p.sound_critical_path.clone()
                                                 }
@@ -4131,6 +4144,21 @@ pub fn init_winit(
                                             },
                                         };
                                         eng.play_file(std::path::Path::new(&path_str));
+                                    }
+                                }
+                            }
+                            // Consumer 2: piscada (H54.P7). Não checa
+                            // suppress_sound. Debounce interno
+                            // (rajada = 1 piscada, anti-strobe).
+                            if flash_on {
+                                let debounce = std::time::Duration::from_millis(
+                                    t_n_p.flash_debounce_ms,
+                                );
+                                if let Ok(mut g) = data.state.notifications.lock() {
+                                    for a in alerts.iter() {
+                                        crate::notifications::trigger_flash(
+                                            &mut g, a.urgency, debounce,
+                                        );
                                     }
                                 }
                             }
@@ -5113,6 +5141,47 @@ pub fn init_winit(
                                             }
                                         }
                                         cur_y = item_y + item_h + item_gap;
+                                    }
+                                }
+                            }
+                        }
+
+                        // H54.P7: piscada de tela (visual bell). Overlay
+                        // full-screen colorido, alpha animada por
+                        // flash_alpha_now. Inserido em insert(0) =
+                        // FRENTE de tudo, exceto cursor. Pulso único,
+                        // protegido por debounce no trigger.
+                        {
+                            let t_n_flash = crate::theme::current().notifications.clone();
+                            let flash = match data.state.notifications.lock() {
+                                Ok(g) => crate::notifications::flash_alpha_now(
+                                    &g, &t_n_flash,
+                                ),
+                                Err(_) => None,
+                            };
+                            if let Some((color, alpha)) = flash {
+                                if alpha > 0.0 {
+                                    // make_rounded_panel já trata color.a()
+                                    // como alpha multiplicador. Construímos
+                                    // a cor com alpha computado embutido.
+                                    let blended = smithay::backend::renderer::Color32F::new(
+                                        color.r(), color.g(), color.b(), alpha,
+                                    );
+                                    let overlay = crate::gfx::make_rounded_panel(
+                                        output_size_logical.w,
+                                        output_size_logical.h,
+                                        0,
+                                        blended,
+                                    );
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, loc.to_f64(), &overlay,
+                                        None, None, None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
                             }
