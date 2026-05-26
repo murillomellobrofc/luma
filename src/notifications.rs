@@ -46,6 +46,13 @@ pub type NotificationSlot = Arc<Mutex<Option<Notification>>>;
 /// thread não registrou).
 pub fn spawn() -> NotificationSlot {
     let slot: NotificationSlot = Arc::new(Mutex::new(None));
+    // H54.fake: injeção de notificação fake pra teste visual sem
+    // precisar registrar como servidor D-Bus (que conflita com
+    // plasmashell etc). Mesmo padrão do LUMA_FAKE_SNI.
+    if std::env::var("LUMA_FAKE_NOTIFICATION").is_ok() {
+        inject_fake(&slot);
+        tracing::info!("notifications: LUMA_FAKE_NOTIFICATION ativo — toast fake injetado");
+    }
     if std::env::var("LUMA_TAKE_NOTIFICATIONS").is_err() {
         tracing::info!(
             "notifications: nao registrado (LUMA_TAKE_NOTIFICATIONS unset)"
@@ -62,6 +69,27 @@ pub fn spawn() -> NotificationSlot {
         })
         .ok();
     slot
+}
+
+fn inject_fake(slot: &NotificationSlot) {
+    // Usa um ícone XDG genérico que existe em todo tema (Adwaita/
+    // Breeze/hicolor). Cai pro placeholder se não resolver.
+    let (icon, icon_size) = decode_icon(&HashMap::new(), "applications-internet");
+    let n = Notification {
+        id: 1,
+        app_name: "Luma".to_string(),
+        summary: "Notificação de teste".to_string(),
+        body: "Toast estilo macOS no canto superior direito. \
+               Clique pra fechar ou espere 5 segundos."
+            .to_string(),
+        icon,
+        icon_size,
+        received_at: Instant::now(),
+        expire_timeout_ms: -1,
+    };
+    if let Ok(mut g) = slot.lock() {
+        *g = Some(n);
+    }
 }
 
 fn run(slot: NotificationSlot) -> Result<(), Box<dyn std::error::Error>> {
