@@ -405,6 +405,112 @@ pub fn compute_layout(
     result.into_iter().map(|p| p.unwrap_or((0, 0))).collect()
 }
 
+/// H56 parte 2: cria pasta ou arquivo no ~/Desktop com nome default
+/// único (sufixo " (2)", " (3)" se já existir). Retorna o path
+/// criado, ou None se a pasta do desktop não existe / o write falhou.
+/// Não levanta — falha em silêncio (silent fail).
+pub fn create_new_in_desktop(
+    kind: crate::context_menu::NewKind,
+) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    let dir = PathBuf::from(home).join("Desktop");
+    if !dir.is_dir() {
+        return None;
+    }
+    let base = kind.default_base();
+    let ext = kind.extension();
+    // Gera "Nova pasta", "Nova pasta (2)", ... até achar inexistente.
+    let make_candidate = |n: u32| -> PathBuf {
+        let stem = if n == 1 {
+            base.to_string()
+        } else {
+            format!("{} ({})", base, n)
+        };
+        match ext {
+            Some(e) => dir.join(format!("{}.{}", stem, e)),
+            None => dir.join(stem),
+        }
+    };
+    let mut n = 1u32;
+    let mut candidate = make_candidate(n);
+    while candidate.exists() {
+        n = n.checked_add(1)?;
+        candidate = make_candidate(n);
+        if n > 9999 {
+            return None; // sanity
+        }
+    }
+    let result = match kind {
+        crate::context_menu::NewKind::Folder => {
+            std::fs::create_dir(&candidate)
+        }
+        _ => std::fs::File::create(&candidate).map(|_| ()),
+    };
+    match result {
+        Ok(()) => {
+            tracing::info!("create_new: {:?}", candidate);
+            Some(candidate)
+        }
+        Err(e) => {
+            tracing::warn!("create_new falhou: {e}");
+            None
+        }
+    }
+}
+
+/// H56 parte 2: encontra a célula livre mais próxima de `anchor`
+/// (col, row). Se anchor estiver livre, retorna ela. Senão, faz busca
+/// em raio crescente até `MAX_NEARBY_RADIUS`. Se ainda não achar,
+/// retorna a primeira célula livre column-major a partir de (0,0).
+pub fn find_free_cell_near(
+    used: &std::collections::HashSet<(i32, i32)>,
+    anchor: (i32, i32),
+    rows: i32,
+) -> (i32, i32) {
+    let rows = rows.max(1);
+    let (ac, ar) = (anchor.0.max(0), anchor.1.clamp(0, rows - 1));
+    if !used.contains(&(ac, ar)) {
+        return (ac, ar);
+    }
+    // Busca em raio crescente. Pequeno (3 anéis), pra não andar
+    // pra longe do clique sem necessidade.
+    const MAX_NEARBY_RADIUS: i32 = 3;
+    for radius in 1..=MAX_NEARBY_RADIUS {
+        for dr in -radius..=radius {
+            for dc in -radius..=radius {
+                // Só borda do anel — não repete o interior.
+                if dr.abs() != radius && dc.abs() != radius {
+                    continue;
+                }
+                let c = ac + dc;
+                let r = ar + dr;
+                if c < 0 || r < 0 || r >= rows {
+                    continue;
+                }
+                if !used.contains(&(c, r)) {
+                    return (c, r);
+                }
+            }
+        }
+    }
+    // Fallback: column-major a partir de (0,0).
+    let mut col = 0i32;
+    let mut row = 0i32;
+    loop {
+        if !used.contains(&(col, row)) {
+            return (col, row);
+        }
+        row += 1;
+        if row >= rows {
+            row = 0;
+            col += 1;
+        }
+        if col > 9999 {
+            return (0, 0); // sanity
+        }
+    }
+}
+
 /// H56: estado da animação de "Organizar ícones". Cada entrada do
 /// desktop tem uma posição source (a que tinha) e target (depois do
 /// reflow). Render interpola pixel-space com ease_out_cubic.

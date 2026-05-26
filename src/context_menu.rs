@@ -42,6 +42,9 @@ pub enum ContextAction {
     /// H56 parte 1: organiza os ícones do desktop refluindo no
     /// canto sup-esq da grade, sem buracos, por critério.
     ArrangeIcons(ArrangeKind),
+    /// H56 parte 2: cria pasta ou arquivo no desktop, ancora perto
+    /// do clique, ativa rename inline.
+    CreateNew(NewKind),
     /// Placeholder pros items que dependem de features ainda não
     /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
@@ -59,6 +62,35 @@ pub enum ArrangeKind {
     /// Por data de modificação, mais recente primeiro. Entradas
     /// sem mtime conhecida vão pro fim.
     ByDate,
+}
+
+/// Tipo de entrada a criar via "Criar novo" do menu de contexto.
+/// H56 parte 2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NewKind {
+    Folder,
+    TextFile,
+    Markdown,
+}
+
+impl NewKind {
+    /// Nome default usado ao criar. Sufixo "(2)", "(3)" é
+    /// adicionado pelo dispatch quando já existe.
+    pub fn default_base(self) -> &'static str {
+        match self {
+            NewKind::Folder => "Nova pasta",
+            NewKind::TextFile => "Novo arquivo de texto",
+            NewKind::Markdown => "Novo documento",
+        }
+    }
+    /// Extensão (sem ponto). None pra pasta.
+    pub fn extension(self) -> Option<&'static str> {
+        match self {
+            NewKind::Folder => None,
+            NewKind::TextFile => Some("txt"),
+            NewKind::Markdown => Some("md"),
+        }
+    }
 }
 
 /// Tipo de entrada no menu.
@@ -669,19 +701,32 @@ fn default_items() -> Vec<ContextItem> {
                 ContextItem {
                     label: "Pasta".into(),
                     icon: Some("ctx-new"),
-                    kind: ItemKind::Action(ContextAction::Disabled),
-                    enabled: false,
+                    kind: ItemKind::Action(
+                        ContextAction::CreateNew(NewKind::Folder),
+                    ),
+                    enabled: true,
                     shortcut: None,
                 },
                 ContextItem {
                     label: "Arquivo de texto".into(),
                     icon: Some("ctx-new"),
-                    kind: ItemKind::Action(ContextAction::Disabled),
-                    enabled: false,
+                    kind: ItemKind::Action(
+                        ContextAction::CreateNew(NewKind::TextFile),
+                    ),
+                    enabled: true,
+                    shortcut: None,
+                },
+                ContextItem {
+                    label: "Documento Markdown".into(),
+                    icon: Some("ctx-new"),
+                    kind: ItemKind::Action(
+                        ContextAction::CreateNew(NewKind::Markdown),
+                    ),
+                    enabled: true,
                     shortcut: None,
                 },
             ]),
-            enabled: false,
+            enabled: true,
             shortcut: None,
         },
         ContextItem {
