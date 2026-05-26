@@ -392,6 +392,33 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H54.notifications: click sobre o toast fecha imediatamente
+        // (reason=2 dismissed). Sem actions na v1, qualquer click
+        // = dismiss.
+        if let Some((nx, ny, nw, nh)) = state.notification_rect {
+            let inside = pointer_pos.x >= nx as f64
+                && pointer_pos.x < (nx + nw) as f64
+                && pointer_pos.y >= ny as f64
+                && pointer_pos.y < (ny + nh) as f64;
+            if inside {
+                if let Ok(mut g) = state.notifications.lock() {
+                    *g = None;
+                }
+                state.notification_rect = None;
+                pointer.button(
+                    state,
+                    &ButtonEvent {
+                        button,
+                        state: button_state,
+                        serial,
+                        time: event.time_msec(),
+                    },
+                );
+                pointer.frame(state);
+                return;
+            }
+        }
+
         // H53.rename.6: click com rename inline aberto = commit
         // (mesmo padrão que Enter). Comporta-se igual KDE/GNOME.
         // Único caso onde não commita: nada a fazer aqui — o click

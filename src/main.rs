@@ -11,6 +11,7 @@ mod gfx;
 mod handlers;
 mod input;
 mod menu;
+mod notifications;
 mod media;
 mod osd;
 mod overview;

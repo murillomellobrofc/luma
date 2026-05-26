@@ -383,3 +383,47 @@ quando o user não tem `~/.config/luma/wallpaper.{png,jpg,jpeg}`.
 Quando houver tela de configurações nativa do luma (mesma etapa que
 "Configurar tela" do ctx menu). Galeria entra como sub-painel dessa
 config.
+
+---
+
+## Notificações — toast simples (H54)
+
+**Status:** v1 entregue. Empilhar, central e ações ficam pra etapas
+futuras.
+
+### O que funciona
+
+- Servidor `org.freedesktop.Notifications` env-gated
+  (`LUMA_TAKE_NOTIFICATIONS=1`) — não rouba notificações do host KDE
+  em modo aninhado.
+- `Notify` / `CloseNotification` / `GetCapabilities` / `GetServerInformation`.
+- Decode de ícone via `hints["image-data"]`, `hints["image-path"]` ou
+  `app_icon` (XDG name).
+- Toast no canto superior direito, slide-in + fade, auto-dismiss em
+  ~5s (ou `expire_timeout` do app se >0), click fecha.
+
+### O que falta (fases futuras)
+
+- **Empilhar múltiplos toasts** — hoje a nova substitui a atual.
+  Solução: `Vec<Notification>` em vez de `Option`, render vertical
+  stack com offset progressivo.
+- **Central de notificações / histórico** — clique em ícone do tray
+  abre painel com últimas N.
+- **Actions** — `actions: as` do `Notify`. Botões clicáveis no toast
+  que disparam `ActionInvoked(id, key)`. Adicionar variant em
+  `GetCapabilities` ("actions"), renderizar botões, dispatch via
+  signal.
+- **Markup** — `body-markup` em capabilities + parser básico de
+  HTML-like (`<b>`, `<i>`, `<a href>`).
+- **Sound** — `hints["sound-name"]` ou `hints["sound-file"]` →
+  spawnar `aplay` / `paplay`.
+- **REPLACE_EXISTING** no RequestName — hoje se outro servidor (ex:
+  plasmashell) já é dono, luma falha silenciosamente. Spec permite
+  REPLACE; útil em DRM nativo quando luma boot-takes ou no env-gated
+  test.
+
+### Quando desbloqueia
+
+Quando alguma feature acima virar incômodo real. Empilhar é a mais
+provável (apps que disparam várias notif em sequência). Central
+faz sentido após H55+ (UI de configurações nativa).

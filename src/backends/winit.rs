@@ -35,6 +35,55 @@ fn with_alpha_color(
     smithay::backend::renderer::Color32F::new(c.r(), c.g(), c.b(), alpha)
 }
 
+/// Quebra texto em até `max_lines` linhas com no máximo `max_chars`
+/// chars cada (boundary em espaço, fallback hard-cut). Ultima linha
+/// ganha "…" se sobrou texto. H54.notifications.
+fn wrap_to_lines(text: &str, max_lines: usize, max_chars: usize) -> Vec<String> {
+    if max_lines == 0 || max_chars == 0 {
+        return Vec::new();
+    }
+    let mut lines: Vec<String> = Vec::new();
+    let mut remaining = text.trim();
+    while !remaining.is_empty() && lines.len() < max_lines {
+        if remaining.chars().count() <= max_chars {
+            lines.push(remaining.to_string());
+            remaining = "";
+            break;
+        }
+        // Acha o último espaço dentro de max_chars.
+        let cut: usize = remaining
+            .char_indices()
+            .take(max_chars + 1)
+            .last()
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(remaining.len());
+        let slice = &remaining[..cut.min(remaining.len())];
+        let (head, tail): (&str, &str) = if let Some(sp) = slice.rfind(' ') {
+            (&slice[..sp], remaining[sp..].trim_start())
+        } else {
+            let safe = slice
+                .char_indices()
+                .take(max_chars)
+                .last()
+                .map(|(i, c)| i + c.len_utf8())
+                .unwrap_or(slice.len());
+            (&slice[..safe], &remaining[safe..])
+        };
+        lines.push(head.to_string());
+        remaining = tail.trim_start();
+    }
+    if !remaining.is_empty() {
+        // Sobrou texto — última linha ganha ellipsis.
+        if let Some(last) = lines.last_mut() {
+            let cap = max_chars.saturating_sub(1);
+            let mut t: String = last.chars().take(cap).collect();
+            t.push('…');
+            *last = t;
+        }
+    }
+    lines
+}
+
 /// Trunca string em N chars adicionando "…" se passou. H44.volume.5.
 fn truncate_chars(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
@@ -3917,6 +3966,242 @@ pub fn init_winit(
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                             }
+                        }
+
+                        // H54.notifications: toast no canto sup-direito.
+                        // Lê snapshot do slot compartilhado (escrito pela
+                        // thread D-Bus). Auto-dismiss quando elapsed
+                        // passou do timeout. Slide-in + fade-in nos
+                        // primeiros fade_ms; slide-out + fade-out nos
+                        // últimos fade_ms antes do timeout.
+                        let notif_snap = data
+                            .state
+                            .notifications
+                            .lock()
+                            .ok()
+                            .and_then(|g| g.clone());
+                        if let Some(notif) = notif_snap {
+                            let t_n = crate::theme::current().notifications.clone();
+                            let effective_timeout = if notif.expire_timeout_ms > 0 {
+                                notif.expire_timeout_ms as u64
+                            } else {
+                                t_n.timeout_ms
+                            };
+                            let elapsed = notif.received_at.elapsed().as_millis() as u64;
+                            if elapsed >= effective_timeout {
+                                if let Ok(mut g) = data.state.notifications.lock() {
+                                    *g = None;
+                                }
+                            } else {
+                                // Calcula alpha + slide offset.
+                                let fade = t_n.fade_ms.max(1);
+                                let alpha = if elapsed < fade {
+                                    elapsed as f32 / fade as f32
+                                } else if elapsed + fade > effective_timeout {
+                                    let remain = (effective_timeout - elapsed) as f32;
+                                    (remain / fade as f32).clamp(0.0, 1.0)
+                                } else {
+                                    1.0
+                                };
+                                // Slide offset (px da direita) — 32 → 0
+                                // durante fade-in; 0 → 32 durante fade-out.
+                                let slide_max = 32i32;
+                                let slide_off = if elapsed < fade {
+                                    let p = elapsed as f32 / fade as f32;
+                                    ((1.0 - p) * slide_max as f32) as i32
+                                } else if elapsed + fade > effective_timeout {
+                                    let remain = (effective_timeout - elapsed) as f32;
+                                    ((1.0 - (remain / fade as f32).clamp(0.0, 1.0))
+                                        * slide_max as f32)
+                                        as i32
+                                } else {
+                                    0
+                                };
+                                // Mede o card.
+                                let card_w = t_n.width;
+                                let icon_size = t_n.icon_size;
+                                let pad = t_n.padding;
+                                // Render dos textos (lazy, sem cache —
+                                // 1 toast por vez).
+                                let text_r = data.state.text.as_ref();
+                                let title_buf = text_r.and_then(|t| {
+                                    let label = truncate_chars(&notif.summary, 36);
+                                    let (px, w, h) = t.rasterize_colored(
+                                        &label, t_n.title_size, t_n.title_color,
+                                    );
+                                    if w == 0 || h == 0 {
+                                        return None;
+                                    }
+                                    Some((
+                                        MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        ),
+                                        w as i32,
+                                        h as i32,
+                                    ))
+                                });
+                                let body_lines: Vec<String> = if notif.body.is_empty() {
+                                    Vec::new()
+                                } else {
+                                    wrap_to_lines(
+                                        &notif.body,
+                                        t_n.max_body_lines,
+                                        48,
+                                    )
+                                };
+                                let body_bufs: Vec<(MemoryRenderBuffer, i32, i32)> =
+                                    text_r
+                                        .map(|t| {
+                                            body_lines
+                                                .iter()
+                                                .filter_map(|line| {
+                                                    let (px, w, h) = t.rasterize_colored(
+                                                        line, t_n.body_size, t_n.body_color,
+                                                    );
+                                                    if w == 0 || h == 0 {
+                                                        return None;
+                                                    }
+                                                    Some((
+                                                        MemoryRenderBuffer::from_slice(
+                                                            &px,
+                                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                                            (w as i32, h as i32),
+                                                            1,
+                                                            Transform::Normal,
+                                                            None,
+                                                        ),
+                                                        w as i32,
+                                                        h as i32,
+                                                    ))
+                                                })
+                                                .collect()
+                                        })
+                                        .unwrap_or_default();
+                                let time_buf = text_r.and_then(|t| {
+                                    let (px, w, h) = t.rasterize_colored(
+                                        "agora", t_n.time_size, t_n.time_color,
+                                    );
+                                    if w == 0 || h == 0 {
+                                        return None;
+                                    }
+                                    Some((
+                                        MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        ),
+                                        w as i32,
+                                        h as i32,
+                                    ))
+                                });
+                                // Altura do card: padding + icon ou padding
+                                // + título + body_lines + horário, o que
+                                // for maior.
+                                let title_h = title_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(16);
+                                let body_h_total: i32 = body_bufs
+                                    .iter()
+                                    .map(|(_, _, h)| h + 2)
+                                    .sum();
+                                let time_h = time_buf.as_ref().map(|(_, _, h)| *h).unwrap_or(12);
+                                let text_block_h = title_h + body_h_total + 4 + time_h;
+                                let card_h = (pad * 2 + icon_size).max(pad * 2 + text_block_h);
+                                let card_x = output_size_logical.w
+                                    - t_n.margin
+                                    - card_w
+                                    + slide_off;
+                                let card_y = t_n.margin;
+                                // (1) Card bg arredondado.
+                                let bg = crate::gfx::make_rounded_panel(
+                                    card_w, card_h, t_n.corner, t_n.bg,
+                                );
+                                // (2) Texto do título.
+                                let title_x = card_x + pad + icon_size + pad;
+                                let title_y = card_y + pad;
+                                // (3) Body lines.
+                                let body_y_start = title_y + title_h + 4;
+                                // (4) Tempo "agora".
+                                let time_y = body_y_start + body_h_total + 2;
+
+                                // Z-stack: bg primeiro (BACK), texts/ícone
+                                // depois. Pra fade, usa from_buffer com alpha.
+                                let mk_alpha_n = |buf: &MemoryRenderBuffer,
+                                                  x: i32,
+                                                  y: i32,
+                                                  r: &mut GlesRenderer|
+                                 -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                            ::from((x, y))
+                                            .to_physical_precise_round(1.0);
+                                    MemoryRenderBufferRenderElement::from_buffer(
+                                        r,
+                                        loc.to_f64(),
+                                        buf,
+                                        Some(alpha),
+                                        None,
+                                        None,
+                                        Kind::Unspecified,
+                                    )
+                                    .ok()
+                                };
+
+                                // Push bg primeiro (ficará no índice mais alto
+                                // = BACK depois de inserts seguintes).
+                                if let Some(elem) = mk_alpha_n(&bg, card_x, card_y, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Icon (se houver).
+                                if let Some(icon_buf) = notif.icon.as_ref() {
+                                    let ix = card_x + pad;
+                                    let iy = card_y + (card_h - icon_size) / 2;
+                                    if let Some(elem) =
+                                        mk_alpha_n(icon_buf, ix, iy, renderer)
+                                    {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Title.
+                                if let Some((tbuf, _tw, _th)) = title_buf.as_ref() {
+                                    if let Some(elem) =
+                                        mk_alpha_n(tbuf, title_x, title_y, renderer)
+                                    {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Body lines.
+                                let mut body_y = body_y_start;
+                                for (bbuf, _bw, bh) in body_bufs.iter() {
+                                    if let Some(elem) =
+                                        mk_alpha_n(bbuf, title_x, body_y, renderer)
+                                    {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    body_y += bh + 2;
+                                }
+                                // Time.
+                                if let Some((tbuf, _tw, _th)) = time_buf.as_ref() {
+                                    if let Some(elem) =
+                                        mk_alpha_n(tbuf, title_x, time_y, renderer)
+                                    {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Cache do rect pro hit-test do click.
+                                data.state.notification_rect = Some((
+                                    card_x, card_y, card_w, card_h,
+                                ));
+                            }
+                        } else {
+                            data.state.notification_rect = None;
                         }
 
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).

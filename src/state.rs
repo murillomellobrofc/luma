@@ -199,6 +199,14 @@ pub struct LumaState {
     /// frame, render path checa o slot — quando vier Some, abre o
     /// ContextMenu nativo no cursor_pos guardado. Timeout 3s. H47c.fix.
     pub pending_dbus_menu: Option<crate::sni::PendingDBusMenu>,
+    /// Slot compartilhado com a thread D-Bus de notificações. Render
+    /// path checa cada frame; toast aparece quando o slot tem Some.
+    /// H54.notifications.
+    pub notifications: crate::notifications::NotificationSlot,
+    /// Bounding box (x, y, w, h) do toast atual, cacheado pelo render.
+    /// Usado pelo pointer handler pra fazer hit-test do click → close.
+    /// `None` quando não há toast visível. H54.
+    pub notification_rect: Option<(i32, i32, i32, i32)>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -634,6 +642,8 @@ impl LumaState {
             desktop_rubber_band: None,
             desktop_renaming: None,
             pending_dbus_menu: None,
+            notifications: crate::notifications::spawn(),
+            notification_rect: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
