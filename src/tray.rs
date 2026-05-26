@@ -108,6 +108,10 @@ pub struct TrayState {
     /// hit-test do click (toggle painel). None até o primeiro render.
     /// H47a.tray.1.
     pub last_overflow_x: Option<i32>,
+    /// Rect lógico da zona do relógio no último render — usado pelo
+    /// hit-test do click que abre o calendário (H55) e como anchor
+    /// (borda direita) do popup. None até o primeiro render.
+    pub last_clock_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// True quando o painel de overflow está aberto. H47a.tray.2.
     pub overflow_open: bool,
     /// Quantidade de itens SNI registrados. H47a só armazena (= 0

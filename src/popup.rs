@@ -10,6 +10,9 @@ use smithay::utils::{Logical, Point, Rectangle, Size};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppletKind {
     Volume,
+    /// H55: calendário ao clicar no relógio. Só visualização de data,
+    /// sem eventos.
+    Calendar,
 }
 
 /// Aba ativa no popup de volume. H44.volume.2.
@@ -47,11 +50,20 @@ impl AppletPopup {
 }
 
 impl AppletPopup {
-    /// Cria um popup pro applet `kind`, ancorado em `anchor_x`. Usa
-    /// tamanho default vindo do tema (futuro: por kind).
+    /// Cria um popup pro applet `kind`, ancorado em `anchor_x`.
+    /// Semântica de anchor_x:
+    /// - Volume: x do CENTRO do ícone do tray.
+    /// - Calendar (H55): x da BORDA DIREITA da zona do relógio. O
+    ///   popup cresce pra esquerda (gravity TOP_LEFT no spec) — borda
+    ///   direita do popup alinha com a borda direita do relógio.
     pub fn new(kind: AppletKind, anchor_x: i32) -> Self {
         let size = match kind {
             AppletKind::Volume => Size::from((360, 420)),
+            // H55 Fatia 1: tamanho fixo derivado de cell_size=40 +
+            // padding=12, header=48, diasemana=28, footer=48, grade
+            // sempre 6 linhas. width = 7*40 + 2*12 = 304. height =
+            // 12+48+28+6*40+48+12 = 388.
+            AppletKind::Calendar => Size::from((304, 388)),
         };
         Self {
             kind,
@@ -117,15 +129,23 @@ impl AppletPopup {
     }
 
     /// Calcula o canto superior-esquerdo do popup em coords lógicas
-    /// do output. Centraliza horizontalmente sobre o anchor; topo do
-    /// popup fica `margin` acima da taskbar (= acima do ícone).
+    /// do output. Anchor depende do kind:
+    /// - Volume: centralizado sobre `anchor_x`.
+    /// - Calendar (H55): borda direita do popup alinha com `anchor_x`
+    ///   (= borda direita do relógio). Cresce pra esquerda.
+    /// Topo do popup fica `margin` acima da taskbar.
     pub fn origin(&self, output_size: Size<i32, Logical>) -> Point<i32, Logical> {
         let margin = 8;
         let taskbar_h = crate::taskbar::taskbar_height();
         let y = output_size.h - taskbar_h - self.size.h - margin;
-        let x = (self.anchor_x - self.size.w / 2)
-            .max(8)
-            .min(output_size.w - self.size.w - 8);
+        let x = match self.kind {
+            AppletKind::Volume => (self.anchor_x - self.size.w / 2)
+                .max(8)
+                .min(output_size.w - self.size.w - 8),
+            AppletKind::Calendar => (self.anchor_x - self.size.w)
+                .max(8)
+                .min(output_size.w - self.size.w - 8),
+        };
         Point::from((x, y))
     }
 

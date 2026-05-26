@@ -2579,6 +2579,32 @@ pub fn init_winit(
                                 *time_size,
                                 *date_size,
                             );
+                            // H55: cacheia rect da zona do relógio pra
+                            // hit-test do clique que abre o calendário,
+                            // e como anchor (borda direita) do popup.
+                            // Bounding box dos 2 labels com hit target
+                            // = altura inteira da taskbar.
+                            {
+                                let zone_w = time_size.w.max(date_size.w);
+                                let bar_y = output_size_logical.h
+                                    - crate::taskbar::taskbar_height();
+                                let zone_x = time_pt.x.min(date_pt.x);
+                                let zone_w = (time_pt.x + time_size.w)
+                                    .max(date_pt.x + date_size.w) - zone_x;
+                                let _ = zone_w;
+                                let right_edge = (time_pt.x + time_size.w)
+                                    .max(date_pt.x + date_size.w);
+                                let left_edge = time_pt.x.min(date_pt.x);
+                                data.state.tray.last_clock_rect = Some(
+                                    smithay::utils::Rectangle::new(
+                                        smithay::utils::Point::from((left_edge, bar_y)),
+                                        smithay::utils::Size::from((
+                                            right_edge - left_edge,
+                                            crate::taskbar::taskbar_height(),
+                                        )),
+                                    ),
+                                );
+                            }
                             let time_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 time_pt.to_physical_precise_round(1.0);
                             if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
@@ -2942,8 +2968,73 @@ pub fn init_winit(
                         if let Some(popup) = data.state.applet_popup.clone() {
                             let theme = crate::theme::current();
                             let t_popup = &theme.popup;
-                            let t_slider = &t_popup.slider;
                             let o = popup.origin(output_size_logical);
+                            // H55 Fatia 1: branch por kind. Calendar
+                            // renderiza só a casca + placeholder pra
+                            // verificar grab/Esc/click fora/toggle.
+                            // Conteúdo (grade, header, footer) vem nas
+                            // Fatias 2-4.
+                            if popup.kind == crate::popup::AppletKind::Calendar {
+                                let bg = crate::gfx::make_titlebar_bg(
+                                    popup.size.w,
+                                    popup.size.h,
+                                    t_popup.corner_radius,
+                                    theme.window.titlebar_bg_top,
+                                    theme.window.titlebar_bg_bottom,
+                                );
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    o.to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer,
+                                    bg_loc.to_f64(),
+                                    &bg,
+                                    None,
+                                    None,
+                                    None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Placeholder: "Calendário (em construção)"
+                                // centralizado. Substituído pela grade
+                                // real na Fatia 2.
+                                if let Some(text_r) = data.state.text.as_ref() {
+                                    let (px, w, h) = text_r.rasterize_colored(
+                                        "Calendário (em construção)",
+                                        14.0,
+                                        theme.colors.text_secondary,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let tx = o.x + (popup.size.w - w as i32) / 2;
+                                        let ty = o.y + (popup.size.h - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer,
+                                            loc.to_f64(),
+                                            &buf,
+                                            None,
+                                            None,
+                                            None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
+                                // Pula todo o pipeline de volume (tabs,
+                                // devices, sliders) — Calendar não tem.
+                            } else {
+                            let t_slider = &t_popup.slider;
                             let active_tab = popup.volume_tab;
                             let (devices_rect, apps_rect) = popup.tab_rects(output_size_logical);
 
@@ -3623,6 +3714,7 @@ pub fn init_winit(
                                     }
                                 }
                             }
+                            } // fecha else (Volume kind)
                         }
 
                         // H45.osd: overlay centralizado (volume/brilho). Render
