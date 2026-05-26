@@ -52,6 +52,9 @@ pub enum ContextAction {
     /// Ícone(s) selecionado(s) ficam translúcidos até Colar / outro
     /// Copiar / outro Recortar / Esc.
     ClipboardCut,
+    /// H56 parte 3 (Colar): cola o conteúdo do clipboard interno
+    /// no ~/Desktop. Copy = duplica, Cut = move + esvazia clipboard.
+    ClipboardPaste,
     /// Placeholder pros items que dependem de features ainda não
     /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
@@ -166,6 +169,20 @@ impl ContextMenu {
             submenu_hovered: None,
             target: None,
             dbus_menu: None,
+        }
+    }
+
+    /// H56 parte 3: liga/desliga o item "Colar" baseado no estado do
+    /// clipboard interno do Luma. Chamado pelo pointer.rs no momento
+    /// que o menu abre.
+    pub fn set_paste_enabled(&mut self, enabled: bool) {
+        for item in self.items.iter_mut() {
+            if matches!(
+                item.kind,
+                ItemKind::Action(ContextAction::ClipboardPaste)
+            ) {
+                item.enabled = enabled;
+            }
         }
     }
 
@@ -753,7 +770,9 @@ fn default_items() -> Vec<ContextItem> {
         ContextItem {
             label: "Colar".into(),
             icon: Some("ctx-paste"),
-            kind: ItemKind::Action(ContextAction::Disabled),
+            // H56 parte 3: estado dinâmico — pointer.rs chama
+            // `set_paste_enabled(clipboard.is_some())` ao abrir o menu.
+            kind: ItemKind::Action(ContextAction::ClipboardPaste),
             enabled: false,
             shortcut: Some("Ctrl+V"),
         },

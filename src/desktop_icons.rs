@@ -422,6 +422,117 @@ pub struct LumaClipboard {
     pub op: LumaClipOp,
 }
 
+/// H56 parte 3 (Colar): resolve um nome de destino único em `dir`
+/// pra um source. "foto.png" → "foto.png" se livre, senão
+/// "foto (2).png", "(3)", ... Para pastas (sem extensão): "Coisa",
+/// "Coisa (2)", ...
+fn unique_dest_name(dir: &std::path::Path, src: &std::path::Path) -> PathBuf {
+    let filename = src.file_name();
+    let Some(filename) = filename else {
+        return dir.join("colado");
+    };
+    let candidate = dir.join(filename);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let (stem, ext) = match src.extension() {
+        Some(e) => (
+            src.file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            Some(e.to_string_lossy().into_owned()),
+        ),
+        None => (filename.to_string_lossy().into_owned(), None),
+    };
+    let mut n: u32 = 2;
+    loop {
+        let new_name = match &ext {
+            Some(e) => format!("{} ({}).{}", stem, n, e),
+            None => format!("{} ({})", stem, n),
+        };
+        let p = dir.join(new_name);
+        if !p.exists() {
+            return p;
+        }
+        n = n.saturating_add(1);
+        if n > 9999 {
+            return p;
+        }
+    }
+}
+
+/// H56 parte 3 (Colar): executa o paste no ~/Desktop. Para cada
+/// path no clipboard, resolve nome único e copia (Copy) ou move
+/// (Cut). Retorna a lista de paths CRIADOS no destino. Falhas
+/// individuais são logadas e a operação continua (silent fail por
+/// item).
+///
+/// Edge cases:
+/// - Source não existe: skip + warn.
+/// - Recursive (target dir é descendente do source): skip + warn.
+/// - Erro de I/O: skip + warn, continua nos outros.
+pub fn paste_to_desktop(clipboard: &LumaClipboard) -> Vec<PathBuf> {
+    let Some(home) = std::env::var_os("HOME") else {
+        return Vec::new();
+    };
+    let dir = PathBuf::from(home).join("Desktop");
+    if !dir.is_dir() {
+        return Vec::new();
+    }
+    let dir_canon = dir.canonicalize().ok();
+    let mut created: Vec<PathBuf> = Vec::new();
+    for src in clipboard.paths.iter() {
+        if !src.exists() {
+            tracing::warn!("paste: source removida {:?}", src);
+            continue;
+        }
+        // Recursive guard: dst (= ~/Desktop) não pode estar dentro
+        // do src (cut do ~/Desktop pra si mesmo, etc).
+        if let (Some(dst_canon), Ok(src_canon)) =
+            (dir_canon.as_ref(), src.canonicalize())
+        {
+            if dst_canon.starts_with(&src_canon) {
+                tracing::warn!("paste: destino dentro do source {:?}", src);
+                continue;
+            }
+        }
+        let dst = unique_dest_name(&dir, src);
+        let result: std::io::Result<()> = match clipboard.op {
+            LumaClipOp::Copy => {
+                if src.is_dir() {
+                    // Sem dep nova — usa `cp -r`. Recursive copy
+                    // em Rust puro é desnecessariamente complexo
+                    // pro escopo.
+                    let status = std::process::Command::new("cp")
+                        .arg("-r")
+                        .arg(src)
+                        .arg(&dst)
+                        .status();
+                    match status {
+                        Ok(s) if s.success() => Ok(()),
+                        Ok(s) => Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("cp -r exit {:?}", s.code()),
+                        )),
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    std::fs::copy(src, &dst).map(|_| ())
+                }
+            }
+            LumaClipOp::Cut => std::fs::rename(src, &dst),
+        };
+        match result {
+            Ok(()) => {
+                tracing::info!("paste: {:?} -> {:?}", src, dst);
+                created.push(dst);
+            }
+            Err(e) => tracing::warn!("paste falhou {:?}: {e}", src),
+        }
+    }
+    created
+}
+
 /// H56 parte 2: cria pasta ou arquivo no ~/Desktop com nome default
 /// único (sufixo " (2)", " (3)" se já existir). Retorna o path
 /// criado, ou None se a pasta do desktop não existe / o write falhou.
