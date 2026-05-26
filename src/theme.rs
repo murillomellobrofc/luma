@@ -1220,6 +1220,10 @@ impl Default for DesktopIconsTokens {
             // H56: 260ms ease_out — suave mas decidido. Override via
             // theme.toml; preset PCD Max pode reduzir / zerar.
             arrange_anim_duration_ms: 260,
+            // H56 parte 3: 0.55 alpha — texto cream sobre coffee fica
+            // contraste efetivo ~5.5:1 (AA com margem). Não derrubar
+            // pra <0.50 sem reavaliar contraste do label.
+            cut_opacity: 0.55,
         }
     }
 }
@@ -2136,6 +2140,10 @@ pub struct DesktopIconsTokens {
     /// Ease_out cubic. Se accessibility.reduce_motion estiver ativo,
     /// o slide é pulado e as posições mudam direto.
     pub arrange_anim_duration_ms: u64,
+    /// H56 parte 3 (pre-Colar): opacidade dos ícones marcados como
+    /// "Recortar" no clipboard interno. Default 0.55 — translúcido
+    /// claro pra sinalizar pending sem quebrar AA do label abaixo.
+    pub cut_opacity: f32,
 }
 
 /// Popup de calendário ao clicar no relógio. H55.
