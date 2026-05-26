@@ -24,7 +24,7 @@ future.
 
 ## Technical stack
 
-- **Language:** Rust (2021 edition)
+- **Language:** Rust (2024 edition, MSRV 1.85)
 - **Display protocol:** Wayland
 - **Compositor framework:** Smithay
 - **SVG rendering:** usvg, resvg and tiny-skia

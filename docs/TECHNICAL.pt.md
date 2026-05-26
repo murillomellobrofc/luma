@@ -23,7 +23,7 @@ abre caminho para que componentes possam ser substituídos no futuro.
 
 ## Stack técnica
 
-- **Linguagem:** Rust (edição 2021)
+- **Linguagem:** Rust (edição 2024, MSRV 1.85)
 - **Protocolo gráfico:** Wayland
 - **Framework de compositor:** Smithay
 - **Renderização de SVG:** usvg, resvg e tiny-skia
