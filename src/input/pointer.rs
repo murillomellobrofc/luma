@@ -1051,6 +1051,107 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         pointer.frame(state);
                         return;
                     }
+                    // H57.3: dispatch interno do Bluetooth popup.
+                    let is_bt = popup_clone
+                        .as_ref()
+                        .map(|p| p.kind == crate::popup::AppletKind::Bluetooth)
+                        .unwrap_or(false);
+                    if is_bt {
+                        // 1. Toggle do header.
+                        if state.bt_toggle_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos))
+                        {
+                            let new_state = !state.bt_state.enabled;
+                            crate::bluetooth::set_enabled(new_state);
+                            state.bt_state.enabled = new_state;
+                            if !new_state {
+                                state.bt_state.devices.clear();
+                                state.bt_pair_mode = false;
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // 2. Botão "Parear novo dispositivo" → entra
+                        // no pair mode + scan on.
+                        if state.bt_pair_btn_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos))
+                        {
+                            state.bt_pair_mode = true;
+                            crate::bluetooth::scan_on();
+                            state.bt_state = crate::bluetooth::read_state(true);
+                            state.bt_last_refresh = Some(std::time::Instant::now());
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // 3. Botão "Voltar" → sai do pair mode + scan off.
+                        if state.bt_back_btn_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos))
+                        {
+                            crate::bluetooth::scan_off();
+                            state.bt_pair_mode = false;
+                            state.bt_state = crate::bluetooth::read_state(false);
+                            state.bt_last_refresh = Some(std::time::Instant::now());
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // 4. Click numa row de device.
+                        let row_hit: Option<String> = state
+                            .bt_row_rects
+                            .iter()
+                            .find(|(_, r)| r.to_f64().contains(pointer_pos))
+                            .map(|(m, _)| m.clone());
+                        if let Some(mac) = row_hit {
+                            let dev = state
+                                .bt_state
+                                .devices
+                                .iter()
+                                .find(|d| d.mac == mac)
+                                .cloned();
+                            if let Some(dev) = dev {
+                                state.bt_op_in_flight = Some(mac.clone());
+                                state.bt_error_for = None;
+                                if !dev.paired {
+                                    // Just Works pair.
+                                    crate::bluetooth::pair_async(
+                                        state.bt_op_outbox.clone(), mac,
+                                    );
+                                } else if dev.connected {
+                                    crate::bluetooth::disconnect_async(
+                                        state.bt_op_outbox.clone(), mac,
+                                    );
+                                } else {
+                                    crate::bluetooth::connect_async(
+                                        state.bt_op_outbox.clone(), mac,
+                                    );
+                                }
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // Click dentro do popup BT fora dos hits: consome.
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial,
+                            time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
                     // H57.2: dispatch interno do Wifi popup.
                     let is_wifi = popup_clone
                         .as_ref()
@@ -1524,6 +1625,33 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         state.applet_popup.is_some(),
                         state.audio_sinks.len()
                     );
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // H57.3: click no ícone bluetooth abre/fecha o popup.
+            if let Some(zone) = state.tray.last_bt_rect {
+                if zone.to_f64().contains(pointer_pos) {
+                    let was_open = state.applet_popup.is_some()
+                        && state.applet_popup.as_ref().unwrap().kind
+                            == crate::popup::AppletKind::Bluetooth;
+                    if was_open {
+                        // Sai do pair mode se estivesse.
+                        if state.bt_pair_mode {
+                            crate::bluetooth::scan_off();
+                            state.bt_pair_mode = false;
+                        }
+                        state.applet_popup = None;
+                    } else {
+                        state.bt_pair_mode = false;
+                        state.bt_state = crate::bluetooth::read_state(false);
+                        state.bt_last_refresh = Some(std::time::Instant::now());
+                        state.bt_error_for = None;
+                        state.applet_popup = Some(crate::popup::AppletPopup::new(
+                            crate::popup::AppletKind::Bluetooth,
+                            zone.loc.x + zone.size.w / 2,
+                        ));
+                    }
                     pointer.frame(state);
                     return;
                 }

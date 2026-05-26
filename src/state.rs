@@ -285,6 +285,26 @@ pub struct LumaState {
     pub wifi_row_rects: Vec<(String, smithay::utils::Rectangle<i32, Logical>)>,
     /// Rect do botão "Conectar" da expansão de password. H57.2.
     pub wifi_connect_btn_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    /// Snapshot do estado Bluetooth (BlueZ). H57.3.
+    pub bt_state: crate::bluetooth::BluetoothState,
+    pub bt_last_refresh: Option<std::time::Instant>,
+    /// True quando o popup está em modo de pareamento (scanning).
+    /// Substitui a lista de pareados pelos descobertos.
+    pub bt_pair_mode: bool,
+    /// MAC em operação (connect/disconnect/pair) — mostra "Conectando"
+    /// na row daquele device.
+    pub bt_op_in_flight: Option<String>,
+    /// Outbox da thread de bluetoothctl. Observer no render path.
+    pub bt_op_outbox: std::sync::Arc<
+        std::sync::Mutex<Option<crate::bluetooth::BtResult>>,
+    >,
+    /// (MAC, message) — erro inline no device.
+    pub bt_error_for: Option<(String, String)>,
+    /// Rects clicáveis do popup BT.
+    pub bt_toggle_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    pub bt_row_rects: Vec<(String, smithay::utils::Rectangle<i32, Logical>)>,
+    pub bt_pair_btn_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    pub bt_back_btn_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -759,6 +779,18 @@ impl LumaState {
             wifi_toggle_rect: None,
             wifi_row_rects: Vec::new(),
             wifi_connect_btn_rect: None,
+            bt_state: crate::bluetooth::BluetoothState::default(),
+            bt_last_refresh: None,
+            bt_pair_mode: false,
+            bt_op_in_flight: None,
+            bt_op_outbox: std::sync::Arc::new(
+                std::sync::Mutex::new(None),
+            ),
+            bt_error_for: None,
+            bt_toggle_rect: None,
+            bt_row_rects: Vec::new(),
+            bt_pair_btn_rect: None,
+            bt_back_btn_rect: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

@@ -534,3 +534,48 @@ Hoje, clicar numa rede protegida SEMPRE expande o campo de senha.
 O ideal seria: tentar `nmcli connection up <ssid>` primeiro, e só
 expandir senha se falhar com "no profile". Pequeno refactor, segue
 pra polish pré-v1.
+
+---
+
+## H57.3 Bluetooth: agent BlueZ pra PIN/passkey
+
+**Status:** adiado.
+
+O popup H57.3 entrega o ciclo Just Works: pareia devices que não
+exigem PIN/passkey (fones modernos, mouses, teclados Bluetooth
+recentes). Quando o device pede PIN (alguns teclados antigos,
+carros, periféricos com display) o pair falha sem feedback útil.
+
+Pra cobrir esse caso, o Luma precisa registrar um **agent BlueZ**
+via D-Bus (org.bluez.AgentManager1.RegisterAgent) com handlers pra
+RequestPinCode, RequestPasskey, DisplayPinCode, DisplayPasskey,
+RequestConfirmation, RequestAuthorization. Cada um exige um popup
+modal pequeno pra coletar/exibir o código.
+
+É peça de bom tamanho:
+- Implementar o agent service (zbus interface).
+- Roteamento dos métodos pro Luma main loop (via mpsc?).
+- 5+ popups pequenos pra cada caso (com timeout).
+
+**Quando desbloqueia:** pós-v1.0 OU quando algum periférico que
+exige PIN virar prioridade. Hoje a maioria dos devices comuns
+funciona via Just Works.
+
+## H57.3 Bluetooth: glyphs como text (sem SVG por tipo)
+
+Hoje os tipos de device no popup BT são renderizados como glyph
+unicode (🎧 ⌨ 🖱 📱 ▣). Funciona mas fica visualmente inconsistente
+com o resto do Luma (que usa SVGs Golden Hour).
+
+Quando o pack de ícones ganhar SVGs específicos por tipo de
+device BT (audio-headset, input-keyboard, etc), trocar o glyph
+inline pelo render do SVG no tamanho da row. Pequeno — adapta
+o helper de carregamento de ícone do tray. Pós-v1.0.
+
+## H57.3 Bluetooth: battery do device
+
+UPower expõe a bateria de muitos devices BT (fones, controles).
+O spec do H57.3 pediu pra mostrar % discreta na direita quando
+o device reporta. Skipped por escopo — UPower lookup por device
+exige caminhar /org/freedesktop/UPower/devices e mapear pelo MAC.
+Possível mas não trivial. Volta como polish pré-v1.

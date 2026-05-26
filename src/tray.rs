@@ -109,6 +109,8 @@ pub struct TrayState {
     pub last_battery_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// Rect do ícone wifi no último render. H57.2.
     pub last_wifi_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    /// Rect do ícone bluetooth no último render. H57.3.
+    pub last_bt_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// X (lógico) da setinha de overflow no último render. Usado pelo
     /// hit-test do click (toggle painel). None até o primeiro render.
     /// H47a.tray.1.
