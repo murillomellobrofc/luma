@@ -495,6 +495,48 @@ pub fn make_drop_shadow(
     )
 }
 
+/// Sombra de borda esquerda: faixa `blur × h` com decay gaussiano
+/// horizontal — opaca na borda direita (que encosta no painel) e
+/// transparente na borda esquerda. Mesma σ = blur/2 das sombras dos
+/// toasts. Saída em Argb8888 BGRA premultiplied. H54.P5.fix.
+pub fn make_left_edge_shadow(blur: i32, h: i32, color: Color32F) -> MemoryRenderBuffer {
+    let w = blur.max(1);
+    let r = color.r();
+    let g = color.g();
+    let b = color.b();
+    let alpha_max = color.a();
+    let sigma = (blur as f32 / 2.0).max(1.0);
+    let two_sigma_sq = 2.0 * sigma * sigma;
+    let mut pixels = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            // Dist do x até a borda direita (alpha máximo).
+            let dist = (w - 1 - x) as f32;
+            let alpha_factor = (-(dist * dist) / two_sigma_sq).exp();
+            let a = (alpha_max * alpha_factor * 255.0).round().clamp(0.0, 255.0) as u8;
+            if a == 0 {
+                continue;
+            }
+            let pr = ((r * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let pg = ((g * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let pb_ = ((b * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let off = ((y * w + x) * 4) as usize;
+            pixels[off] = pb_;
+            pixels[off + 1] = pg;
+            pixels[off + 2] = pr;
+            pixels[off + 3] = a;
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 // H33.taskbar.SVG: pixel art legado (draw_line, make_bluetooth_icon,
 // make_bell_icon, make_dot, make_wifi_icon, make_volume_icon,
 // make_battery_icon) removido — agora todos os ícones do tray e do

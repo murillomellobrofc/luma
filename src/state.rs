@@ -229,6 +229,10 @@ pub struct LumaState {
     /// Rects de dismiss de cada item do histórico
     /// (history_id, x, y, w, h). Mostrado só no item sob hover. H54.P5.
     pub notification_history_dismiss_rects: Vec<(u32, i32, i32, i32, i32)>,
+    /// Rects completos de cada item do histórico (id, x, y, w, h)
+    /// — altura varia por item (1-2 linhas de body). Usado pra
+    /// hover hit-test. H54.P5.fix.
+    pub notification_history_item_rects: Vec<(u32, i32, i32, i32, i32)>,
     /// Hover no histórico: id da entrada sob cursor (mostra o X). H54.P5.
     pub notification_history_hover: Option<u32>,
     /// Posições customizadas (basename → (col, row)) persistidas em
@@ -680,6 +684,7 @@ impl LumaState {
             notification_dnd_rect: None,
             notification_clear_rect: None,
             notification_history_dismiss_rects: Vec::new(),
+            notification_history_item_rects: Vec::new(),
             notification_history_hover: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),

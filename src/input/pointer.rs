@@ -52,39 +52,19 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
-    // H54.P5: hover sobre item do histórico da central — mostra o X
-    // de dismiss. Computamos a partir do panel_rect + tokens (não
-    // cacheamos rect por item, fica mais leve recalcular).
+    // H54.P5.fix: hover sobre item do histórico — usa os rects
+    // cacheados pelo render path (altura por item é dinâmica, varia
+    // com nº de linhas do body).
     {
         let mut new_hover: Option<u32> = None;
-        if let Some((px, py, pw, ph)) = state.notification_panel_rect {
-            let t_n = crate::theme::current().notifications.clone();
-            let pad = t_n.panel_padding;
-            let header_h = t_n.panel_header_height;
-            let item_h = t_n.panel_item_height;
-            let item_gap = t_n.panel_item_gap;
-            let list_top = py + header_h + item_gap;
-            // Snapshot dos ids do histórico na ordem visual.
-            let ids: Vec<u32> = match state.notifications.lock() {
-                Ok(g) => g.history.iter().map(|h| h.id).collect(),
-                Err(_) => Vec::new(),
-            };
-            let inside_panel_x = pos.x >= px as f64 && pos.x < (px + pw) as f64;
-            if inside_panel_x {
-                for (i, id) in ids.iter().enumerate() {
-                    let iy = list_top + (i as i32) * (item_h + item_gap);
-                    if iy + item_h > py + ph - pad {
-                        break;
-                    }
-                    if pos.y >= iy as f64
-                        && pos.y < (iy + item_h) as f64
-                        && pos.x >= (px + pad) as f64
-                        && pos.x < (px + pw - pad) as f64
-                    {
-                        new_hover = Some(*id);
-                        break;
-                    }
-                }
+        for (id, ix, iy, iw, ih) in state.notification_history_item_rects.iter() {
+            if pos.x >= *ix as f64
+                && pos.x < (*ix + *iw) as f64
+                && pos.y >= *iy as f64
+                && pos.y < (*iy + *ih) as f64
+            {
+                new_hover = Some(*id);
+                break;
             }
         }
         state.notification_history_hover = new_hover;
