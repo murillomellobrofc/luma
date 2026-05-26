@@ -1820,6 +1820,11 @@ fn dispatch_context_action(
         .context_menu
         .as_ref()
         .and_then(|m| m.target.clone());
+    // H56 parte 2: âncora do clique pra posicionar novo ícone.
+    let click_anchor = state
+        .context_menu
+        .as_ref()
+        .map(|m| m.origin);
     match action {
         ContextAction::OpenTerminal => crate::context_menu::open_terminal(),
         ContextAction::ChangeWallpaperPick => {
@@ -1950,6 +1955,101 @@ fn dispatch_context_action(
                 if let Some(l) = state.desktop_icons.as_ref() {
                     l.set_arrange_anim(None);
                 }
+            }
+        }
+        ContextAction::CreateNew(kind) => {
+            // H56 parte 2: cria pasta/arquivo no ~/Desktop com nome
+            // default único, ancora perto do clique, abre rename
+            // inline pra o user digitar por cima.
+            let Some(path) = crate::desktop_icons::create_new_in_desktop(kind)
+            else {
+                return;
+            };
+            // Força refresh imediato do estado pra o novo entry
+            // aparecer sem esperar o polling de 2s.
+            let fresh = crate::desktop_icons::scan();
+            // Calcula rows + cells ocupadas atualmente.
+            let theme = crate::theme::current();
+            let t_di = &theme.desktop_icons;
+            let Some(output) = state
+                .space
+                .output_geometry(state.primary_output())
+                .map(|g| g.size)
+            else {
+                return;
+            };
+            let taskbar_h = crate::taskbar::taskbar_height();
+            let usable_h = output.h - t_di.grid_margin - taskbar_h - 8;
+            let rows = (usable_h / t_di.cell_height).max(1);
+            // Layout das entries (excluindo a recém-criada).
+            // Constrói "used" pulando o entry novo.
+            let basename = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let prev_entries: Vec<_> = fresh
+                .iter()
+                .filter(|e| e.name != basename)
+                .cloned()
+                .collect();
+            let prev_layout = crate::desktop_icons::compute_layout(
+                &prev_entries,
+                &state.desktop_positions,
+                rows,
+            );
+            let mut used: std::collections::HashSet<(i32, i32)> =
+                std::collections::HashSet::with_capacity(prev_layout.len());
+            for pos in prev_layout.iter() {
+                used.insert(*pos);
+            }
+            // Âncora = nearest_cell do clique. Usa o origin do menu
+            // (já clamped). Logical → pixel direto: usa as fórmulas
+            // que o layer.nearest_cell usa.
+            let (anchor_col, anchor_row) = if let Some(p) = click_anchor {
+                let col = ((p.x - t_di.grid_margin) as f32
+                    / t_di.cell_width as f32)
+                    .round() as i32;
+                let row = ((p.y - t_di.grid_margin) as f32
+                    / t_di.cell_height as f32)
+                    .round() as i32;
+                (col.max(0), row.max(0))
+            } else {
+                (0, 0)
+            };
+            let target_cell = crate::desktop_icons::find_free_cell_near(
+                &used,
+                (anchor_col, anchor_row),
+                rows,
+            );
+            // Salva position.
+            state
+                .desktop_positions
+                .insert(basename.clone(), target_cell);
+            crate::desktop_icons::save_positions(&state.desktop_positions);
+            // Atualiza state + layer com entries frescas + positions.
+            state.desktop_entries = fresh.clone();
+            state.desktop_last_scan = Some(std::time::Instant::now());
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_entries(fresh);
+                l.set_positions(state.desktop_positions.clone());
+            }
+            // Seleção apenas no novo entry.
+            state.desktop_selection.clear();
+            state.desktop_selection.insert(path.clone());
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_selection(state.desktop_selection.clone());
+            }
+            // Ativa rename inline com o nome default já preenchido +
+            // todo selecionado (DesktopRename::new faz isso).
+            let r = crate::desktop_icons::DesktopRename::new(path);
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_renaming(Some(r.clone()));
+            }
+            state.desktop_renaming = Some(r);
+            if let Some(kb) = state.seat.get_keyboard() {
+                let serial2 = smithay::utils::SERIAL_COUNTER.next_serial();
+                kb.set_focus(state, Option::<WlSurface>::None, serial2);
             }
         }
         ContextAction::Disabled => {}
