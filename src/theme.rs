@@ -1110,6 +1110,50 @@ impl Default for NotificationsTokens {
             fade_ms: 250,
             max_body_lines: 2,
             padding: 14,
+            // H54.P5: central de notificações.
+            panel_width: 400,
+            panel_padding: 16,
+            // Mesma família coffee/scrim do toast, mas mais opaco —
+            // a central é o "lar" das notificações, valores um pouco
+            // mais sólidos pra leitura prolongada.
+            panel_bg: hex_color("#2D2219", 0.60),
+            panel_scrim: hex_color("#1F1611", 0.92),
+            panel_shadow_blur: 24,
+            panel_shadow_color: hex_color("#15090A", 0.40),
+            panel_header_height: 56,
+            panel_header_title_color: hex_color("#FBF6EE", 1.0),
+            panel_header_title_size: 16.0,
+            panel_btn_bg: hex_color("#3D2520", 0.55),
+            panel_btn_bg_hover: hex_color("#5A3A30", 0.75),
+            panel_btn_label_color: hex_color("#FBF6EE", 1.0),
+            panel_btn_corner: 8,
+            panel_btn_padding_h: 12,
+            panel_btn_height: 32,
+            panel_btn_label_size: 12.0,
+            // DND on: amber Golden Hour discreto pra sinalizar ativo
+            // sem virar botão "perigo".
+            panel_dnd_active_bg: hex_color("#E89B3D", 0.30),
+            panel_item_height: 82,
+            panel_item_corner: 10,
+            panel_item_padding: 12,
+            panel_item_gap: 8,
+            panel_item_icon_size: 36,
+            panel_item_title_color: hex_color("#FBF6EE", 1.0),
+            panel_item_title_size: 13.0,
+            panel_item_body_color: hex_color("#E5DACF", 1.0),
+            panel_item_body_size: 12.0,
+            panel_item_time_color: hex_color("#9A8B7E", 1.0),
+            panel_item_time_size: 11.0,
+            panel_item_hover_bg: hex_color("#3D2520", 0.45),
+            panel_item_dismiss_size: 22,
+            panel_item_dismiss_color: hex_color("#C9BDB0", 1.0),
+            panel_empty_label_color: hex_color("#9A8B7E", 1.0),
+            panel_empty_label_size: 14.0,
+            // Badge: coral Golden Hour pra contraste com bell (cream).
+            bell_badge_bg: hex_color("#D97757", 1.0),
+            bell_badge_text_color: hex_color("#FBF6EE", 1.0),
+            bell_badge_size: 16,
+            bell_badge_font_size: 10.0,
         }
     }
 }
@@ -1895,6 +1939,51 @@ pub struct NotificationsTokens {
     pub fade_ms: u64,
     pub max_body_lines: usize,
     pub padding: i32,
+    /// H54.P5: central de notificações — painel borda direita.
+    pub panel_width: i32,
+    pub panel_padding: i32,
+    pub panel_bg: Color32F,
+    pub panel_scrim: Color32F,
+    /// Sombra na borda esquerda do painel (mesma linguagem dos toasts).
+    pub panel_shadow_blur: i32,
+    pub panel_shadow_color: Color32F,
+    /// Header do painel: título "Notificações", toggle DND, "Limpar tudo".
+    pub panel_header_height: i32,
+    pub panel_header_title_color: Color32F,
+    pub panel_header_title_size: f32,
+    pub panel_btn_bg: Color32F,
+    pub panel_btn_bg_hover: Color32F,
+    pub panel_btn_label_color: Color32F,
+    pub panel_btn_corner: i32,
+    pub panel_btn_padding_h: i32,
+    pub panel_btn_height: i32,
+    pub panel_btn_label_size: f32,
+    /// Bg do toggle DND quando ativo (estado on). Cor amber discreta.
+    pub panel_dnd_active_bg: Color32F,
+    /// Lista de histórico — cada entry.
+    pub panel_item_height: i32,
+    pub panel_item_corner: i32,
+    pub panel_item_padding: i32,
+    pub panel_item_gap: i32,
+    pub panel_item_icon_size: i32,
+    pub panel_item_title_color: Color32F,
+    pub panel_item_title_size: f32,
+    pub panel_item_body_color: Color32F,
+    pub panel_item_body_size: f32,
+    pub panel_item_time_color: Color32F,
+    pub panel_item_time_size: f32,
+    pub panel_item_hover_bg: Color32F,
+    pub panel_item_dismiss_size: i32,
+    pub panel_item_dismiss_color: Color32F,
+    /// Empty state quando não há histórico.
+    pub panel_empty_label_color: Color32F,
+    pub panel_empty_label_size: f32,
+    /// Badge de não-vistas no sino.
+    pub bell_badge_bg: Color32F,
+    pub bell_badge_text_color: Color32F,
+    /// Diâmetro do círculo do badge.
+    pub bell_badge_size: i32,
+    pub bell_badge_font_size: f32,
 }
 
 /// Grid de ícones de arquivo no desktop. H50.

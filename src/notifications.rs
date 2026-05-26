@@ -40,6 +40,12 @@ pub const ENTRY_ANIM_MS: u64 = 200;
 pub const REFLOW_ANIM_MS: u64 = 180;
 pub const EXIT_ANIM_MS: u64 = 150;
 
+/// H54.P5: cap do histórico da central. FIFO, descarta as mais antigas.
+pub const HISTORY_CAP: usize = 150;
+
+/// H54.P5: duração da animação de slide do painel da central.
+pub const PANEL_SLIDE_MS: u64 = 220;
+
 /// Urgência do notify (hint `urgency: y`). H54.P3.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Urgency {
@@ -102,6 +108,27 @@ pub struct NotificationEntry {
     /// Hint `resident`: se true, não fecha após `ActionInvoked` —
     /// timer continua normal. H54.P4.
     pub resident: bool,
+    /// Hint `transient`: se true, nunca entra no histórico ao fechar.
+    /// Usado por OSDs (volume, brilho) e popups efêmeros. H54.P5.
+    pub transient: bool,
+    /// Urgência da notificação. Critical fura o DND. H54.P5.
+    pub urgency: Urgency,
+}
+
+/// Entrada do histórico da central. Sem state de animação/timer —
+/// histórico é log read-only. H54.P5.
+#[derive(Debug, Clone)]
+pub struct HistoryEntry {
+    pub id: u32,
+    pub app_name: String,
+    pub summary: String,
+    pub body: String,
+    pub icon: Option<MemoryRenderBuffer>,
+    pub icon_size: smithay::utils::Size<i32, smithay::utils::Logical>,
+    /// Momento do evento mais recente que originou ou atualizou
+    /// essa entrada (replaces_id atualiza). Usado pra timestamp
+    /// relativo ("agora", "5 min").
+    pub received_at: Instant,
 }
 
 impl NotificationEntry {
@@ -127,7 +154,7 @@ impl NotificationEntry {
 }
 
 /// Estado completo do stack de notificações. Compartilhado com a
-/// thread D-Bus via `Arc<Mutex<...>>`. H54.P3.
+/// thread D-Bus via `Arc<Mutex<...>>`. H54.P3 + P5.
 #[derive(Debug, Default)]
 pub struct NotificationsState {
     pub visible: Vec<NotificationEntry>,
@@ -135,9 +162,153 @@ pub struct NotificationsState {
     /// `true` quando o cursor está sobre QUALQUER rect de toast.
     /// Atualizado pelo motion handler em pointer.rs.
     pub hover_paused: bool,
-    /// Próximo id incremental atribuído quando o app não passa
-    /// `replaces_id`.
+    /// Próximo id incremental — nunca recicla um id ainda vivo (no
+    /// visible, queue ou history) dentro da mesma sessão. Garantia
+    /// de chave de linhagem confiável. H54.P5.
     pub next_id: u32,
+    /// Histórico ordenado por evento (mais recente em cima quando
+    /// renderizado em ordem reversa). Session-only, sem disco.
+    /// Cap em `HISTORY_CAP`. H54.P5.
+    pub history: VecDeque<HistoryEntry>,
+    /// Do Not Disturb ligado: novas notif normais vão direto pro
+    /// histórico, silenciosas. Critical fura. H54.P5.
+    pub dnd_enabled: bool,
+    /// Painel da central aberto. Quando aberto, novas notif que
+    /// caem no histórico não incrementam `unread_count` (já vista).
+    /// H54.P5.
+    pub panel_open: bool,
+    /// Contagem de não-vistas. Zera ao abrir o painel. Cap visual
+    /// "9+" mora no render. H54.P5.
+    pub unread_count: u32,
+    /// Quando o painel começou a deslizar (in ou out). Usado pra
+    /// interpolar `slide_progress`. H54.P5.
+    pub panel_anim_started_at: Option<Instant>,
+    /// True se o painel está animando pra dentro (slide-in);
+    /// false = slide-out. None quando estático. H54.P5.
+    pub panel_anim_opening: Option<bool>,
+}
+
+/// Aloca o próximo id monotônico, pulando qualquer id ainda vivo
+/// no visible/queue/history. H54.P5: garante linhagem confiável.
+fn allocate_id(state: &mut NotificationsState) -> u32 {
+    loop {
+        let candidate = state.next_id;
+        state.next_id = candidate.checked_add(1).unwrap_or(1);
+        if candidate == 0 {
+            continue;
+        }
+        if state.visible.iter().any(|e| e.id == candidate) {
+            continue;
+        }
+        if state.queue.iter().any(|e| e.id == candidate) {
+            continue;
+        }
+        if state.history.iter().any(|e| e.id == candidate) {
+            continue;
+        }
+        return candidate;
+    }
+}
+
+/// Converte uma entry viva pra entrada de histórico — preserva id,
+/// preserva `received_at` original. H54.P5.
+fn entry_to_history(e: &NotificationEntry) -> HistoryEntry {
+    HistoryEntry {
+        id: e.id,
+        app_name: e.app_name.clone(),
+        summary: e.summary.clone(),
+        body: e.body.clone(),
+        icon: e.icon.clone(),
+        icon_size: e.icon_size,
+        received_at: e.received_at,
+    }
+}
+
+/// Move ou atualiza uma entrada no histórico, respeitando cap e
+/// linhagem por id. Se já existe entrada com mesmo id, atualiza
+/// no lugar (sem duplicar) e move pra topo (frente da deque, ordem
+/// reversa = mais recente). Caso contrário, push_front e cap.
+/// Retorna true se foi um *evento novo* (id não estava no histórico).
+/// H54.P5.
+fn upsert_history(state: &mut NotificationsState, entry: HistoryEntry) -> bool {
+    if let Some(pos) = state.history.iter().position(|h| h.id == entry.id) {
+        state.history.remove(pos);
+        state.history.push_front(entry);
+        return false;
+    }
+    state.history.push_front(entry);
+    while state.history.len() > HISTORY_CAP {
+        state.history.pop_back();
+    }
+    true
+}
+
+/// Marca todas notificações como vistas (zera badge). Chamado ao
+/// abrir o painel. H54.P5.
+pub fn mark_all_seen(state: &mut NotificationsState) {
+    state.unread_count = 0;
+}
+
+/// Limpa todo o histórico. NÃO emite `NotificationClosed` — o sinal
+/// já saiu quando cada entrada virou histórico. H54.P5.
+pub fn clear_history(state: &mut NotificationsState) {
+    state.history.clear();
+}
+
+/// Remove uma entrada específica do histórico por id. NÃO emite
+/// `NotificationClosed` — mesma regra do clear_history. H54.P5.
+pub fn dismiss_history_item(state: &mut NotificationsState, id: u32) {
+    state.history.retain(|h| h.id != id);
+}
+
+/// Alterna DND. Retorna o novo estado. H54.P5.
+pub fn toggle_dnd(state: &mut NotificationsState) -> bool {
+    state.dnd_enabled = !state.dnd_enabled;
+    state.dnd_enabled
+}
+
+/// Abre o painel da central. Zera badge, marca como vista, e dispara
+/// a animação de slide-in. H54.P5.
+pub fn open_panel(state: &mut NotificationsState) {
+    if state.panel_open {
+        return;
+    }
+    state.panel_open = true;
+    mark_all_seen(state);
+    state.panel_anim_started_at = Some(Instant::now());
+    state.panel_anim_opening = Some(true);
+}
+
+/// Fecha o painel da central. Dispara slide-out. H54.P5.
+pub fn close_panel(state: &mut NotificationsState) {
+    if !state.panel_open {
+        return;
+    }
+    state.panel_open = false;
+    state.panel_anim_started_at = Some(Instant::now());
+    state.panel_anim_opening = Some(false);
+}
+
+/// Progresso 0..=1 da animação de slide (in ou out). `open_factor`
+/// = 1 painel totalmente visível, 0 totalmente fora da tela.
+/// H54.P5.
+pub fn panel_open_factor(state: &NotificationsState) -> f32 {
+    let (started, opening) = match (state.panel_anim_started_at, state.panel_anim_opening) {
+        (Some(t), Some(o)) => (t, o),
+        _ => {
+            return if state.panel_open { 1.0 } else { 0.0 };
+        }
+    };
+    let elapsed = started.elapsed().as_millis() as u64;
+    if elapsed >= PANEL_SLIDE_MS {
+        return if state.panel_open { 1.0 } else { 0.0 };
+    }
+    let t = ease_out_cubic(elapsed as f32 / PANEL_SLIDE_MS as f32);
+    if opening {
+        t
+    } else {
+        1.0 - t
+    }
 }
 
 pub type NotificationsSlot = Arc<Mutex<NotificationsState>>;
@@ -194,6 +365,12 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         queue: VecDeque::new(),
         hover_paused: false,
         next_id: 1,
+        history: VecDeque::new(),
+        dnd_enabled: false,
+        panel_open: false,
+        unread_count: 0,
+        panel_anim_started_at: None,
+        panel_anim_opening: None,
     }));
     let conn_handle: NotificationsConn = Arc::new(Mutex::new(None));
     if let Ok(val) = std::env::var("LUMA_FAKE_NOTIFICATION") {
@@ -245,17 +422,30 @@ pub fn tick(slot: &NotificationsSlot) -> Vec<(u32, u32)> {
         }
     }
     // 2. Remove as que terminaram a anim de exit. Coleta (id, reason)
-    //    pra emitir signal depois.
+    //    pra emitir signal depois. H54.P5: move pro histórico se
+    //    !transient (qualquer reason — expired, dismissed, closed-by-call,
+    //    undefined). Se panel_open=false, incrementa unread.
     let mut closed: Vec<(u32, u32)> = Vec::new();
+    let mut to_history: Vec<HistoryEntry> = Vec::new();
     g.visible.retain(|e| {
         if let Some(t) = e.closing_since {
             if t.elapsed().as_millis() as u64 > EXIT_ANIM_MS {
                 closed.push((e.id, e.closing_reason));
+                if !e.transient {
+                    to_history.push(entry_to_history(e));
+                }
                 return false;
             }
         }
         true
     });
+    let panel_open = g.panel_open;
+    for h in to_history {
+        let is_new_event = upsert_history(&mut g, h);
+        if is_new_event && !panel_open {
+            g.unread_count = g.unread_count.saturating_add(1);
+        }
+    }
     // 3. Promove queue→visible enquanto houver espaço.
     while g.visible.len() < MAX_VISIBLE_TOASTS {
         if let Some(next) = g.queue.pop_front() {
@@ -300,8 +490,8 @@ fn enqueue_or_visible(
 }
 
 /// Aplica o resultado do `Notify`. Trata replaces_id (in-place
-/// update no visible ou queue), hover_paused (se ativo, marca o
-/// novo entry como pausado também), e overflow. H54.P3.b.
+/// update no visible/queue/histórico), hover_paused, DND, e overflow.
+/// H54.P3.b + P5.
 fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) -> u32 {
     let replaces_id = entry.id;
     // (1) Tenta atualizar in-place no visible.
@@ -313,6 +503,11 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             existing.icon = entry.icon.clone();
             existing.icon_size = entry.icon_size;
             existing.timeout_ms = entry.timeout_ms;
+            existing.actions = entry.actions.clone();
+            existing.default_action = entry.default_action.clone();
+            existing.resident = entry.resident;
+            existing.transient = entry.transient;
+            existing.urgency = entry.urgency;
             existing.received_at = Instant::now();
             existing.paused_total = Duration::ZERO;
             existing.pause_started_at = if state.hover_paused {
@@ -320,7 +515,6 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             } else {
                 None
             };
-            // Reflow será recomputado no próximo frame.
             return replaces_id;
         }
         // (2) Tenta na queue.
@@ -331,16 +525,68 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             q.icon = entry.icon.clone();
             q.icon_size = entry.icon_size;
             q.timeout_ms = entry.timeout_ms;
+            q.actions = entry.actions.clone();
+            q.default_action = entry.default_action.clone();
+            q.resident = entry.resident;
+            q.transient = entry.transient;
+            q.urgency = entry.urgency;
             return replaces_id;
         }
-        // Cai pro caminho de criar novo, mas usando replaces_id.
+        // (3) H54.P5: tenta no histórico. Se achar, atualiza a
+        // entrada in-place E re-popa um toast (evento novo).
+        if let Some(pos) = state.history.iter().position(|h| h.id == replaces_id) {
+            let updated = HistoryEntry {
+                id: replaces_id,
+                app_name: entry.app_name.clone(),
+                summary: entry.summary.clone(),
+                body: entry.body.clone(),
+                icon: entry.icon.clone(),
+                icon_size: entry.icon_size,
+                received_at: Instant::now(),
+            };
+            state.history.remove(pos);
+            state.history.push_front(updated);
+            // Conta como nova pro badge se painel fechado e não-transient.
+            // (Transient nunca devia chegar com replaces_id, mas defensivo.)
+            if !entry.transient && !state.panel_open {
+                state.unread_count = state.unread_count.saturating_add(1);
+            }
+            // DND fura ainda emite toast pra critical.
+            let dnd_blocks = state.dnd_enabled && entry.urgency != Urgency::Critical;
+            if dnd_blocks {
+                // Só atualiza histórico — não popa toast.
+                return replaces_id;
+            }
+            // Re-popa toast: cai no fluxo normal abaixo.
+        }
+        // Cai pro caminho de criar novo, usando replaces_id.
     }
-    // (3) Cria novo. Atribui id incremental se replaces_id == 0.
+
+    // (4) H54.P5: DND ativo e não-critical → vai direto pro histórico,
+    // sem toast. Aloca id, marca silenced.
+    if state.dnd_enabled && entry.urgency != Urgency::Critical {
+        if entry.id == 0 {
+            entry.id = allocate_id(state);
+        } else {
+            // Garante que next_id está adiante deste id (linhagem).
+            state.next_id = state.next_id.max(entry.id.saturating_add(1));
+        }
+        if !entry.transient {
+            let h = entry_to_history(&entry);
+            let is_new = upsert_history(state, h);
+            if is_new && !state.panel_open {
+                state.unread_count = state.unread_count.saturating_add(1);
+            }
+        }
+        return entry.id;
+    }
+
+    // (5) Cria novo toast. Aloca id (pulando vivos) se replaces_id == 0.
     if entry.id == 0 {
-        entry.id = state.next_id;
-        state.next_id = state.next_id.checked_add(1).unwrap_or(1);
+        entry.id = allocate_id(state);
+    } else {
+        state.next_id = state.next_id.max(entry.id.saturating_add(1));
     }
-    // Se há hover ativo, novo entry já começa pausado.
     if state.hover_paused {
         entry.pause_started_at = Some(Instant::now());
     }
@@ -452,6 +698,8 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
         actions,
         default_action,
         resident: false,
+        transient: false,
+        urgency: Urgency::Normal,
     };
     if let Ok(mut g) = slot.lock() {
         apply_notify(&mut g, entry);
@@ -513,6 +761,10 @@ impl NotificationServer {
             .get("resident")
             .and_then(|v| bool::try_from(v.clone()).ok())
             .unwrap_or(false);
+        let transient = hints
+            .get("transient")
+            .and_then(|v| bool::try_from(v.clone()).ok())
+            .unwrap_or(false);
         let entry = NotificationEntry {
             id: replaces_id,
             app_name,
@@ -534,6 +786,8 @@ impl NotificationServer {
             actions: parsed_actions,
             default_action,
             resident,
+            transient,
+            urgency,
         };
         let id = if let Ok(mut g) = self.slot.lock() {
             apply_notify(&mut g, entry)
