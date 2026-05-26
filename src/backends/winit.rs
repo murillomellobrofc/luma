@@ -2000,14 +2000,58 @@ pub fn init_winit(
                                 push_mem(&mut custom_elements, buf,
                                          bt_x, center_y_for(sz.h), renderer);
                             }
+                            // H55 polish: helper pra desenhar bg "ativo"
+                            // atrás de um ícone do tray. Mesma linguagem
+                            // visual do clock acender.
+                            let push_active_bg = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                                                  icon_x: i32,
+                                                  icon_w: i32,
+                                                  r: &mut GlesRenderer| {
+                                let tb_h = crate::taskbar::taskbar_height();
+                                let bar_y_l = output_size_logical.h - tb_h;
+                                let pad = 6i32;
+                                let bg_w = icon_w + pad * 2;
+                                let bg_h = (tb_h - 6).max(28);
+                                let bg_x = icon_x - pad;
+                                let bg_y = bar_y_l + (tb_h - bg_h) / 2;
+                                let bg = crate::gfx::make_rounded_panel(
+                                    bg_w, bg_h, 8, theme.colors.applet_bg_active,
+                                );
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((bg_x, bg_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    r, loc.to_f64(), &bg,
+                                    None, None, None,
+                                    Kind::Unspecified,
+                                ) {
+                                    elems.push(LumaRenderElement::Memory(elem));
+                                }
+                            };
+                            let volume_active = data.state.applet_popup.as_ref()
+                                .map(|p| p.kind == crate::popup::AppletKind::Volume)
+                                .unwrap_or(false);
+                            let bell_active = match data.state.notifications.lock() {
+                                Ok(g) => g.panel_open,
+                                Err(_) => false,
+                            };
+
                             if let Some((buf, sz)) = volume_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
                                          volume_x, center_y_for(sz.h), renderer);
+                                if volume_active {
+                                    push_active_bg(&mut custom_elements,
+                                                   volume_x, sz.w, renderer);
+                                }
                             }
                             if let Some((buf, sz)) = bell_render.as_ref() {
                                 let by = center_y_for(sz.h);
                                 push_mem(&mut custom_elements, buf,
                                          bell_x, by, renderer);
+                                if bell_active {
+                                    push_active_bg(&mut custom_elements,
+                                                   bell_x, sz.w, renderer);
+                                }
                                 // H54.P5: cacheia rect do sino pra click hit-test.
                                 data.state.notification_bell_rect =
                                     Some((bell_x, by, sz.w, sz.h));
