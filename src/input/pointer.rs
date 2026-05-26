@@ -919,6 +919,41 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 }
             }
         }
+        // H55: click no relógio toggle do calendário. Roda ANTES do
+        // popup-outside handler pra evitar o "fechou + reabriu" bug
+        // (click fora fecharia, depois esse handler reabriria).
+        if let Some(clock_zone) = state.tray.last_clock_rect {
+            if clock_zone.to_f64().contains(pointer_pos) {
+                let was_calendar = state.applet_popup.as_ref().map(|p| p.kind)
+                    == Some(crate::popup::AppletKind::Calendar);
+                if was_calendar {
+                    state.applet_popup = None;
+                } else {
+                    // Anchor = borda direita do relógio. Popup cresce
+                    // pra esquerda.
+                    let anchor_right = clock_zone.loc.x + clock_zone.size.w;
+                    state.applet_popup = Some(crate::popup::AppletPopup::new(
+                        crate::popup::AppletKind::Calendar,
+                        anchor_right,
+                    ));
+                }
+                tracing::info!(
+                    "calendar popup={}",
+                    state.applet_popup.is_some()
+                );
+                pointer.button(
+                    state,
+                    &ButtonEvent {
+                        button,
+                        state: button_state,
+                        serial,
+                        time: event.time_msec(),
+                    },
+                );
+                pointer.frame(state);
+                return;
+            }
+        }
         // H44.volume.1-2: popup de applet tem prioridade. Click DENTRO
         // do popup é consumido pelo popup (e pode interagir com tabs);
         // click FORA fecha.
