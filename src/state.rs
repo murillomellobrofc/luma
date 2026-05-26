@@ -240,6 +240,12 @@ pub struct LumaState {
     /// Engine de som via libcanberra. None se a .so não estiver
     /// instalada ou o contexto falhar — sons caem em silêncio. H54.P6.
     pub sound: Option<crate::sound::SoundEngine>,
+    /// H55 Fatia 3: rects clicáveis do calendário (popup aberto).
+    /// Cacheados pelo render path pra hit-test do click. None quando
+    /// popup fechado ou render ainda não populou.
+    pub calendar_prev_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    pub calendar_next_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    pub calendar_hoje_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -695,6 +701,9 @@ impl LumaState {
             sound: crate::sound::SoundEngine::try_new(
                 crate::theme::current().notifications.sound_debounce_ms,
             ),
+            calendar_prev_rect: None,
+            calendar_next_rect: None,
+            calendar_hoje_rect: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
