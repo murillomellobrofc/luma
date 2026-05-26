@@ -971,6 +971,48 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 if !inside {
                     state.applet_popup = None;
                 } else {
+                    // H55: dispatch interno do calendário (setas
+                    // anterior/próximo, botão Hoje). Só ativo quando
+                    // popup é Calendar — rects podem estar stale do
+                    // popup anterior, gate por kind impede aleatório.
+                    let is_calendar = popup_clone
+                        .as_ref()
+                        .map(|p| p.kind == crate::popup::AppletKind::Calendar)
+                        .unwrap_or(false);
+                    if is_calendar {
+                        let prev_hit = state.calendar_prev_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos));
+                        let next_hit = state.calendar_next_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos));
+                        let hoje_hit = state.calendar_hoje_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos));
+                        if prev_hit || next_hit || hoje_hit {
+                            if let Some(p) = state.applet_popup.as_mut() {
+                                if prev_hit {
+                                    p.prev_month();
+                                } else if next_hit {
+                                    p.next_month();
+                                } else {
+                                    p.reset_to_today();
+                                }
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // Click dentro do popup Calendar fora dos
+                        // botões: consome (não cai no dispatch de
+                        // volume).
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial,
+                            time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
                     // H44.volume.2: tab click muda aba ativa.
                     if let Some(tab) = popup_clone
                         .as_ref()

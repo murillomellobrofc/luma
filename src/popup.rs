@@ -40,6 +40,12 @@ pub struct AppletPopup {
     pub volume_tab: VolumeTab,
     /// Se true, sliders aceitam até 150% (boost). H44.volume.15.
     pub boost: bool,
+    /// H55: ano do mês exibido pelo calendário. Init = ano atual ao
+    /// abrir; setas/atalhos atualizam. 0 quando kind != Calendar.
+    pub displayed_year: i32,
+    /// H55: mês exibido (1-12). Init = mês atual ao abrir. 0 quando
+    /// kind != Calendar.
+    pub displayed_month: u32,
 }
 
 impl AppletPopup {
@@ -65,13 +71,56 @@ impl AppletPopup {
             // 12+48+28+6*40+48+12 = 388.
             AppletKind::Calendar => Size::from((304, 388)),
         };
+        // H55: init do mês exibido = hoje (Calendar). Volume ignora.
+        let (displayed_year, displayed_month) = if kind == AppletKind::Calendar {
+            use chrono::{Datelike, Local};
+            let now = Local::now().date_naive();
+            (now.year(), now.month())
+        } else {
+            (0, 0)
+        };
         Self {
             kind,
             anchor_x,
             size,
             volume_tab: VolumeTab::default(),
             boost: false,
+            displayed_year,
+            displayed_month,
         }
+    }
+
+    /// H55: troca pro mês anterior (wrap em janeiro → dezembro do
+    /// ano anterior). Só faz sentido pra Calendar.
+    pub fn prev_month(&mut self) {
+        if self.kind != AppletKind::Calendar { return; }
+        if self.displayed_month <= 1 {
+            self.displayed_month = 12;
+            self.displayed_year -= 1;
+        } else {
+            self.displayed_month -= 1;
+        }
+    }
+
+    /// H55: troca pro próximo mês (wrap em dezembro → janeiro do
+    /// ano seguinte).
+    pub fn next_month(&mut self) {
+        if self.kind != AppletKind::Calendar { return; }
+        if self.displayed_month >= 12 {
+            self.displayed_month = 1;
+            self.displayed_year += 1;
+        } else {
+            self.displayed_month += 1;
+        }
+    }
+
+    /// H55: volta o mês exibido pro mês atual (botão Hoje + teclado).
+    pub fn reset_to_today(&mut self) {
+        if self.kind != AppletKind::Calendar { return; }
+        use chrono::{Datelike, Local};
+        let now = Local::now().date_naive();
+        self.displayed_year = now.year();
+        self.displayed_month = now.month();
     }
 
     /// Hit-test no toggle de boost (canto inferior-esquerdo do popup).

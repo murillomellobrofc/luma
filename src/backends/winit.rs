@@ -3004,11 +3004,16 @@ pub fn init_winit(
                                 if let Some(text_r) = data.state.text.as_ref() {
                                     use chrono::{Datelike, Local, NaiveDate};
                                     let today = Local::now().date_naive();
-                                    let y = today.year();
-                                    let m = today.month();
                                     let d_today = today.day();
-                                    // Strings PT-BR fixas (i18n é debt
-                                    // — anotado em docs/DEBT.md).
+                                    // H55 Fatia 3: mês exibido vem da
+                                    // navegação (setas/teclado/Hoje).
+                                    let displayed_year = popup.displayed_year;
+                                    let displayed_month = popup.displayed_month;
+                                    // Regra do destaque: coral SÓ quando
+                                    // o mês exibido é o mês atual.
+                                    let show_today_highlight =
+                                        displayed_year == today.year()
+                                            && displayed_month == today.month();
                                     let meses = [
                                         "Janeiro", "Fevereiro", "Março",
                                         "Abril", "Maio", "Junho", "Julho",
@@ -3016,15 +3021,70 @@ pub fn init_winit(
                                         "Novembro", "Dezembro",
                                     ];
                                     let mes_label = meses
-                                        .get((m as usize).saturating_sub(1))
+                                        .get((displayed_month as usize).saturating_sub(1))
                                         .copied()
                                         .unwrap_or("");
-                                    let titulo = format!("{} {}", mes_label, y);
-                                    // Mês exibido = mês atual (Fatia 2).
-                                    // Fatia 3 separa displayed_*/today_*.
-                                    let displayed_year = y;
-                                    let displayed_month = m;
-                                    let show_today_highlight = true;
+                                    let titulo = format!("{} {}", mes_label, displayed_year);
+
+                                    // H55 Fatia 3: setas anterior/próximo
+                                    // no cabeçalho. Hit target 40×40.
+                                    // Posições: esquerda e direita do
+                                    // header, com folga do padding lateral.
+                                    let arrow_hit = 40i32;
+                                    let header_y = o.y + t_cal.padding_vertical;
+                                    let arrow_y = header_y
+                                        + (t_cal.header_height - arrow_hit) / 2;
+                                    let prev_x = o.x + t_cal.padding_lateral;
+                                    let next_x = o.x + popup.size.w
+                                        - t_cal.padding_lateral - arrow_hit;
+                                    data.state.calendar_prev_rect = Some(
+                                        smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((prev_x, arrow_y)),
+                                            smithay::utils::Size::from((arrow_hit, arrow_hit)),
+                                        ),
+                                    );
+                                    data.state.calendar_next_rect = Some(
+                                        smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((next_x, arrow_y)),
+                                            smithay::utils::Size::from((arrow_hit, arrow_hit)),
+                                        ),
+                                    );
+                                    // Render dos chevrons como texto.
+                                    // fontdue rasteriza "‹" e "›" se a
+                                    // fonte tiver. Cor vem do token.
+                                    let render_arrow = |chev: &str, cx: i32, cy: i32,
+                                                        elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                                                        r: &mut GlesRenderer| {
+                                        let (px, w, h) = text_r.rasterize_colored(
+                                            chev,
+                                            t_cal.titulo_size,
+                                            t_cal.seta_fg,
+                                        );
+                                        if w == 0 || h == 0 {
+                                            return;
+                                        }
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = cx + (arrow_hit - w as i32) / 2;
+                                        let ly = cy + (arrow_hit - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            r, loc.to_f64(), &buf, None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            elems.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    };
+                                    render_arrow("‹", prev_x, arrow_y, &mut custom_elements, renderer);
+                                    render_arrow("›", next_x, arrow_y, &mut custom_elements, renderer);
 
                                     // 1. Título centralizado no header.
                                     let (px, tw, th) = text_r.rasterize_colored(
@@ -3204,6 +3264,64 @@ pub fn init_winit(
                                             custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                         }
                                     }
+
+                                    // H55 Fatia 3: botão "Hoje" no rodapé,
+                                    // à direita. Sem a data por extenso
+                                    // ainda (Fatia 4).
+                                    let (px, hw, hh) = text_r.rasterize_colored(
+                                        "Hoje",
+                                        t_cal.rodape_size,
+                                        t_cal.hoje_botao_fg,
+                                    );
+                                    let btn_h = (t_cal.footer_height - 8).max(28);
+                                    let pad_h = 14i32;
+                                    let btn_w = (hw as i32 + pad_h * 2).max(64);
+                                    let footer_y = o.y + popup.size.h
+                                        - t_cal.padding_vertical - t_cal.footer_height;
+                                    let btn_y = footer_y + (t_cal.footer_height - btn_h) / 2;
+                                    let btn_x = o.x + popup.size.w
+                                        - t_cal.padding_lateral - btn_w;
+                                    let bg = crate::gfx::make_rounded_panel(
+                                        btn_w, btn_h, 8, t_cal.hoje_botao_bg,
+                                    );
+                                    let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x, btn_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, bg_loc.to_f64(), &bg,
+                                        None, None, None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    if hw > 0 && hh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (hw as i32, hh as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = btn_x + (btn_w - hw as i32) / 2;
+                                        let ly = btn_y + (btn_h - hh as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    data.state.calendar_hoje_rect = Some(
+                                        smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((btn_x, btn_y)),
+                                            smithay::utils::Size::from((btn_w, btn_h)),
+                                        ),
+                                    );
                                 }
                                 // Pula todo o pipeline de volume (tabs,
                                 // devices, sliders) — Calendar não tem.

@@ -28,6 +28,12 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let menu_open_now = state.menu_open;
     // H44.volume.1: popup aberto intercepta Esc pra fechar.
     let applet_popup_open = state.applet_popup.is_some();
+    // H55: popup do calendário aberto → Left/Right navegam meses.
+    let calendar_open = state.applet_popup.as_ref()
+        .map(|p| p.kind == crate::popup::AppletKind::Calendar)
+        .unwrap_or(false);
+    enum CalNav { Prev, Next }
+    let mut cal_nav: Option<CalNav> = None;
     // H47a.tray.2: painel de overflow aberto intercepta Esc.
     let tray_overflow_open = state.tray.overflow_open;
     // H48.ctx.1: context menu aberto intercepta Esc.
@@ -89,6 +95,17 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 if sym == Keysym::Escape {
                     close_applet_popup = true;
                     return FilterResult::Intercept(());
+                }
+                // H55: navegação por teclado quando é o calendário.
+                if calendar_open {
+                    if sym == Keysym::Left {
+                        cal_nav = Some(CalNav::Prev);
+                        return FilterResult::Intercept(());
+                    }
+                    if sym == Keysym::Right {
+                        cal_nav = Some(CalNav::Next);
+                        return FilterResult::Intercept(());
+                    }
                 }
             }
             if tray_overflow_open && key_state == KeyState::Pressed {
@@ -249,6 +266,17 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if close_applet_popup {
         state.applet_popup = None;
+        return;
+    }
+
+    // H55: navegação por teclado no calendário.
+    if let Some(nav) = cal_nav {
+        if let Some(p) = state.applet_popup.as_mut() {
+            match nav {
+                CalNav::Prev => p.prev_month(),
+                CalNav::Next => p.next_month(),
+            }
+        }
         return;
     }
 
