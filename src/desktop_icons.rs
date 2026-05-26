@@ -44,6 +44,27 @@ pub enum FileKind {
 }
 
 impl FileKind {
+    /// H56: ordem canônica pra "Organizar por tipo". Folder primeiro,
+    /// depois extensões mais "informacionais" (texto, código, pdf),
+    /// depois mídia, depois arquivos comprimidos, depois executáveis
+    /// e por último genéricos.
+    pub fn sort_order(self) -> u8 {
+        match self {
+            FileKind::Folder => 0,
+            FileKind::Text => 1,
+            FileKind::Code => 2,
+            FileKind::Pdf => 3,
+            FileKind::Image => 4,
+            FileKind::Audio => 5,
+            FileKind::Video => 6,
+            FileKind::Archive => 7,
+            FileKind::Executable => 8,
+            FileKind::Generic => 9,
+        }
+    }
+}
+
+impl FileKind {
     /// Nome do SVG no pack (sem extensão).
     pub fn icon_name(self) -> &'static str {
         match self {
@@ -384,6 +405,100 @@ pub fn compute_layout(
     result.into_iter().map(|p| p.unwrap_or((0, 0))).collect()
 }
 
+/// H56: estado da animação de "Organizar ícones". Cada entrada do
+/// desktop tem uma posição source (a que tinha) e target (depois do
+/// reflow). Render interpola pixel-space com ease_out_cubic.
+#[derive(Debug, Clone)]
+pub struct ArrangeAnim {
+    pub started_at: std::time::Instant,
+    pub duration_ms: u64,
+    pub source: std::collections::HashMap<String, (i32, i32)>,
+    pub target: std::collections::HashMap<String, (i32, i32)>,
+}
+
+impl ArrangeAnim {
+    /// 0.0 → começo, 1.0 → fim. Aplicado ease_out_cubic.
+    pub fn progress(&self) -> f32 {
+        let elapsed = self.started_at.elapsed().as_millis() as f32;
+        let raw = (elapsed / self.duration_ms as f32).clamp(0.0, 1.0);
+        let inv = 1.0 - raw;
+        1.0 - inv * inv * inv
+    }
+    pub fn done(&self) -> bool {
+        self.started_at.elapsed().as_millis() as u64 >= self.duration_ms
+    }
+}
+
+/// H56: ordena entradas por critério. Não muta a lista original —
+/// retorna uma nova `Vec` na ordem desejada.
+pub fn sort_entries(
+    entries: &[DesktopEntry],
+    kind: crate::context_menu::ArrangeKind,
+) -> Vec<DesktopEntry> {
+    use crate::context_menu::ArrangeKind;
+    let mut sorted: Vec<DesktopEntry> = entries.to_vec();
+    match kind {
+        ArrangeKind::ByName => {
+            sorted.sort_by(|a, b| {
+                // Pastas antes de arquivos, depois alfabético i-case.
+                let a_folder = a.kind == FileKind::Folder;
+                let b_folder = b.kind == FileKind::Folder;
+                match (a_folder, b_folder) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                }
+            });
+        }
+        ArrangeKind::ByKind => {
+            sorted.sort_by(|a, b| {
+                let oa = a.kind.sort_order();
+                let ob = b.kind.sort_order();
+                oa.cmp(&ob).then_with(|| {
+                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                })
+            });
+        }
+        ArrangeKind::ByDate => {
+            sorted.sort_by(|a, b| {
+                // Mais recente primeiro. None vai pro fim.
+                match (a.mtime, b.mtime) {
+                    (Some(ta), Some(tb)) => tb.cmp(&ta),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => {
+                        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                    }
+                }
+            });
+        }
+    }
+    sorted
+}
+
+/// H56: gera positions column-major a partir de uma lista ordenada.
+/// Preenche o canto sup-esq, descendo nas linhas até `rows`, depois
+/// pula pra coluna seguinte. Retorna `HashMap<basename, (col, row)>`.
+pub fn column_major_positions(
+    sorted: &[DesktopEntry],
+    rows: i32,
+) -> std::collections::HashMap<String, (i32, i32)> {
+    let rows = rows.max(1);
+    let mut out: std::collections::HashMap<String, (i32, i32)> =
+        std::collections::HashMap::with_capacity(sorted.len());
+    let mut col = 0i32;
+    let mut row = 0i32;
+    for e in sorted.iter() {
+        out.insert(e.name.clone(), (col, row));
+        row += 1;
+        if row >= rows {
+            row = 0;
+            col += 1;
+        }
+    }
+    out
+}
+
 /// Camada de ícones do desktop como `SpaceElement` com z_index=5 —
 /// entre o wallpaper (0) e janelas (10). Mapeada em (0,0) ocupando
 /// o output inteiro. Não recebe input nesta fase (fase 1 = só ler
@@ -411,6 +526,9 @@ pub struct DesktopIconsLayer {
     /// Renomear inline em curso (Some quando algum ícone está sendo
     /// renomeado). H53.
     renaming: Mutex<Option<DesktopRename>>,
+    /// Animação de "Organizar ícones" em curso (H56). None quando
+    /// estática. Limpa sozinha quando elapsed >= duration no render.
+    arrange_anim: Mutex<Option<ArrangeAnim>>,
 }
 
 impl DesktopIconsLayer {
@@ -426,7 +544,13 @@ impl DesktopIconsLayer {
             drag: Mutex::new(None),
             rubber_band: Mutex::new(None),
             renaming: Mutex::new(None),
+            arrange_anim: Mutex::new(None),
         }
+    }
+
+    /// H56: inicia (ou substitui) a animação de organização.
+    pub fn set_arrange_anim(&self, anim: Option<ArrangeAnim>) {
+        *self.arrange_anim.lock().unwrap() = anim;
     }
 
     pub fn set_output_size(&self, size: Size<i32, Logical>) {
@@ -872,6 +996,25 @@ where
             .unwrap_or_default();
         let layout = compute_layout(&entries, &positions_snap, rows);
         let drag_snap = self.drag.lock().ok().and_then(|g| g.clone());
+        // H56: animação de "Organizar ícones" — se ativa, render usa
+        // posições pixel-space lerped entre source e target. Auto-
+        // clears quando termina.
+        let arrange_anim: Option<ArrangeAnim> = {
+            let mut g = self.arrange_anim.lock().ok();
+            if let Some(g) = g.as_mut() {
+                if let Some(anim) = g.as_ref() {
+                    if anim.done() {
+                        **g = None;
+                    }
+                }
+                g.clone()
+            } else {
+                None
+            }
+        };
+        let arrange_progress = arrange_anim
+            .as_ref()
+            .map(|a| a.progress());
         let rb_snap = self.rubber_band.lock().ok().and_then(|g| g.clone());
         let rename_snap = self.renaming.lock().ok().and_then(|g| g.clone());
         // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
@@ -919,6 +1062,24 @@ where
                         t.grid_margin + row * t.cell_height,
                     )
                 }
+            } else if let (Some(anim), Some(prog)) =
+                (arrange_anim.as_ref(), arrange_progress)
+            {
+                // H56: pixel-space lerp source → target.
+                let tgt = anim
+                    .target
+                    .get(&entry.name)
+                    .copied()
+                    .unwrap_or((col, row));
+                let src = anim.source.get(&entry.name).copied().unwrap_or(tgt);
+                let col_f = src.0 as f32
+                    + (tgt.0 - src.0) as f32 * prog;
+                let row_f = src.1 as f32
+                    + (tgt.1 - src.1) as f32 * prog;
+                (
+                    t.grid_margin + (col_f * t.cell_width as f32) as i32,
+                    t.grid_margin + (row_f * t.cell_height as f32) as i32,
+                )
             } else {
                 (
                     t.grid_margin + col * t.cell_width,

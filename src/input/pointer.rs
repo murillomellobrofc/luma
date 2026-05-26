@@ -1872,6 +1872,69 @@ fn dispatch_context_action(
                 crate::sni::send_menu_event(&service, &menu_path, id);
             }
         }
+        ContextAction::ArrangeIcons(kind) => {
+            // H56 parte 1: reorganiza desktop icons pelo critério.
+            // Zero ícones → no-op silencioso. Já ordenado → render
+            // redundante, sem erro (idempotente).
+            let entries = state.desktop_entries.clone();
+            if entries.is_empty() {
+                return;
+            }
+            let theme = crate::theme::current();
+            let t_di = &theme.desktop_icons;
+            // Calcula rows do mesmo jeito que o render path.
+            let output = state
+                .space
+                .output_geometry(state.primary_output())
+                .map(|g| g.size);
+            let Some(output) = output else { return; };
+            let taskbar_h = crate::taskbar::taskbar_height();
+            let usable_h = output.h - t_di.grid_margin - taskbar_h - 8;
+            let rows = (usable_h / t_di.cell_height).max(1);
+            // Snapshot das positions antes (pra source da animação).
+            let prev_positions = state.desktop_positions.clone();
+            let prev_layout = crate::desktop_icons::compute_layout(
+                &entries, &prev_positions, rows,
+            );
+            let mut source: std::collections::HashMap<String, (i32, i32)> =
+                std::collections::HashMap::with_capacity(entries.len());
+            for (e, pos) in entries.iter().zip(prev_layout.iter()) {
+                source.insert(e.name.clone(), *pos);
+            }
+            // Sort + target positions column-major.
+            let sorted = crate::desktop_icons::sort_entries(&entries, kind);
+            let target = crate::desktop_icons::column_major_positions(
+                &sorted, rows,
+            );
+            // Atualiza state + layer + persiste no disco
+            // imediatamente (a animação é só visual).
+            state.desktop_positions = target.clone();
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_positions(target.clone());
+            }
+            crate::desktop_icons::save_positions(&target);
+            // Reduce motion respect: pula a animação se LUMA_REDUCE_MOTION
+            // = 1 (ou similar) E o token autoriza respeitá-lo.
+            let reduce = theme.accessibility.reduce_motion_respect
+                && std::env::var("LUMA_REDUCE_MOTION")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+            if !reduce {
+                let anim = crate::desktop_icons::ArrangeAnim {
+                    started_at: std::time::Instant::now(),
+                    duration_ms: t_di.arrange_anim_duration_ms,
+                    source,
+                    target,
+                };
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_arrange_anim(Some(anim));
+                }
+            } else {
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_arrange_anim(None);
+                }
+            }
+        }
         ContextAction::Disabled => {}
     }
 }
