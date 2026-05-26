@@ -259,6 +259,32 @@ pub struct LumaState {
     /// bateria). 3 zonas, cada uma um stop. Cacheadas pelo render
     /// pra hit-test do click/drag. H57.
     pub battery_mode_zones: Vec<(String, smithay::utils::Rectangle<i32, Logical>)>,
+    /// Snapshot do estado Wi-Fi (NetworkManager). Refrescado ao abrir
+    /// o popup, ao toggle, e após resultado de conexão. H57.2.
+    pub wifi_state: crate::wifi::WifiState,
+    /// Última leitura do estado Wi-Fi. Pra refresh ao vivo enquanto
+    /// o popup está aberto (intervalo de ~2s).
+    pub wifi_last_refresh: Option<std::time::Instant>,
+    /// SSID em modo password inline (expansão da row). None quando
+    /// nenhuma rede está em modo password. H57.2.
+    pub wifi_password_for: Option<String>,
+    pub wifi_password_text: String,
+    pub wifi_password_cursor: usize,
+    /// SSID em conexão em curso ("Conectando"). None quando nada.
+    pub wifi_connecting: Option<String>,
+    /// Slot compartilhado com a thread de connect — quando ela
+    /// termina, escreve o outcome aqui. Main loop lê e limpa.
+    pub wifi_connect_outbox: std::sync::Arc<
+        std::sync::Mutex<Option<crate::wifi::ConnectResult>>,
+    >,
+    /// SSID com erro inline + mensagem curta.
+    pub wifi_error_for: Option<(String, String)>,
+    /// Rect do toggle do header do Wi-Fi (cacheado pelo render).
+    pub wifi_toggle_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    /// Rects das rows da lista (ssid -> rect). H57.2.
+    pub wifi_row_rects: Vec<(String, smithay::utils::Rectangle<i32, Logical>)>,
+    /// Rect do botão "Conectar" da expansão de password. H57.2.
+    pub wifi_connect_btn_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -720,6 +746,19 @@ impl LumaState {
             luma_clipboard: None,
             power_profiles: None,
             battery_mode_zones: Vec::new(),
+            wifi_state: crate::wifi::WifiState::default(),
+            wifi_last_refresh: None,
+            wifi_password_for: None,
+            wifi_password_text: String::new(),
+            wifi_password_cursor: 0,
+            wifi_connecting: None,
+            wifi_connect_outbox: std::sync::Arc::new(
+                std::sync::Mutex::new(None),
+            ),
+            wifi_error_for: None,
+            wifi_toggle_rect: None,
+            wifi_row_rects: Vec::new(),
+            wifi_connect_btn_rect: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

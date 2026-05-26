@@ -133,6 +133,9 @@ pub struct Theme {
     /// Popup do applet de bateria (% + estado + slider de modo
     /// de energia). H57.
     pub battery_popup: BatteryPopupTokens,
+    /// Popup do applet de Wi-Fi (header com toggle + lista de
+    /// redes + senha inline). H57.2.
+    pub wifi_popup: WifiPopupTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1050,6 +1053,7 @@ impl Default for Theme {
             notifications: NotificationsTokens::default(),
             calendario: CalendarTokens::default(),
             battery_popup: BatteryPopupTokens::default(),
+            wifi_popup: WifiPopupTokens::default(),
         }
     }
 }
@@ -1267,6 +1271,94 @@ pub struct BatteryPopupTokens {
     pub mode_stop_label_color: Color32F,
     pub mode_stop_label_active_color: Color32F,
     pub divider_color: Color32F,
+}
+
+/// Popup de Wi-Fi. H57.2. Header com toggle, lista de redes, e
+/// expansão inline com campo de senha + botão "Conectar".
+#[derive(Debug, Clone)]
+pub struct WifiPopupTokens {
+    pub padding: i32,
+    pub header_height: i32,
+    pub header_color: Color32F,
+    pub header_size: f32,
+    /// Toggle (chave mestra) à direita do header.
+    pub toggle_w: i32,
+    pub toggle_h: i32,
+    pub toggle_off_bg: Color32F,
+    pub toggle_on_bg: Color32F,
+    pub toggle_knob_color: Color32F,
+    pub toggle_corner: i32,
+    /// Lista de redes.
+    pub row_height: i32,
+    pub row_padding_h: i32,
+    pub row_hover_bg: Color32F,
+    pub ssid_color: Color32F,
+    pub ssid_size: f32,
+    pub ssid_connected_color: Color32F,
+    pub state_label_color: Color32F,
+    pub state_label_size: f32,
+    pub signal_color: Color32F,
+    pub signal_connected_color: Color32F,
+    /// Estado vazio (wifi desligado).
+    pub empty_label_color: Color32F,
+    pub empty_label_size: f32,
+    /// Password inline.
+    pub pw_field_bg: Color32F,
+    pub pw_field_text_color: Color32F,
+    pub pw_field_size: f32,
+    pub pw_field_corner: i32,
+    pub pw_field_height: i32,
+    pub pw_btn_bg: Color32F,
+    pub pw_btn_bg_hover: Color32F,
+    pub pw_btn_fg: Color32F,
+    pub pw_btn_corner: i32,
+    pub pw_btn_height: i32,
+    pub pw_btn_label_size: f32,
+    pub pw_error_color: Color32F,
+    pub divider_color: Color32F,
+}
+
+impl Default for WifiPopupTokens {
+    fn default() -> Self {
+        Self {
+            padding: 16,
+            header_height: 48,
+            header_color: hex_color("#FBF6EE", 1.0),
+            header_size: 14.0,
+            toggle_w: 44,
+            toggle_h: 24,
+            toggle_off_bg: hex_color("#2A1F1A", 1.0),
+            toggle_on_bg: hex_color("#E89B3D", 1.0),
+            toggle_knob_color: hex_color("#FBF6EE", 1.0),
+            toggle_corner: 12,
+            row_height: 48,
+            row_padding_h: 14,
+            row_hover_bg: hex_color("#3D2520", 0.45),
+            ssid_color: hex_color("#FBF6EE", 1.0),
+            ssid_size: 13.0,
+            // Sage pra rede conectada.
+            ssid_connected_color: hex_color("#A7C796", 1.0),
+            state_label_color: hex_color("#A7C796", 1.0),
+            state_label_size: 11.0,
+            signal_color: hex_color("#C9BDB0", 1.0),
+            signal_connected_color: hex_color("#A7C796", 1.0),
+            empty_label_color: hex_color("#9A8B7E", 1.0),
+            empty_label_size: 14.0,
+            pw_field_bg: hex_color("#2A1F1A", 1.0),
+            pw_field_text_color: hex_color("#FBF6EE", 1.0),
+            pw_field_size: 12.0,
+            pw_field_corner: 8,
+            pw_field_height: 36,
+            pw_btn_bg: hex_color("#E89B3D", 1.0),
+            pw_btn_bg_hover: hex_color("#F0AD55", 1.0),
+            pw_btn_fg: hex_color("#1F1611", 1.0),
+            pw_btn_corner: 8,
+            pw_btn_height: 36,
+            pw_btn_label_size: 12.0,
+            pw_error_color: hex_color("#D97757", 1.0),
+            divider_color: hex_color("#3D2520", 0.55),
+        }
+    }
 }
 
 impl Default for BatteryPopupTokens {
@@ -3149,6 +3241,7 @@ impl ThemeFile {
             notifications,
             calendario: default.calendario.clone(),
             battery_popup: default.battery_popup.clone(),
+            wifi_popup: default.wifi_popup.clone(),
         }
     }
 }

@@ -1051,6 +1051,114 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         pointer.frame(state);
                         return;
                     }
+                    // H57.2: dispatch interno do Wifi popup.
+                    let is_wifi = popup_clone
+                        .as_ref()
+                        .map(|p| p.kind == crate::popup::AppletKind::Wifi)
+                        .unwrap_or(false);
+                    if is_wifi {
+                        // 1. Toggle do header (chave mestra).
+                        if state.wifi_toggle_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos))
+                        {
+                            let new_state = !state.wifi_state.enabled;
+                            crate::wifi::set_enabled(new_state);
+                            state.wifi_state.enabled = new_state;
+                            // Recarrega lista vazia se desligou.
+                            if !new_state {
+                                state.wifi_state.networks.clear();
+                                state.wifi_password_for = None;
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // 2. Botão Conectar (modo password expandido).
+                        if state.wifi_connect_btn_rect
+                            .map_or(false, |r| r.to_f64().contains(pointer_pos))
+                        {
+                            if let Some(ssid) = state.wifi_password_for.clone() {
+                                let pw = state.wifi_password_text.clone();
+                                state.wifi_connecting = Some(ssid.clone());
+                                state.wifi_error_for = None;
+                                crate::wifi::connect_async(
+                                    state.wifi_connect_outbox.clone(),
+                                    ssid, Some(pw),
+                                );
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // 3. Click numa row de rede.
+                        let row_hit: Option<String> = state
+                            .wifi_row_rects
+                            .iter()
+                            .find(|(_, r)| r.to_f64().contains(pointer_pos))
+                            .map(|(s, _)| s.clone());
+                        if let Some(ssid) = row_hit {
+                            // Acha o net na lista.
+                            let net = state
+                                .wifi_state
+                                .networks
+                                .iter()
+                                .find(|n| n.ssid == ssid)
+                                .cloned();
+                            if let Some(net) = net {
+                                if net.in_use {
+                                    // Click na rede já conectada: no-op
+                                    // (no futuro mostra ações como
+                                    // desconectar; fora de escopo H57).
+                                } else if !net.is_protected() {
+                                    state.wifi_connecting = Some(ssid.clone());
+                                    state.wifi_error_for = None;
+                                    crate::wifi::connect_async(
+                                        state.wifi_connect_outbox.clone(),
+                                        ssid, None,
+                                    );
+                                } else {
+                                    // Tenta connect com perfil salvo
+                                    // primeiro. Se falhar, expande
+                                    // password inline. Por simplicidade
+                                    // pra v1: sempre expande password
+                                    // (perfis salvos antigos não detec
+                                    // perfeito sem listar connections).
+                                    if state.wifi_password_for.as_deref() == Some(&ssid) {
+                                        // Mesma row clicada de novo:
+                                        // colapsa.
+                                        state.wifi_password_for = None;
+                                        state.wifi_password_text.clear();
+                                        state.wifi_password_cursor = 0;
+                                    } else {
+                                        state.wifi_password_for = Some(ssid);
+                                        state.wifi_password_text.clear();
+                                        state.wifi_password_cursor = 0;
+                                        state.wifi_error_for = None;
+                                    }
+                                }
+                            }
+                            pointer.button(state, &ButtonEvent {
+                                button, state: button_state, serial,
+                                time: event.time_msec(),
+                            });
+                            pointer.frame(state);
+                            return;
+                        }
+                        // Click dentro do popup Wifi fora dos hits:
+                        // consome.
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial,
+                            time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
                     // H57: dispatch interno do battery — slider de modo.
                     let is_battery = popup_clone
                         .as_ref()
@@ -1416,6 +1524,33 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         state.applet_popup.is_some(),
                         state.audio_sinks.len()
                     );
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // H57.2: click no ícone wifi abre/fecha o popup.
+            if let Some(zone) = state.tray.last_wifi_rect {
+                if zone.to_f64().contains(pointer_pos) {
+                    let was_open = state.applet_popup.is_some()
+                        && state.applet_popup.as_ref().unwrap().kind
+                            == crate::popup::AppletKind::Wifi;
+                    if was_open {
+                        state.applet_popup = None;
+                    } else {
+                        state.wifi_state = crate::wifi::read_state();
+                        state.wifi_last_refresh = Some(std::time::Instant::now());
+                        state.wifi_password_for = None;
+                        state.wifi_password_text.clear();
+                        state.wifi_password_cursor = 0;
+                        state.wifi_error_for = None;
+                        if state.wifi_state.enabled {
+                            crate::wifi::request_scan();
+                        }
+                        state.applet_popup = Some(crate::popup::AppletPopup::new(
+                            crate::popup::AppletKind::Wifi,
+                            zone.loc.x + zone.size.w / 2,
+                        ));
+                    }
                     pointer.frame(state);
                     return;
                 }
