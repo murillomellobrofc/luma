@@ -28,14 +28,44 @@ future.
 - **Display protocol:** Wayland
 - **Compositor framework:** Smithay
 - **SVG rendering:** usvg, resvg and tiny-skia
-- **Fonts:** fontdue
+- **Fonts:** fontdue (BGRA premultiplied rasterization)
 - **Search:** fuzzy-matcher
-- **Images:** image
-- **Configuration:** toml
-- **Others:** chrono, meval, tracing
+- **Images:** image (PNG and JPEG only)
+- **Configuration:** toml + serde
+- **D-Bus:** zbus 5 (blocking, with a dedicated thread per service)
+- **Notification audio:** libcanberra loaded at runtime via libloading
+  (dlopen — no dev headers required at build time)
+- **PipeWire/PulseAudio client:** spawning `wpctl` (control) and
+  `paplay` (simple playback) — no dependency on the `pipewire` crate
+- **Others:** chrono (dates/time), meval (calculator),
+  tracing + tracing-subscriber (structured logs), walkdir
 
 Smithay is used as a local fork (in `vendor/smithay`), with a custom
 patch for multi-window support in the winit backend.
+
+### Notification system architecture
+
+The `org.freedesktop.Notifications` D-Bus server runs on a dedicated
+thread (zbus blocking). The toast stack state lives in
+`Arc<Mutex<NotificationsState>>`, shared between the D-Bus thread
+(which receives `Notify` calls) and the main loop (which renders and
+processes input).
+
+`ActionInvoked` and `NotificationClosed` signals are emitted from the
+main loop through an `Arc<Mutex<Option<zbus::blocking::Connection>>>`
+populated by the server thread after `RequestName`.
+
+The sound layer is separate (`src/sound.rs`) — it loads
+`libcanberra.so.0` at runtime, keeps a single `ca_context` for the
+whole session, and has internal debounce so bursts don't become
+audible strobes. If the `.so` is not installed, the engine fails
+silently — no build break, no runtime crash.
+
+The visual bell shares the alert gate (`alert_pending` on each entry)
+with sound — sound and flash are two independent consumers of the
+"should alert" decision. Opacity and duration ceilings are hard
+limits, set for photosensitivity safety (WCAG 2.3.1 — max 3 flashes
+per second).
 
 ---
 
@@ -50,9 +80,12 @@ anything.
 
 ### Accessibility as a rule
 
-Click targets follow a minimum of 44 pixels. Every feature must be
-reachable by keyboard. Contrast follows the WCAG AA guidelines. This
-is non-negotiable across the whole interface.
+Click targets follow a minimum of 40 pixels (48 or more on the PCD
+Max preset). Every feature must be reachable by keyboard. Contrast
+follows the WCAG AA guidelines, with AAA where it's free (the opaque
+scrim of the notifications panel, for example, guarantees AAA even
+over a light wallpaper). This is non-negotiable across the whole
+interface.
 
 ### Small, working commits
 
@@ -80,11 +113,15 @@ sudo apt install \
   fonts-dejavu-core fonts-liberation
 ```
 
-System tray runtime tools (network, bluetooth, audio):
+System tray runtime tools (network, bluetooth, audio) and
+notification sound:
 
 ```
-sudo apt install network-manager bluez pipewire wireplumber
+sudo apt install network-manager bluez pipewire wireplumber libcanberra0
 ```
+
+`libcanberra0` is optional — if missing, the notification sound
+fails silently without breaking anything.
 
 #### Fedora
 
@@ -96,7 +133,8 @@ sudo dnf install \
   mesa-libEGL-devel mesa-libgbm-devel \
   libdrm-devel libseat-devel \
   systemd-devel dbus-devel pixman-devel \
-  xorg-x11-server-Xwayland
+  xorg-x11-server-Xwayland \
+  libcanberra
 ```
 
 #### Arch Linux
@@ -115,7 +153,7 @@ sudo pacman -S --needed \
 Runtime:
 
 ```
-sudo pacman -S --needed networkmanager bluez bluez-utils pipewire wireplumber
+sudo pacman -S --needed networkmanager bluez bluez-utils pipewire wireplumber libcanberra
 ```
 
 You also need Rust installed, via rustup.
@@ -140,14 +178,18 @@ cargo run
 ## Folder structure
 
 ```
-src/            Rust source code
-  backends/     rendering and input backends
-  menu/         the application menu
-  handlers/     Wayland protocol handlers
-  input/        keyboard, pointer and shortcuts
-assets/         icons, visual identity, screenshots
-vendor/         the local Smithay fork
-docs/           this documentation
+src/                Rust source code
+  backends/         rendering and input backends
+  menu/             the application menu
+  handlers/         Wayland protocol handlers
+  input/            keyboard, pointer and shortcuts
+  notifications.rs  notification stack state + D-Bus server
+  sound.rs          libcanberra loading + playback
+  state.rs          LumaState (global compositor state)
+  theme.rs          visual tokens + luma.toml reader
+assets/             icons, sounds, visual identity, screenshots
+vendor/             the local Smithay fork
+docs/               this documentation
 ```
 
 ---
