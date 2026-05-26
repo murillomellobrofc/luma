@@ -46,6 +46,12 @@ pub struct AppletPopup {
     /// H55: mês exibido (1-12). Init = mês atual ao abrir. 0 quando
     /// kind != Calendar.
     pub displayed_month: u32,
+    /// H55 Fatia 4: anel de foco do teclado (Tab). 0=seta anterior,
+    /// 1=botão Hoje, 2=seta próximo. None = sem foco visível.
+    pub calendar_focus: Option<u8>,
+    /// H55 Fatia 4: seta sob hover do mouse (0=anterior, 2=próximo,
+    /// None = nenhuma).
+    pub calendar_hover: Option<u8>,
 }
 
 impl AppletPopup {
@@ -87,6 +93,33 @@ impl AppletPopup {
             boost: false,
             displayed_year,
             displayed_month,
+            calendar_focus: None,
+            calendar_hover: None,
+        }
+    }
+
+    /// H55 Fatia 4: cicla o foco do teclado entre Prev (0), Hoje (1)
+    /// e Next (2). Sem foco → começa em Prev. Forward (Tab) avança;
+    /// reverso (Shift+Tab) volta.
+    pub fn cycle_focus(&mut self, forward: bool) {
+        if self.kind != AppletKind::Calendar { return; }
+        let cur = self.calendar_focus.unwrap_or(if forward { 2 } else { 0 });
+        let next = if forward {
+            (cur + 1) % 3
+        } else {
+            (cur + 2) % 3
+        };
+        self.calendar_focus = Some(next);
+    }
+
+    /// H55 Fatia 4: aciona a zona com foco do teclado (Enter).
+    pub fn activate_focused(&mut self) {
+        if self.kind != AppletKind::Calendar { return; }
+        match self.calendar_focus {
+            Some(0) => self.prev_month(),
+            Some(1) => self.reset_to_today(),
+            Some(2) => self.next_month(),
+            _ => {}
         }
     }
 

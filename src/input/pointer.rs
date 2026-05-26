@@ -52,6 +52,27 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // H55 Fatia 4: hover do mouse sobre as setas do calendário.
+    // Atualiza popup.calendar_hover pra o render pintar com seta_fg_hover.
+    if let Some(p) = state.applet_popup.as_mut() {
+        if p.kind == crate::popup::AppletKind::Calendar {
+            let mut new_hover: Option<u8> = None;
+            if state.tray.last_clock_rect.is_some() { /* gate visual */ }
+            if state.calendar_prev_rect
+                .map_or(false, |r| r.to_f64().contains(pos))
+            {
+                new_hover = Some(0);
+            } else if state.calendar_next_rect
+                .map_or(false, |r| r.to_f64().contains(pos))
+            {
+                new_hover = Some(2);
+            }
+            if p.calendar_hover != new_hover {
+                p.calendar_hover = new_hover;
+            }
+        }
+    }
+
     // H54.P5.fix: hover sobre item do histórico — usa os rects
     // cacheados pelo render path (altura por item é dinâmica, varia
     // com nº de linhas do body).

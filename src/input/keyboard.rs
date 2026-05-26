@@ -32,7 +32,7 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let calendar_open = state.applet_popup.as_ref()
         .map(|p| p.kind == crate::popup::AppletKind::Calendar)
         .unwrap_or(false);
-    enum CalNav { Prev, Next }
+    enum CalNav { Prev, Next, TabFwd, TabBack, Enter }
     let mut cal_nav: Option<CalNav> = None;
     // H47a.tray.2: painel de overflow aberto intercepta Esc.
     let tray_overflow_open = state.tray.overflow_open;
@@ -104,6 +104,20 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                     }
                     if sym == Keysym::Right {
                         cal_nav = Some(CalNav::Next);
+                        return FilterResult::Intercept(());
+                    }
+                    // Fatia 4: Tab cicla foco entre Prev/Hoje/Next.
+                    if sym == Keysym::Tab {
+                        let shift = _modifiers.shift;
+                        cal_nav = Some(if shift {
+                            CalNav::TabBack
+                        } else {
+                            CalNav::TabFwd
+                        });
+                        return FilterResult::Intercept(());
+                    }
+                    if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                        cal_nav = Some(CalNav::Enter);
                         return FilterResult::Intercept(());
                     }
                 }
@@ -275,6 +289,9 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             match nav {
                 CalNav::Prev => p.prev_month(),
                 CalNav::Next => p.next_month(),
+                CalNav::TabFwd => p.cycle_focus(true),
+                CalNav::TabBack => p.cycle_focus(false),
+                CalNav::Enter => p.activate_focused(),
             }
         }
         return;

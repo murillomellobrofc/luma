@@ -476,3 +476,31 @@ indicador visual. Adicionar um chip pequeno tipo "+N" no canto
 inferior do último toast quando `queue.len() > 0`. Custo: layout +
 1 SolidColorBuffer + 1 text rasterize. Pequeno, vale virar etapa
 separada (P3.5) pra não acumular escopo na P3.
+
+---
+
+## Calendário H55: i18n + animação da casca
+
+**Status:** adiado.
+
+### Strings PT-BR fixas
+
+Nomes de mês ("Janeiro", "janeiro") e dias da semana ("dom", "Domingo")
+estão hardcoded em `src/backends/winit.rs` (render do calendário).
+Nenhum sistema de i18n geral existe ainda no Luma.
+
+**Quando desbloqueia:** quando existir a tela de configurações
+nativa + sistema de locale do Luma (provavelmente envolve crate
+`rust-i18n` ou similar + leitura de `LC_TIME` / arquivos `.po`).
+
+### Animação de entrada/saída do popup
+
+Spec H55 Fatia 4 pediu animação de entrada/saída pro calendário,
+mas a casca de applet do Volume (H44) tampouco tem — o spec
+assumiu que existia. Implementar só pro Calendar quebra a unidade
+da casca; implementar pra ambos é refactor da `AppletPopup` (track
+opened_at, render path computa alpha por frame, propaga pra cada
+MemoryRenderBufferRenderElement).
+
+**Quando desbloqueia:** quando for fazer polish geral pré-v1.0 OU
+quando alguém pedir, junto com `prefers-reduced-motion` (PCD Max).
