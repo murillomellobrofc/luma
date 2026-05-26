@@ -1,0 +1,110 @@
+<svg viewBox="0 0 1280 1200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1F1611"/>
+      <stop offset="100%" stop-color="#3D2520"/>
+    </linearGradient>
+    <filter id="toastShadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="20" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="1200" fill="#FBF6EE"/>
+
+  <text x="60" y="58" font-family="Georgia, serif" font-size="34" font-weight="600" fill="#1F1611">Luma — Notificação Toast (estilo macOS)</text>
+  <text x="60" y="86" font-family="system-ui, sans-serif" font-size="13" fill="#8B7D72">Aviso aparece no canto superior direito, fica uns segundos, some sozinho</text>
+  <line x1="60" y1="108" x2="1220" y2="108" stroke="#E8DDD0"/>
+
+  <!-- ===== 1. ONDE APARECE ===== -->
+  <text x="60" y="146" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">1 — ONDE APARECE (canto superior direito)</text>
+
+  <g transform="translate(60, 170)">
+    <rect width="1160" height="320" fill="url(#wall)" rx="12"/>
+
+    <!-- toast no canto -->
+    <g transform="translate(830, 30)" filter="url(#toastShadow)">
+      <rect width="300" height="84" rx="18" fill="#2A2520"/>
+      <rect width="300" height="84" rx="18" fill="none" stroke="#FBF6EE" stroke-width="1" opacity="0.08"/>
+      <!-- icone do app -->
+      <rect x="16" y="18" width="48" height="48" rx="11" fill="#D97757"/>
+      <circle cx="40" cy="42" r="13" fill="#FBF6EE" opacity="0.9"/>
+      <!-- texto -->
+      <text x="80" y="38" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#FBF6EE">Mensagens</text>
+      <text x="80" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Você tem uma nova mensagem</text>
+      <!-- horario -->
+      <text x="284" y="34" font-family="system-ui, sans-serif" font-size="10" fill="#8B7D72" text-anchor="end">agora</text>
+    </g>
+
+    <text x="980" y="150" font-family="system-ui, sans-serif" font-size="11" fill="#FBF6EE" text-anchor="middle" opacity="0.6">margem da borda</text>
+    <line x1="1130" y1="30" x2="1130" y2="114" stroke="#E89B3D" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+    <line x1="830" y1="20" x2="1130" y2="20" stroke="#E89B3D" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+
+    <text x="160" y="280" font-family="system-ui, sans-serif" font-size="12" fill="#FBF6EE" opacity="0.8">O toast surge no canto superior direito, com um leve fade-in + slide.</text>
+  </g>
+
+  <!-- ===== 2. ANATOMIA ===== -->
+  <text x="60" y="536" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">2 — ANATOMIA DO TOAST</text>
+
+  <g transform="translate(60, 560)">
+    <rect width="1160" height="240" fill="#FFFFFF" rx="8" stroke="#E8DDD0"/>
+
+    <!-- toast ampliado -->
+    <g transform="translate(50, 50)">
+      <rect width="380" height="106" rx="22" fill="#2A2520"/>
+      <rect x="20" y="22" width="62" height="62" rx="14" fill="#D97757"/>
+      <circle cx="51" cy="53" r="17" fill="#FBF6EE" opacity="0.9"/>
+      <text x="100" y="50" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#FBF6EE">Título do app</text>
+      <text x="100" y="74" font-family="system-ui, sans-serif" font-size="13" fill="#C9BDB0">Corpo da mensagem da notificação</text>
+      <text x="360" y="44" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72" text-anchor="end">agora</text>
+    </g>
+
+    <g stroke="#D97757" stroke-width="1" stroke-dasharray="3 3">
+      <line x1="450" y1="80" x2="540" y2="80"/>
+      <line x1="450" y1="110" x2="540" y2="110"/>
+      <line x1="450" y1="134" x2="540" y2="134"/>
+    </g>
+    <text x="555" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Ícone do app 62×62</text>
+    <text x="555" y="82" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">cantos arredondados, vem da notificação ou do resolvedor</text>
+    <text x="555" y="106" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Título — negrito, cream</text>
+    <text x="555" y="124" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">nome do app que enviou</text>
+    <text x="555" y="148" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Corpo — texto da mensagem</text>
+    <text x="555" y="166" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">corta com reticências se for muito longo (máx 2 linhas)</text>
+
+    <text x="850" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#1F1611" font-weight="700">Estilo macOS:</text>
+    <text x="850" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">cantos bem arredondados (~22)</text>
+    <text x="850" y="106" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">sombra suave e generosa</text>
+    <text x="850" y="126" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">fundo escuro Golden Hour</text>
+    <text x="850" y="146" font-family="system-ui, sans-serif" font-size="11" fill="#4A3933">layout limpo, respirado</text>
+  </g>
+
+  <!-- ===== 3. COMPORTAMENTO ===== -->
+  <text x="60" y="846" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">3 — COMPORTAMENTO</text>
+
+  <g transform="translate(60, 870)">
+    <rect width="565" height="200" fill="#EFEAE0" rx="8"/>
+    <text x="30" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#1F1611" font-weight="700">✓ FAZ NESTA ETAPA</text>
+    <text x="30" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Receber notificações via D-Bus</text>
+    <text x="30" y="90" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">(org.freedesktop.Notifications)</text>
+    <text x="30" y="116" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Mostrar 1 toast no canto sup. direito</text>
+    <text x="30" y="138" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Fade-in + slide ao aparecer</text>
+    <text x="30" y="160" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Some sozinho após ~5s (fade-out)</text>
+    <text x="30" y="182" font-family="system-ui, sans-serif" font-size="12" fill="#4A3933">Clicar no toast fecha ele</text>
+
+    <rect x="595" width="565" height="200" fill="#2A1F1A" rx="8"/>
+    <text x="625" y="40" font-family="system-ui, sans-serif" font-size="13" fill="#F5D5A8" font-weight="700">✗ FICA PRA DEPOIS</text>
+    <text x="625" y="68" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Empilhar vários toasts</text>
+    <text x="625" y="90" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Agrupar por app</text>
+    <text x="625" y="112" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Central de notificações (histórico)</text>
+    <text x="625" y="134" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Botões de ação na notificação</text>
+    <text x="625" y="156" font-family="system-ui, sans-serif" font-size="12" fill="#C9BDB0">Som de notificação</text>
+    <text x="625" y="184" font-family="system-ui, sans-serif" font-size="11" fill="#8B7D72">cada uma é uma fase futura própria</text>
+  </g>
+
+  <!-- ===== 4. TOKENS ===== -->
+  <text x="60" y="1116" font-family="system-ui, sans-serif" font-size="11" letter-spacing="2" fill="#8B7D72">4 — TOKENS (theme.toml)</text>
+
+  <g transform="translate(60, 1130)">
+    <rect width="1160" height="50" fill="#1F1611" rx="10"/>
+    <text x="24" y="30" font-family="monospace" font-size="10.5" fill="#FBF6EE">[notifications]  <tspan fill="#A89D92">width=380  corner=22  bg="#2A2520"  icon_size=62  timeout_ms=5000  margin=20  fade_ms=250  max_body_lines=2</tspan></text>
+  </g>
+</svg>

@@ -126,6 +126,8 @@ pub struct Theme {
     pub wallpaper: WallpaperTokens,
     /// Grid de ícones de arquivo no desktop. H50.
     pub desktop_icons: DesktopIconsTokens,
+    /// Toast de notificação D-Bus (canto superior direito). H54.
+    pub notifications: NotificationsTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1040,6 +1042,30 @@ impl Default for Theme {
             context_menu: ContextMenuTokens::default(),
             wallpaper: WallpaperTokens::default(),
             desktop_icons: DesktopIconsTokens::default(),
+            notifications: NotificationsTokens::default(),
+        }
+    }
+}
+
+impl Default for NotificationsTokens {
+    fn default() -> Self {
+        Self {
+            width: 380,
+            corner: 22,
+            bg: hex_color("#2A2520", 0.96),
+            title_color: hex_color("#FBF6EE", 1.0),
+            body_color: hex_color("#C9BDB0", 1.0),
+            time_color: hex_color("#8B7D72", 1.0),
+            icon_size: 62,
+            icon_corner: 14,
+            title_size: 14.0,
+            body_size: 12.0,
+            time_size: 11.0,
+            timeout_ms: 5000,
+            margin: 20,
+            fade_ms: 250,
+            max_body_lines: 2,
+            padding: 14,
         }
     }
 }
@@ -1760,6 +1786,27 @@ impl Default for OsdTokens {
             dismiss_ms: 1500,
         }
     }
+}
+
+/// Toast de notificação D-Bus (canto superior direito). H54.
+#[derive(Debug, Clone)]
+pub struct NotificationsTokens {
+    pub width: i32,
+    pub corner: i32,
+    pub bg: Color32F,
+    pub title_color: Color32F,
+    pub body_color: Color32F,
+    pub time_color: Color32F,
+    pub icon_size: i32,
+    pub icon_corner: i32,
+    pub title_size: f32,
+    pub body_size: f32,
+    pub time_size: f32,
+    pub timeout_ms: u64,
+    pub margin: i32,
+    pub fade_ms: u64,
+    pub max_body_lines: usize,
+    pub padding: i32,
 }
 
 /// Grid de ícones de arquivo no desktop. H50.
@@ -2655,6 +2702,7 @@ impl ThemeFile {
             context_menu: default.context_menu.clone(),
             wallpaper: default.wallpaper.clone(),
             desktop_icons: default.desktop_icons.clone(),
+            notifications: default.notifications.clone(),
         }
     }
 }
