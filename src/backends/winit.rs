@@ -2995,16 +2995,82 @@ pub fn init_winit(
                                 ) {
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
-                                // Placeholder: "Calendário (em construção)"
-                                // centralizado. Substituído pela grade
-                                // real na Fatia 2.
+                                // H55 Fatia 2: grade estática do mês atual.
+                                // Header (título), linha dos dias da semana,
+                                // grid 6×7 com hoje em coral, vizinhos
+                                // apagados. Sem navegação ainda (Fatia 3),
+                                // sem rodapé (Fatia 4).
+                                let t_cal = &theme.calendario;
                                 if let Some(text_r) = data.state.text.as_ref() {
-                                    let (px, w, h) = text_r.rasterize_colored(
-                                        "Calendário (em construção)",
-                                        14.0,
-                                        theme.colors.text_secondary,
+                                    use chrono::{Datelike, Local, NaiveDate};
+                                    let today = Local::now().date_naive();
+                                    let y = today.year();
+                                    let m = today.month();
+                                    let d_today = today.day();
+                                    // Strings PT-BR fixas (i18n é debt
+                                    // — anotado em docs/DEBT.md).
+                                    let meses = [
+                                        "Janeiro", "Fevereiro", "Março",
+                                        "Abril", "Maio", "Junho", "Julho",
+                                        "Agosto", "Setembro", "Outubro",
+                                        "Novembro", "Dezembro",
+                                    ];
+                                    let mes_label = meses
+                                        .get((m as usize).saturating_sub(1))
+                                        .copied()
+                                        .unwrap_or("");
+                                    let titulo = format!("{} {}", mes_label, y);
+                                    // Mês exibido = mês atual (Fatia 2).
+                                    // Fatia 3 separa displayed_*/today_*.
+                                    let displayed_year = y;
+                                    let displayed_month = m;
+                                    let show_today_highlight = true;
+
+                                    // 1. Título centralizado no header.
+                                    let (px, tw, th) = text_r.rasterize_colored(
+                                        &titulo,
+                                        t_cal.titulo_size,
+                                        t_cal.titulo_fg,
                                     );
-                                    if w > 0 && h > 0 {
+                                    if tw > 0 && th > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (tw as i32, th as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let tx = o.x + (popup.size.w - tw as i32) / 2;
+                                        let ty = o.y + t_cal.padding_vertical
+                                            + (t_cal.header_height - th as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+
+                                    // 2. Linha dos dias da semana
+                                    //    (dom seg ter qua qui sex sáb).
+                                    let dias_semana = ["dom","seg","ter","qua","qui","sex","sáb"];
+                                    let grid_left = o.x + t_cal.padding_lateral;
+                                    let diasemana_y = o.y + t_cal.padding_vertical
+                                        + t_cal.header_height;
+                                    for (col, lbl) in dias_semana.iter().enumerate() {
+                                        let (px, w, h) = text_r.rasterize_colored(
+                                            lbl,
+                                            t_cal.diasemana_size,
+                                            t_cal.diasemana_fg,
+                                        );
+                                        if w == 0 || h == 0 {
+                                            continue;
+                                        }
                                         let buf = MemoryRenderBuffer::from_slice(
                                             &px,
                                             smithay::backend::allocator::Fourcc::Argb8888,
@@ -3013,18 +3079,126 @@ pub fn init_winit(
                                             Transform::Normal,
                                             None,
                                         );
-                                        let tx = o.x + (popup.size.w - w as i32) / 2;
-                                        let ty = o.y + (popup.size.h - h as i32) / 2;
+                                        let cell_x = grid_left + (col as i32) * t_cal.cell_size;
+                                        let lx = cell_x + (t_cal.cell_size - w as i32) / 2;
+                                        let ly = diasemana_y
+                                            + (t_cal.diasemana_height - h as i32) / 2;
                                         let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
                                                 .to_physical_precise_round(1.0);
                                         if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                            renderer,
-                                            loc.to_f64(),
-                                            &buf,
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+
+                                    // 3. Grade 6×7. Calcula 42 células:
+                                    //    primeiras = fim do mês anterior,
+                                    //    meio = dias do mês exibido,
+                                    //    últimas = início do próximo mês.
+                                    let first_of_month = NaiveDate::from_ymd_opt(
+                                        displayed_year, displayed_month, 1,
+                                    ).unwrap_or(today);
+                                    // Domingo = 0 ... Sábado = 6.
+                                    let first_dow = first_of_month
+                                        .weekday()
+                                        .num_days_from_sunday() as i32;
+                                    // Dias do mês exibido:
+                                    let next_month_first = if displayed_month == 12 {
+                                        NaiveDate::from_ymd_opt(displayed_year + 1, 1, 1)
+                                    } else {
+                                        NaiveDate::from_ymd_opt(displayed_year, displayed_month + 1, 1)
+                                    }.unwrap_or(today);
+                                    let days_in_month = next_month_first
+                                        .signed_duration_since(first_of_month)
+                                        .num_days() as i32;
+                                    let prev_month_last = first_of_month
+                                        .pred_opt()
+                                        .unwrap_or(first_of_month);
+                                    let days_in_prev = prev_month_last.day() as i32;
+
+                                    let grid_top = diasemana_y + t_cal.diasemana_height;
+                                    for cell_idx in 0..42i32 {
+                                        let row = cell_idx / 7;
+                                        let col = cell_idx % 7;
+                                        let (label_num, is_neighbor, is_today_cell)
+                                            = if cell_idx < first_dow {
+                                                // Mês anterior (apagado).
+                                                let n = days_in_prev
+                                                    - (first_dow - 1 - cell_idx);
+                                                (n, true, false)
+                                            } else if cell_idx < first_dow + days_in_month {
+                                                let n = cell_idx - first_dow + 1;
+                                                let is_today = show_today_highlight
+                                                    && n as u32 == d_today;
+                                                (n, false, is_today)
+                                            } else {
+                                                // Mês seguinte (apagado).
+                                                let n = cell_idx - first_dow
+                                                    - days_in_month + 1;
+                                                (n, true, false)
+                                            };
+
+                                        let cell_x = grid_left + col * t_cal.cell_size;
+                                        let cell_y = grid_top + row * t_cal.cell_size;
+
+                                        // Hoje: quadrado coral inscrito
+                                        // na célula com ~3px de folga.
+                                        if is_today_cell {
+                                            let folga = 3;
+                                            let inner = t_cal.cell_size - folga * 2;
+                                            let bg = crate::gfx::make_rounded_panel(
+                                                inner, inner, t_cal.hoje_raio,
+                                                t_cal.hoje_bg,
+                                            );
+                                            let bx = cell_x + folga;
+                                            let by = cell_y + folga;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((bx, by))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &bg,
+                                                None, None, None,
+                                                Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+
+                                        // Número do dia.
+                                        let color = if is_today_cell {
+                                            t_cal.hoje_fg
+                                        } else if is_neighbor {
+                                            t_cal.dia_vizinho_fg
+                                        } else {
+                                            t_cal.dia_fg
+                                        };
+                                        let s = label_num.to_string();
+                                        let (px, w, h) = text_r.rasterize_colored(
+                                            &s, t_cal.dia_size, color,
+                                        );
+                                        if w == 0 || h == 0 {
+                                            continue;
+                                        }
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
                                             None,
-                                            None,
-                                            None,
+                                        );
+                                        let lx = cell_x + (t_cal.cell_size - w as i32) / 2;
+                                        let ly = cell_y + (t_cal.cell_size - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None,
                                             Kind::Unspecified,
                                         ) {
                                             custom_elements.insert(0, LumaRenderElement::Memory(elem));

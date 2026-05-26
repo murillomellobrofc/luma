@@ -128,6 +128,8 @@ pub struct Theme {
     pub desktop_icons: DesktopIconsTokens,
     /// Toast de notificação D-Bus (canto superior direito). H54.
     pub notifications: NotificationsTokens,
+    /// Popup de calendário ao clicar no relógio. H55.
+    pub calendario: CalendarTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1043,6 +1045,7 @@ impl Default for Theme {
             wallpaper: WallpaperTokens::default(),
             desktop_icons: DesktopIconsTokens::default(),
             notifications: NotificationsTokens::default(),
+            calendario: CalendarTokens::default(),
         }
     }
 }
@@ -1214,6 +1217,47 @@ impl Default for DesktopIconsTokens {
             rename_field_border_width: 2,
             rename_field_corner_radius: 6,
             rename_field_cursor_blink_ms: 500,
+        }
+    }
+}
+
+impl Default for CalendarTokens {
+    fn default() -> Self {
+        Self {
+            // Alvo de 40px = PCD hit target mínimo do Luma. Preset
+            // PCD Max sobe via theme.toml.
+            cell_size: 40,
+            padding_lateral: 12,
+            padding_vertical: 12,
+            header_height: 48,
+            diasemana_height: 28,
+            footer_height: 48,
+            // Cream pra título — alto contraste sobre coffee.
+            titulo_fg: hex_color("#FBF6EE", 1.0),
+            titulo_size: 16.0,
+            // Setas: cream apagado (~70%) que ganha alpha cheio no hover.
+            seta_fg: hex_color("#C9BDB0", 1.0),
+            seta_fg_hover: hex_color("#FBF6EE", 1.0),
+            // Dias da semana: cinza-quente, contraste ~5:1 (AA).
+            diasemana_fg: hex_color("#9A8B7E", 1.0),
+            diasemana_size: 11.0,
+            // Número do dia: cream cheio.
+            dia_fg: hex_color("#FBF6EE", 1.0),
+            dia_size: 14.0,
+            // Dia vizinho: apagado por matiz (cinza médio), NÃO por
+            // alpha. Contraste contra bg coffee ainda ~4.5:1 (AA).
+            dia_vizinho_fg: hex_color("#7A6F66", 1.0),
+            // Hoje: bg coral Golden Hour + número cream pra contraste
+            // 5.4:1 (AA). Raio do quadrado inscrito.
+            hoje_bg: hex_color("#D97757", 1.0),
+            hoje_fg: hex_color("#FBF6EE", 1.0),
+            hoje_raio: 6,
+            // Rodapé (Fatia 4).
+            rodape_fg: hex_color("#C9BDB0", 1.0),
+            rodape_size: 12.0,
+            hoje_botao_bg: hex_color("#3D2520", 0.55),
+            hoje_botao_fg: hex_color("#FBF6EE", 1.0),
+            hoje_botao_bg_hover: hex_color("#5A3A30", 0.75),
         }
     }
 }
@@ -2085,6 +2129,54 @@ pub struct DesktopIconsTokens {
     pub rename_field_border_width: i32,
     pub rename_field_corner_radius: i32,
     pub rename_field_cursor_blink_ms: u64,
+}
+
+/// Popup de calendário ao clicar no relógio. H55.
+/// Tudo deriva de `cell_size` — preset PCD Max sobe cell_size e o
+/// popup inteiro escala junto. Grade sempre 6×7 (tamanho do popup
+/// fixo independente do mês exibido).
+#[derive(Debug, Clone)]
+pub struct CalendarTokens {
+    /// Lado da célula de dia (px). Default 40 — alvo de clique
+    /// confortável. Preset PCD Max pode subir.
+    pub cell_size: i32,
+    /// Padding lateral interno do popup.
+    pub padding_lateral: i32,
+    /// Padding vertical (topo + base).
+    pub padding_vertical: i32,
+    /// Altura do cabeçalho (mês/ano + setas — setas vêm na Fatia 3).
+    pub header_height: i32,
+    /// Altura da linha dos dias da semana.
+    pub diasemana_height: i32,
+    /// Altura do rodapé (data por extenso + botão Hoje — Fatia 4).
+    pub footer_height: i32,
+    /// Cor do título "Maio 2026" no cabeçalho.
+    pub titulo_fg: Color32F,
+    pub titulo_size: f32,
+    /// Cor das setas anterior/próximo (Fatia 3).
+    pub seta_fg: Color32F,
+    pub seta_fg_hover: Color32F,
+    /// Cor dos rótulos dom/seg/ter... na linha dos dias da semana.
+    pub diasemana_fg: Color32F,
+    pub diasemana_size: f32,
+    /// Cor do número do dia (mês exibido).
+    pub dia_fg: Color32F,
+    pub dia_size: f32,
+    /// Cor do número de dia de mês vizinho (apagado por matiz, não
+    /// por contraste — passa AA mesmo apagado).
+    pub dia_vizinho_fg: Color32F,
+    /// Destaque do hoje: bg coral, fg cream, raio do quadrado
+    /// inscrito na célula com folga ~3px.
+    pub hoje_bg: Color32F,
+    pub hoje_fg: Color32F,
+    pub hoje_raio: i32,
+    /// Cor da data por extenso no rodapé (Fatia 4).
+    pub rodape_fg: Color32F,
+    pub rodape_size: f32,
+    /// Botão "Hoje" do rodapé (Fatia 4).
+    pub hoje_botao_bg: Color32F,
+    pub hoje_botao_fg: Color32F,
+    pub hoje_botao_bg_hover: Color32F,
 }
 
 /// Wallpaper padrão shipado com o luma. H49.
@@ -2963,6 +3055,7 @@ impl ThemeFile {
             wallpaper: default.wallpaper.clone(),
             desktop_icons: default.desktop_icons.clone(),
             notifications,
+            calendario: default.calendario.clone(),
         }
     }
 }
