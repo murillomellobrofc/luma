@@ -2633,6 +2633,42 @@ pub fn init_winit(
                             ) {
                                 custom_elements.push(LumaRenderElement::Memory(elem));
                             }
+                            // H55: clock "acende" na taskbar quando o
+                            // popup do calendário está aberto. Bg
+                            // applet_bg_active com folga lateral pra
+                            // hit target visual ~40px. Push depois dos
+                            // labels = atrás deles (end of vec = back).
+                            let calendar_open_visual =
+                                data.state.applet_popup.as_ref()
+                                    .map(|p| p.kind == crate::popup::AppletKind::Calendar)
+                                    .unwrap_or(false);
+                            if calendar_open_visual {
+                                let th = crate::theme::current();
+                                let tb_h = crate::taskbar::taskbar_height();
+                                let pad_h = 10i32;
+                                let right_edge = (time_pt.x + time_size.w)
+                                    .max(date_pt.x + date_size.w);
+                                let left_edge = time_pt.x.min(date_pt.x);
+                                let zone_w = right_edge - left_edge;
+                                let bg_w = zone_w + pad_h * 2;
+                                let bg_h = (tb_h - 6).max(28);
+                                let bg_x = left_edge - pad_h;
+                                let bg_y = (output_size_logical.h - tb_h)
+                                    + (tb_h - bg_h) / 2;
+                                let bg = crate::gfx::make_rounded_panel(
+                                    bg_w, bg_h, 8, th.colors.applet_bg_active,
+                                );
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((bg_x, bg_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, loc.to_f64(), &bg,
+                                    None, None, None,
+                                    Kind::Unspecified,
+                                ) {
+                                    custom_elements.push(LumaRenderElement::Memory(elem));
+                                }
+                            }
                         }
 
                         // Launcher (container 32x32 com mini logo Luma desenhado
