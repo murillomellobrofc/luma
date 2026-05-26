@@ -4086,6 +4086,55 @@ pub fn init_winit(
                                 reason,
                             );
                         }
+                        // H54.P6: itera visible coletando os que têm
+                        // sound_pending=true. Aplica regras de silêncio
+                        // (DND-on para !critical, sound toggle off) e
+                        // toca via SoundEngine. Limpa o flag — toca uma
+                        // vez por toast (entry de fila herda o flag).
+                        {
+                            let to_play: Vec<(Option<String>, crate::notifications::Urgency)> =
+                                match data.state.notifications.lock() {
+                                    Ok(mut g) => {
+                                        let sound_on = g.sound_enabled;
+                                        let dnd_on = g.dnd_enabled;
+                                        let mut acc: Vec<_> = Vec::new();
+                                        for e in g.visible.iter_mut() {
+                                            if !e.sound_pending {
+                                                continue;
+                                            }
+                                            e.sound_pending = false;
+                                            // DND on suprime som de !critical.
+                                            if dnd_on && e.urgency != crate::notifications::Urgency::Critical {
+                                                continue;
+                                            }
+                                            // Toggle de som desligado: nada toca.
+                                            if !sound_on {
+                                                continue;
+                                            }
+                                            acc.push((e.sound_file.clone(), e.urgency));
+                                        }
+                                        acc
+                                    }
+                                    Err(_) => Vec::new(),
+                                };
+                            if !to_play.is_empty() {
+                                if let Some(eng) = data.state.sound.as_ref() {
+                                    let t_n_p = crate::theme::current().notifications.clone();
+                                    for (file, urgency) in to_play {
+                                        let path_str = match file {
+                                            Some(p) => p,
+                                            None => match urgency {
+                                                crate::notifications::Urgency::Critical => {
+                                                    t_n_p.sound_critical_path.clone()
+                                                }
+                                                _ => t_n_p.sound_default_path.clone(),
+                                            },
+                                        };
+                                        eng.play_file(std::path::Path::new(&path_str));
+                                    }
+                                }
+                            }
+                        }
                         // Snapshot da lista visible.
                         let mut visible_snap: Vec<crate::notifications::NotificationEntry> =
                             match data.state.notifications.lock() {
@@ -4608,22 +4657,25 @@ pub fn init_winit(
                         // H54.P5: central de notificações (painel borda direita).
                         // Renderiza acima dos toasts quando open_factor > 0.
                         {
-                            let (history_snap, dnd_on, panel_open, open_factor) =
+                            let (history_snap, dnd_on, sound_on, panel_open, open_factor) =
                                 match data.state.notifications.lock() {
                                     Ok(g) => (
                                         g.history.iter().cloned().collect::<Vec<_>>(),
                                         g.dnd_enabled,
+                                        g.sound_enabled,
                                         g.panel_open,
                                         crate::notifications::panel_open_factor(&g),
                                     ),
-                                    Err(_) => (Vec::new(), false, false, 0.0),
+                                    Err(_) => (Vec::new(), false, true, false, 0.0),
                                 };
                             if open_factor <= 0.001 {
                                 data.state.notification_panel_rect = None;
                                 data.state.notification_dnd_rect = None;
                                 data.state.notification_clear_rect = None;
+                                data.state.notification_sound_rect = None;
                                 data.state.notification_history_dismiss_rects.clear();
                                 data.state.notification_history_hover = None;
+                                let _ = sound_on;
                             } else {
                                 let t_n = crate::theme::current().notifications.clone();
                                 let text_r = data.state.text.as_ref();
@@ -4802,9 +4854,52 @@ pub fn init_winit(
                                     } else {
                                         data.state.notification_dnd_rect = None;
                                     }
+                                    // H54.P6: toggle de som à esquerda do DND.
+                                    // Independente do DND — sound off deixa
+                                    // toast aparecer mas mudo.
+                                    let snd_label = if sound_on { "Som" } else { "Som off" };
+                                    let (snd_px, snd_w, snd_h) = tr.rasterize_colored(
+                                        snd_label,
+                                        t_n.panel_btn_label_size,
+                                        t_n.panel_btn_label_color,
+                                    );
+                                    let snd_btn_w = snd_w as i32 + t_n.panel_btn_padding_h * 2;
+                                    let snd_x = dnd_x - 10 - snd_btn_w;
+                                    // Off destaca com cor diferente (não amber
+                                    // como DND — "som off" não é estado de
+                                    // alerta, só estado).
+                                    let snd_bg = if sound_on {
+                                        t_n.panel_btn_bg
+                                    } else {
+                                        t_n.panel_dnd_active_bg
+                                    };
+                                    let snd_bg_buf = crate::gfx::make_rounded_panel(
+                                        snd_btn_w, btn_h, t_n.panel_btn_corner, snd_bg,
+                                    );
+                                    push_buf(&mut custom_elements, &snd_bg_buf, snd_x, btn_y, renderer, true);
+                                    if snd_w > 0 && snd_h > 0 {
+                                        let lbl_buf = MemoryRenderBuffer::from_slice(
+                                            &snd_px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (snd_w as i32, snd_h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = snd_x + (snd_btn_w - snd_w as i32) / 2;
+                                        let ly = btn_y + (btn_h - snd_h as i32) / 2;
+                                        push_buf(&mut custom_elements, &lbl_buf, lx, ly, renderer, true);
+                                    }
+                                    if panel_open && open_factor >= 0.999 {
+                                        data.state.notification_sound_rect =
+                                            Some((snd_x, btn_y, snd_btn_w, btn_h));
+                                    } else {
+                                        data.state.notification_sound_rect = None;
+                                    }
                                 } else {
                                     data.state.notification_clear_rect = None;
                                     data.state.notification_dnd_rect = None;
+                                    data.state.notification_sound_rect = None;
                                 }
 
                                 // Lista de itens (ou empty state). H54.P5.fix:

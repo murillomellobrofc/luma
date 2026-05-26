@@ -113,6 +113,17 @@ pub struct NotificationEntry {
     pub transient: bool,
     /// Urgência da notificação. Critical fura o DND. H54.P5.
     pub urgency: Urgency,
+    /// Som ainda não tocou e tem que tocar quando o toast virar visível.
+    /// True em fresh creates não-silenciadas; false em updates (linhagem
+    /// via replaces_id), em low urgency, transient, suppress_sound, e
+    /// DND-on (não critical) que vai direto pra história. H54.P6.
+    pub sound_pending: bool,
+    /// Hint `suppress-sound`: se true, nunca toca som mesmo no fresh
+    /// create. Combinado com outras regras de silêncio. H54.P6.
+    pub suppress_sound: bool,
+    /// Hint `sound-file`: path do som do app. Quando presente e não
+    /// silenciado, toca esse no lugar do som padrão do Luma. H54.P6.
+    pub sound_file: Option<String>,
 }
 
 /// Entrada do histórico da central. Sem state de animação/timer —
@@ -173,6 +184,10 @@ pub struct NotificationsState {
     /// Do Not Disturb ligado: novas notif normais vão direto pro
     /// histórico, silenciosas. Critical fura. H54.P5.
     pub dnd_enabled: bool,
+    /// Toggle de som: independente do DND. Som desligado deixa o
+    /// toast aparecer mas sem áudio. DND ligado supprime os dois
+    /// (toast + som) juntos. H54.P6.
+    pub sound_enabled: bool,
     /// Painel da central aberto. Quando aberto, novas notif que
     /// caem no histórico não incrementam `unread_count` (já vista).
     /// H54.P5.
@@ -265,6 +280,12 @@ pub fn dismiss_history_item(state: &mut NotificationsState, id: u32) {
 pub fn toggle_dnd(state: &mut NotificationsState) -> bool {
     state.dnd_enabled = !state.dnd_enabled;
     state.dnd_enabled
+}
+
+/// Alterna som. Retorna o novo estado. H54.P6.
+pub fn toggle_sound(state: &mut NotificationsState) -> bool {
+    state.sound_enabled = !state.sound_enabled;
+    state.sound_enabled
 }
 
 /// Abre o painel da central. Zera badge, marca como vista, e dispara
@@ -360,6 +381,8 @@ pub fn emit_notification_closed(
 /// Retorna o slot compartilhado. Se LUMA_FAKE_NOTIFICATION é setado,
 /// injeta fakes pra teste visual.
 pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
+    let sound_default_on =
+        crate::theme::current().notifications.sound_enabled_default;
     let slot: NotificationsSlot = Arc::new(Mutex::new(NotificationsState {
         visible: Vec::new(),
         queue: VecDeque::new(),
@@ -367,6 +390,7 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         next_id: 1,
         history: VecDeque::new(),
         dnd_enabled: false,
+        sound_enabled: sound_default_on,
         panel_open: false,
         unread_count: 0,
         panel_anim_started_at: None,
@@ -515,6 +539,9 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             } else {
                 None
             };
+            // H54.P6: update nunca toca som, mesmo se o som ainda
+            // não tinha tocado por algum motivo.
+            existing.sound_pending = false;
             return replaces_id;
         }
         // (2) Tenta na queue.
@@ -530,6 +557,7 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             q.resident = entry.resident;
             q.transient = entry.transient;
             q.urgency = entry.urgency;
+            q.sound_pending = false;
             return replaces_id;
         }
         // (3) H54.P5: tenta no histórico. Se achar, atualiza a
@@ -557,7 +585,9 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
                 // Só atualiza histórico — não popa toast.
                 return replaces_id;
             }
-            // Re-popa toast: cai no fluxo normal abaixo.
+            // Re-popa toast como evento novo. H54.P6: update nunca
+            // retoca som, mesmo no re-pop.
+            entry.sound_pending = false;
         }
         // Cai pro caminho de criar novo, usando replaces_id.
     }
@@ -700,6 +730,9 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
         resident: false,
         transient: false,
         urgency: Urgency::Normal,
+        sound_pending: true,
+        suppress_sound: false,
+        sound_file: None,
     };
     if let Ok(mut g) = slot.lock() {
         apply_notify(&mut g, entry);
@@ -765,6 +798,19 @@ impl NotificationServer {
             .get("transient")
             .and_then(|v| bool::try_from(v.clone()).ok())
             .unwrap_or(false);
+        let suppress_sound = hints
+            .get("suppress-sound")
+            .and_then(|v| bool::try_from(v.clone()).ok())
+            .unwrap_or(false);
+        let sound_file = hints
+            .get("sound-file")
+            .and_then(|v| String::try_from(v.clone()).ok());
+        // H54.P6: regras de silêncio iniciais (urgency, suppress,
+        // transient) — DND e sound_enabled são checados no momento
+        // do play. Update via replaces_id zera sound_pending depois.
+        let initial_sound_pending = !suppress_sound
+            && !transient
+            && urgency != Urgency::Low;
         let entry = NotificationEntry {
             id: replaces_id,
             app_name,
@@ -788,6 +834,9 @@ impl NotificationServer {
             resident,
             transient,
             urgency,
+            sound_pending: initial_sound_pending,
+            suppress_sound,
+            sound_file,
         };
         let id = if let Ok(mut g) = self.slot.lock() {
             apply_notify(&mut g, entry)

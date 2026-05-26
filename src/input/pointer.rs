@@ -528,6 +528,23 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 pointer.frame(state);
                 return;
             }
+            // H54.P6: Sound toggle.
+            let snd_hit = state.notification_sound_rect.map_or(false, |(x, y, w, h)| {
+                pointer_pos.x >= x as f64
+                    && pointer_pos.x < (x + w) as f64
+                    && pointer_pos.y >= y as f64
+                    && pointer_pos.y < (y + h) as f64
+            });
+            if snd_hit {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::toggle_sound(&mut g);
+                }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
             // Clear all.
             let clear_hit = state.notification_clear_rect.map_or(false, |(x, y, w, h)| {
                 pointer_pos.x >= x as f64
