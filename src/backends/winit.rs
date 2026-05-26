@@ -4628,7 +4628,10 @@ pub fn init_winit(
                                 let t_n = crate::theme::current().notifications.clone();
                                 let text_r = data.state.text.as_ref();
                                 let panel_w = t_n.panel_width;
-                                let panel_h = output_size_logical.h;
+                                // H54.P5.fix.taskbar: para na borda de cima da
+                                // taskbar — não sobrepõe os ícones do tray.
+                                let panel_h = output_size_logical.h
+                                    - crate::taskbar::taskbar_height();
                                 // Slide: x vai de output_w (factor=0, fora) até
                                 // output_w - panel_w (factor=1, dentro).
                                 let panel_x = output_size_logical.w
