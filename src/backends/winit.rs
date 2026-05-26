@@ -4663,17 +4663,32 @@ pub fn init_winit(
                                     }
                                 };
 
-                                // Sombra da borda esquerda do painel (faixa
-                                // translúcida estreita, fake mas funcional).
-                                let shadow_w = t_n.panel_shadow_blur;
-                                if shadow_w > 0 {
-                                    let shadow_buf = crate::gfx::make_rounded_panel(
-                                        shadow_w, panel_h, 0, t_n.panel_shadow_color,
+                                // H54.P5.fix: sombra esquerda 2 layers (contact
+                                // + ambient) com decay gaussiano horizontal —
+                                // mesma linguagem e tokens dos toasts.
+                                let ambient_blur = t_n.shadow_ambient_blur;
+                                if ambient_blur > 0 {
+                                    let amb = crate::gfx::make_left_edge_shadow(
+                                        ambient_blur, panel_h, t_n.shadow_color_ambient,
                                     );
                                     push_buf(
                                         &mut custom_elements,
-                                        &shadow_buf,
-                                        panel_x - shadow_w,
+                                        &amb,
+                                        panel_x - ambient_blur,
+                                        panel_y,
+                                        renderer,
+                                        false,
+                                    );
+                                }
+                                let contact_blur = t_n.shadow_contact_blur;
+                                if contact_blur > 0 {
+                                    let con = crate::gfx::make_left_edge_shadow(
+                                        contact_blur, panel_h, t_n.shadow_color_contact,
+                                    );
+                                    push_buf(
+                                        &mut custom_elements,
+                                        &con,
+                                        panel_x - contact_blur,
                                         panel_y,
                                         renderer,
                                         false,
@@ -4789,14 +4804,15 @@ pub fn init_winit(
                                     data.state.notification_dnd_rect = None;
                                 }
 
-                                // Lista de itens (ou empty state).
+                                // Lista de itens (ou empty state). H54.P5.fix:
+                                // altura dinâmica por item — body wrapped até
+                                // panel_item_max_body_lines com "…" no overflow.
                                 data.state.notification_history_dismiss_rects.clear();
+                                data.state.notification_history_item_rects.clear();
                                 let list_top_y = panel_y + header_h + t_n.panel_item_gap;
-                                let item_h = t_n.panel_item_height;
                                 let item_gap = t_n.panel_item_gap;
                                 let hover_id = data.state.notification_history_hover;
                                 if history_snap.is_empty() {
-                                    // Empty state centralizado verticalmente.
                                     if let Some(tr) = text_r {
                                         let (px, w, h) = tr.rasterize_colored(
                                             "Sem notificações",
@@ -4817,15 +4833,68 @@ pub fn init_winit(
                                             push_buf(&mut custom_elements, &buf, ex, ey, renderer, true);
                                         }
                                     }
-                                } else {
-                                    for (i, entry) in history_snap.iter().enumerate() {
-                                        let item_y = list_top_y + (i as i32) * (item_h + item_gap);
-                                        // Para de renderizar se passou da área visível.
-                                        if item_y + item_h > panel_h - pad {
+                                } else if let Some(tr) = text_r {
+                                    let inner_pad = t_n.panel_item_padding;
+                                    let icon_dst = t_n.panel_item_icon_size;
+                                    let item_x = panel_x + pad;
+                                    let item_w = panel_w - pad * 2;
+                                    // Largura do texto disponível: subtrai
+                                    // ícone, paddings internos, e reserva
+                                    // espaço pro time (~50px).
+                                    let text_left_local = inner_pad + icon_dst + inner_pad;
+                                    let text_w = (item_w - text_left_local - inner_pad - 50).max(20);
+                                    let mut cur_y = list_top_y;
+                                    for entry in history_snap.iter() {
+                                        // Wrap título (1 linha com "…" se sobrar)
+                                        // e body (até max_body_lines).
+                                        let title_lines = wrap_to_lines_pixels(
+                                            &entry.summary,
+                                            tr,
+                                            t_n.panel_item_title_size,
+                                            t_n.panel_item_title_color,
+                                            text_w,
+                                            1,
+                                        );
+                                        let body_lines = wrap_to_lines_pixels(
+                                            &entry.body,
+                                            tr,
+                                            t_n.panel_item_body_size,
+                                            t_n.panel_item_body_color,
+                                            text_w,
+                                            t_n.panel_item_max_body_lines,
+                                        );
+                                        // Altura de uma linha de cada (mede o "M"
+                                        // só pra ter h estável).
+                                        let title_line_h = tr
+                                            .rasterize_colored(
+                                                "M",
+                                                t_n.panel_item_title_size,
+                                                t_n.panel_item_title_color,
+                                            )
+                                            .2 as i32;
+                                        let body_line_h = tr
+                                            .rasterize_colored(
+                                                "M",
+                                                t_n.panel_item_body_size,
+                                                t_n.panel_item_body_color,
+                                            )
+                                            .2 as i32;
+                                        let body_gap = 2;
+                                        let text_block_h = title_line_h
+                                            + 4
+                                            + (body_lines.len() as i32)
+                                                * (body_line_h + body_gap);
+                                        let item_h = (icon_dst + inner_pad * 2)
+                                            .max(text_block_h + inner_pad * 2);
+                                        if cur_y + item_h > panel_h - pad {
                                             break;
                                         }
-                                        let item_x = panel_x + pad;
-                                        let item_w = panel_w - pad * 2;
+                                        let item_y = cur_y;
+                                        if panel_open && open_factor >= 0.999 {
+                                            data.state.notification_history_item_rects.push((
+                                                entry.id, item_x, item_y, item_w, item_h,
+                                            ));
+                                        }
                                         let is_hovered = hover_id == Some(entry.id);
                                         if is_hovered {
                                             let hover_bg = crate::gfx::make_rounded_panel(
@@ -4834,9 +4903,7 @@ pub fn init_winit(
                                             );
                                             push_buf(&mut custom_elements, &hover_bg, item_x, item_y, renderer, true);
                                         }
-                                        let inner_pad = t_n.panel_item_padding;
-                                        // Ícone (scaled to panel_item_icon_size).
-                                        let icon_dst = t_n.panel_item_icon_size;
+                                        // Ícone.
                                         let icon_x = item_x + inner_pad;
                                         let icon_y = item_y + (item_h - icon_dst) / 2;
                                         if let Some(icon_buf) = entry.icon.as_ref() {
@@ -4851,128 +4918,95 @@ pub fn init_winit(
                                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                             }
                                         }
-                                        // Texto à direita do ícone.
-                                        if let Some(tr) = text_r {
-                                            let text_left_x = icon_x + icon_dst + inner_pad;
-                                            // Time (top right) — calcula primeiro pra reservar espaço.
-                                            let time_str = crate::notifications::relative_time(entry.received_at);
-                                            let (t_px, t_w, t_h) = tr.rasterize_colored(
-                                                &time_str,
-                                                t_n.panel_item_time_size,
-                                                t_n.panel_item_time_color,
+                                        let text_left_x = icon_x + icon_dst + inner_pad;
+                                        // Time (top right).
+                                        let time_str = crate::notifications::relative_time(entry.received_at);
+                                        let (t_px, t_w_u, t_h_u) = tr.rasterize_colored(
+                                            &time_str,
+                                            t_n.panel_item_time_size,
+                                            t_n.panel_item_time_color,
+                                        );
+                                        let time_right_x = item_x + item_w - inner_pad;
+                                        let time_x = time_right_x - t_w_u as i32;
+                                        let time_y = item_y + inner_pad;
+                                        if t_w_u > 0 && t_h_u > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &t_px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (t_w_u as i32, t_h_u as i32),
+                                                1,
+                                                Transform::Normal,
+                                                None,
                                             );
-                                            let time_right_x = item_x + item_w - inner_pad;
-                                            let time_x = time_right_x - t_w as i32;
-                                            let time_y = item_y + inner_pad;
-                                            if t_w > 0 && t_h > 0 {
-                                                let buf = MemoryRenderBuffer::from_slice(
-                                                    &t_px,
-                                                    smithay::backend::allocator::Fourcc::Argb8888,
-                                                    (t_w as i32, t_h as i32),
-                                                    1,
-                                                    Transform::Normal,
-                                                    None,
-                                                );
-                                                push_buf(&mut custom_elements, &buf, time_x, time_y, renderer, true);
-                                            }
-                                            // Largura disponível pro título e body.
-                                            let text_w = (time_x - text_left_x - 6).max(0);
-                                            // Title.
-                                            let (ti_px, ti_w, ti_h) = tr.rasterize_colored(
-                                                &entry.summary,
+                                            push_buf(&mut custom_elements, &buf, time_x, time_y, renderer, true);
+                                        }
+                                        // Título (1 linha já truncada com "…").
+                                        if let Some(title_line) = title_lines.first() {
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                title_line,
                                                 t_n.panel_item_title_size,
                                                 t_n.panel_item_title_color,
                                             );
-                                            if ti_w > 0 && ti_h > 0 && text_w > 0 {
+                                            if w > 0 && h > 0 {
                                                 let buf = MemoryRenderBuffer::from_slice(
-                                                    &ti_px,
+                                                    &px,
                                                     smithay::backend::allocator::Fourcc::Argb8888,
-                                                    (ti_w as i32, ti_h as i32),
+                                                    (w as i32, h as i32),
                                                     1,
                                                     Transform::Normal,
                                                     None,
                                                 );
                                                 let ti_x = text_left_x;
                                                 let ti_y = item_y + inner_pad;
-                                                // Smithay clipa por dst — passamos src crop pra
-                                                // truncar visualmente.
-                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((ti_x, ti_y))
-                                                        .to_physical_precise_round(1.0);
-                                                let src_w = (ti_w as i32).min(text_w);
-                                                let src = smithay::utils::Rectangle::<f64, smithay::utils::Logical>::from_size(
-                                                    smithay::utils::Size::<f64, smithay::utils::Logical>::from((
-                                                        src_w as f64, ti_h as f64,
-                                                    )),
-                                                );
-                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                    renderer, loc.to_f64(), &buf, None, Some(src),
-                                                    Some(smithay::utils::Size::from((src_w, ti_h as i32))),
-                                                    Kind::Unspecified,
-                                                ) {
-                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
-                                                }
+                                                push_buf(&mut custom_elements, &buf, ti_x, ti_y, renderer, true);
                                             }
-                                            // Body (1 linha, truncado).
-                                            let (b_px, b_w, b_h) = tr.rasterize_colored(
-                                                &entry.body,
+                                        }
+                                        // Body (até 2 linhas, "…" se overflow).
+                                        let body_top = item_y + inner_pad + title_line_h + 4;
+                                        for (li, line) in body_lines.iter().enumerate() {
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                line,
                                                 t_n.panel_item_body_size,
                                                 t_n.panel_item_body_color,
                                             );
-                                            if b_w > 0 && b_h > 0 && text_w > 0 {
-                                                let buf = MemoryRenderBuffer::from_slice(
-                                                    &b_px,
-                                                    smithay::backend::allocator::Fourcc::Argb8888,
-                                                    (b_w as i32, b_h as i32),
-                                                    1,
-                                                    Transform::Normal,
-                                                    None,
-                                                );
-                                                let b_x = text_left_x;
-                                                let b_y = item_y + inner_pad + ti_h as i32 + 4;
-                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((b_x, b_y))
-                                                        .to_physical_precise_round(1.0);
-                                                let src_w = (b_w as i32).min(text_w);
-                                                let src = smithay::utils::Rectangle::<f64, smithay::utils::Logical>::from_size(
-                                                    smithay::utils::Size::<f64, smithay::utils::Logical>::from((
-                                                        src_w as f64, b_h as f64,
-                                                    )),
-                                                );
-                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                    renderer, loc.to_f64(), &buf, None, Some(src),
-                                                    Some(smithay::utils::Size::from((src_w, b_h as i32))),
-                                                    Kind::Unspecified,
-                                                ) {
-                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
-                                                }
+                                            if w == 0 || h == 0 {
+                                                continue;
                                             }
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1,
+                                                Transform::Normal,
+                                                None,
+                                            );
+                                            let bx = text_left_x;
+                                            let by = body_top
+                                                + (li as i32) * (body_line_h + body_gap);
+                                            push_buf(&mut custom_elements, &buf, bx, by, renderer, true);
                                         }
                                         // Dismiss X só no item sob hover.
                                         if is_hovered {
                                             let d_size = t_n.panel_item_dismiss_size;
                                             let d_x = item_x + item_w - inner_pad - d_size;
                                             let d_y = item_y + item_h - inner_pad - d_size;
-                                            // Render minimal X — usamos texto "×" caso fonte tenha.
-                                            if let Some(tr) = text_r {
-                                                let (px, w, h) = tr.rasterize_colored(
-                                                    "×",
-                                                    t_n.panel_btn_label_size + 4.0,
-                                                    t_n.panel_item_dismiss_color,
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                "×",
+                                                t_n.panel_btn_label_size + 4.0,
+                                                t_n.panel_item_dismiss_color,
+                                            );
+                                            if w > 0 && h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (w as i32, h as i32),
+                                                    1,
+                                                    Transform::Normal,
+                                                    None,
                                                 );
-                                                if w > 0 && h > 0 {
-                                                    let buf = MemoryRenderBuffer::from_slice(
-                                                        &px,
-                                                        smithay::backend::allocator::Fourcc::Argb8888,
-                                                        (w as i32, h as i32),
-                                                        1,
-                                                        Transform::Normal,
-                                                        None,
-                                                    );
-                                                    let lx = d_x + (d_size - w as i32) / 2;
-                                                    let ly = d_y + (d_size - h as i32) / 2;
-                                                    push_buf(&mut custom_elements, &buf, lx, ly, renderer, true);
-                                                }
+                                                let lx = d_x + (d_size - w as i32) / 2;
+                                                let ly = d_y + (d_size - h as i32) / 2;
+                                                push_buf(&mut custom_elements, &buf, lx, ly, renderer, true);
                                             }
                                             if panel_open && open_factor >= 0.999 {
                                                 data.state.notification_history_dismiss_rects.push((
@@ -4980,6 +5014,7 @@ pub fn init_winit(
                                                 ));
                                             }
                                         }
+                                        cur_y = item_y + item_h + item_gap;
                                     }
                                 }
                             }

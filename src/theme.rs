@@ -1113,13 +1113,18 @@ impl Default for NotificationsTokens {
             // H54.P5: central de notificações.
             panel_width: 400,
             panel_padding: 16,
-            // Mesma família coffee/scrim do toast, mas mais opaco —
-            // a central é o "lar" das notificações, valores um pouco
-            // mais sólidos pra leitura prolongada.
-            panel_bg: hex_color("#2D2219", 0.60),
-            panel_scrim: hex_color("#1F1611", 0.92),
-            panel_shadow_blur: 24,
-            panel_shadow_color: hex_color("#15090A", 0.40),
+            // H54.P5.fix: mesmos tokens de cor do scrim dos toasts, com
+            // alpha calibrada pra AA 4.5:1 default e folga pra AAA com
+            // wallpaper claro. Combinado: 1-(1-0.55)*(1-0.96) = 0.982
+            // → 1.8% leak de wallpaper, contraste cream-sobre-coffee
+            // ~10:1 mesmo no pior caso.
+            panel_bg: hex_color("#2D2219", 0.55),
+            panel_scrim: hex_color("#1F1611", 0.96),
+            // Tokens panel_shadow_* mantidos por compat — render usa
+            // os tokens shadow_color_contact/ambient + shadow_*_blur
+            // dos toasts diretamente (mesma linguagem por spec).
+            panel_shadow_blur: 28,
+            panel_shadow_color: hex_color("#15090A", 0.32),
             panel_header_height: 56,
             panel_header_title_color: hex_color("#FBF6EE", 1.0),
             panel_header_title_size: 16.0,
@@ -1147,6 +1152,7 @@ impl Default for NotificationsTokens {
             panel_item_hover_bg: hex_color("#3D2520", 0.45),
             panel_item_dismiss_size: 22,
             panel_item_dismiss_color: hex_color("#C9BDB0", 1.0),
+            panel_item_max_body_lines: 2,
             panel_empty_label_color: hex_color("#9A8B7E", 1.0),
             panel_empty_label_size: 14.0,
             // Badge: coral Golden Hour pra contraste com bell (cream).
@@ -1975,6 +1981,9 @@ pub struct NotificationsTokens {
     pub panel_item_hover_bg: Color32F,
     pub panel_item_dismiss_size: i32,
     pub panel_item_dismiss_color: Color32F,
+    /// Máximo de linhas do body de cada entrada do histórico. Overflow
+    /// vira "…" na última linha. H54.P5.fix.
+    pub panel_item_max_body_lines: usize,
     /// Empty state quando não há histórico.
     pub panel_empty_label_color: Color32F,
     pub panel_empty_label_size: f32,
