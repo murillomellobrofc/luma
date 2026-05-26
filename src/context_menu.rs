@@ -39,9 +39,26 @@ pub enum ContextAction {
     /// Click num item de DBusMenu nativo — dispatch envia Event(id)
     /// pro app via `sni::send_menu_event`. H47c.
     DBusMenuClick(i32),
-    /// Placeholder pros 4 items que dependem de ícones no desktop.
-    /// Nunca dispatcha (item fica enabled=false).
+    /// H56 parte 1: organiza os ícones do desktop refluindo no
+    /// canto sup-esq da grade, sem buracos, por critério.
+    ArrangeIcons(ArrangeKind),
+    /// Placeholder pros items que dependem de features ainda não
+    /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
+}
+
+/// Critério de ordenação para "Organizar ícones" do menu de
+/// contexto. H56 parte 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrangeKind {
+    /// Alfabético (case-insensitive). Pastas antes de arquivos.
+    ByName,
+    /// Por tipo (Folder, Image, Text, ...). Dentro de cada grupo,
+    /// ordem alfabética.
+    ByKind,
+    /// Por data de modificação, mais recente primeiro. Entradas
+    /// sem mtime conhecida vão pro fim.
+    ByDate,
 }
 
 /// Tipo de entrada no menu.
@@ -681,26 +698,32 @@ fn default_items() -> Vec<ContextItem> {
                 ContextItem {
                     label: "Por nome".into(),
                     icon: None,
-                    kind: ItemKind::Action(ContextAction::Disabled),
-                    enabled: false,
+                    kind: ItemKind::Action(
+                        ContextAction::ArrangeIcons(ArrangeKind::ByName),
+                    ),
+                    enabled: true,
                     shortcut: None,
                 },
                 ContextItem {
                     label: "Por tipo".into(),
                     icon: None,
-                    kind: ItemKind::Action(ContextAction::Disabled),
-                    enabled: false,
+                    kind: ItemKind::Action(
+                        ContextAction::ArrangeIcons(ArrangeKind::ByKind),
+                    ),
+                    enabled: true,
                     shortcut: None,
                 },
                 ContextItem {
                     label: "Por data".into(),
                     icon: None,
-                    kind: ItemKind::Action(ContextAction::Disabled),
-                    enabled: false,
+                    kind: ItemKind::Action(
+                        ContextAction::ArrangeIcons(ArrangeKind::ByDate),
+                    ),
+                    enabled: true,
                     shortcut: None,
                 },
             ]),
-            enabled: false,
+            enabled: true,
             shortcut: None,
         },
         ContextItem {

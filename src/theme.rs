@@ -1217,6 +1217,9 @@ impl Default for DesktopIconsTokens {
             rename_field_border_width: 2,
             rename_field_corner_radius: 6,
             rename_field_cursor_blink_ms: 500,
+            // H56: 260ms ease_out — suave mas decidido. Override via
+            // theme.toml; preset PCD Max pode reduzir / zerar.
+            arrange_anim_duration_ms: 260,
         }
     }
 }
@@ -2129,6 +2132,10 @@ pub struct DesktopIconsTokens {
     pub rename_field_border_width: i32,
     pub rename_field_corner_radius: i32,
     pub rename_field_cursor_blink_ms: u64,
+    /// H56: duração da animação de slide ao "Organizar ícones".
+    /// Ease_out cubic. Se accessibility.reduce_motion estiver ativo,
+    /// o slide é pulado e as posições mudam direto.
+    pub arrange_anim_duration_ms: u64,
 }
 
 /// Popup de calendário ao clicar no relógio. H55.
