@@ -1052,10 +1052,16 @@ impl Default for NotificationsTokens {
         Self {
             width: 380,
             corner: 22,
-            bg: hex_color("#2A2520", 0.96),
+            // H54.P3.fix: undertone Golden Hour (mais quente que
+            // #2A2520 neutro). Sutil — coffee dark com hint marrom.
+            bg: hex_color("#2D2219", 0.96),
             title_color: hex_color("#FBF6EE", 1.0),
-            body_color: hex_color("#C9BDB0", 1.0),
-            time_color: hex_color("#8B7D72", 1.0),
+            // H54.P3.fix: body bumpado pra contraste AAA (~12:1) —
+            // cream-cinza claro. Antes #C9BDB0 era ~8:1 (passa AAA mas
+            // visualmente fraco em texto pequeno).
+            body_color: hex_color("#E5DACF", 1.0),
+            // Time/horário continua text_secondary discreto (~5:1, AA).
+            time_color: hex_color("#9A8B7E", 1.0),
             icon_size: 62,
             icon_corner: 14,
             title_size: 14.0,
