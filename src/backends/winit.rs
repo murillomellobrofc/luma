@@ -3160,49 +3160,63 @@ pub fn init_winit(
                                     }
                                 }
                                 // Toggle: pill rounded + knob.
+                                // H57.2 fix: só renderiza se tem placa
+                                // wifi. Sem placa, popup serve só de
+                                // exibição da conexão cabeada.
+                                let wifi_has_hw = data.state.wifi_state.has_hardware;
                                 let toggle_x = o.x + popup.size.w
                                     - t_wp.padding - t_wp.toggle_w;
                                 let toggle_y = o.y + (t_wp.header_height - t_wp.toggle_h) / 2;
                                 let wifi_on = data.state.wifi_state.enabled;
-                                let toggle_bg = crate::gfx::make_rounded_panel(
-                                    t_wp.toggle_w, t_wp.toggle_h, t_wp.toggle_corner,
-                                    if wifi_on { t_wp.toggle_on_bg } else { t_wp.toggle_off_bg },
-                                );
-                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((toggle_x, toggle_y))
-                                        .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer, loc.to_f64(), &toggle_bg,
-                                    None, None, None, Kind::Unspecified,
-                                ) {
-                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                if !wifi_has_hw {
+                                    data.state.wifi_toggle_rect = None;
                                 }
-                                let knob_r = (t_wp.toggle_h - 6) / 2;
-                                let knob_d = knob_r * 2;
-                                let knob_y = toggle_y + 3;
-                                let knob_x = if wifi_on {
-                                    toggle_x + t_wp.toggle_w - knob_d - 3
+                                let toggle_bg = if wifi_has_hw {
+                                    crate::gfx::make_rounded_panel(
+                                        t_wp.toggle_w, t_wp.toggle_h, t_wp.toggle_corner,
+                                        if wifi_on { t_wp.toggle_on_bg } else { t_wp.toggle_off_bg },
+                                    )
                                 } else {
-                                    toggle_x + 3
+                                    crate::gfx::make_rounded_panel(1, 1, 0,
+                                        smithay::backend::renderer::Color32F::new(0.0, 0.0, 0.0, 0.0))
                                 };
-                                let knob = crate::gfx::make_rounded_panel(
-                                    knob_d, knob_d, knob_r, t_wp.toggle_knob_color,
-                                );
-                                let kloc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((knob_x, knob_y))
-                                        .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer, kloc.to_f64(), &knob,
-                                    None, None, None, Kind::Unspecified,
-                                ) {
-                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                if wifi_has_hw {
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((toggle_x, toggle_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, loc.to_f64(), &toggle_bg,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let knob_r = (t_wp.toggle_h - 6) / 2;
+                                    let knob_d = knob_r * 2;
+                                    let knob_y = toggle_y + 3;
+                                    let knob_x = if wifi_on {
+                                        toggle_x + t_wp.toggle_w - knob_d - 3
+                                    } else {
+                                        toggle_x + 3
+                                    };
+                                    let knob = crate::gfx::make_rounded_panel(
+                                        knob_d, knob_d, knob_r, t_wp.toggle_knob_color,
+                                    );
+                                    let kloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((knob_x, knob_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, kloc.to_f64(), &knob,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    data.state.wifi_toggle_rect = Some(
+                                        smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((toggle_x, toggle_y)),
+                                            smithay::utils::Size::from((t_wp.toggle_w, t_wp.toggle_h)),
+                                        ),
+                                    );
                                 }
-                                data.state.wifi_toggle_rect = Some(
-                                    smithay::utils::Rectangle::new(
-                                        smithay::utils::Point::from((toggle_x, toggle_y)),
-                                        smithay::utils::Size::from((t_wp.toggle_w, t_wp.toggle_h)),
-                                    ),
-                                );
                                 let header_bot = o.y + t_wp.header_height;
                                 // Divisor.
                                 let div = crate::gfx::make_rounded_panel(
@@ -3294,7 +3308,10 @@ pub fn init_winit(
                                     }
                                     cur_y += 8;
                                 }
-                                if !wifi_on {
+                                if !wifi_has_hw {
+                                    // Sem placa wifi: popup é só pro
+                                    // ethernet. Skip seção wifi inteira.
+                                } else if !wifi_on {
                                     // Estado vazio.
                                     if let Some(tr) = text_r_ref {
                                         let (px, w, h) = tr.rasterize_colored(
