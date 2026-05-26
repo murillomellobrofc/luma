@@ -3049,16 +3049,45 @@ pub fn init_winit(
                                             smithay::utils::Size::from((arrow_hit, arrow_hit)),
                                         ),
                                     );
-                                    // Render dos chevrons como texto.
-                                    // fontdue rasteriza "‹" e "›" se a
-                                    // fonte tiver. Cor vem do token.
-                                    let render_arrow = |chev: &str, cx: i32, cy: i32,
+                                    // Render dos chevrons como texto + bg
+                                    // de hover/focus. H55 Fatia 4: foco
+                                    // do teclado e hover do mouse usam
+                                    // o accent_amber como ring/bg.
+                                    let amber = theme.colors.accent_amber;
+                                    let focus_idx = popup.calendar_focus;
+                                    let hover_idx = popup.calendar_hover;
+                                    let render_arrow = |chev: &str, cx: i32, cy: i32, idx: u8,
                                                         elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
                                                         r: &mut GlesRenderer| {
+                                        let is_focused = focus_idx == Some(idx);
+                                        let is_hovered = hover_idx == Some(idx);
+                                        if is_focused || is_hovered {
+                                            let alpha = if is_focused { 0.30 } else { 0.18 };
+                                            let bg_color = smithay::backend::renderer::Color32F::new(
+                                                amber.r(), amber.g(), amber.b(), alpha,
+                                            );
+                                            let bg = crate::gfx::make_rounded_panel(
+                                                arrow_hit, arrow_hit, 8, bg_color,
+                                            );
+                                            let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((cx, cy))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                r, bg_loc.to_f64(), &bg, None, None, None,
+                                                Kind::Unspecified,
+                                            ) {
+                                                elems.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        let chev_color = if is_hovered || is_focused {
+                                            t_cal.seta_fg_hover
+                                        } else {
+                                            t_cal.seta_fg
+                                        };
                                         let (px, w, h) = text_r.rasterize_colored(
                                             chev,
                                             t_cal.titulo_size,
-                                            t_cal.seta_fg,
+                                            chev_color,
                                         );
                                         if w == 0 || h == 0 {
                                             return;
@@ -3083,8 +3112,8 @@ pub fn init_winit(
                                             elems.insert(0, LumaRenderElement::Memory(elem));
                                         }
                                     };
-                                    render_arrow("‹", prev_x, arrow_y, &mut custom_elements, renderer);
-                                    render_arrow("›", next_x, arrow_y, &mut custom_elements, renderer);
+                                    render_arrow("‹", prev_x, arrow_y, 0, &mut custom_elements, renderer);
+                                    render_arrow("›", next_x, arrow_y, 2, &mut custom_elements, renderer);
 
                                     // 1. Título centralizado no header.
                                     let (px, tw, th) = text_r.rasterize_colored(
@@ -3265,24 +3294,119 @@ pub fn init_winit(
                                         }
                                     }
 
-                                    // H55 Fatia 3: botão "Hoje" no rodapé,
-                                    // à direita. Sem a data por extenso
-                                    // ainda (Fatia 4).
+                                    // H55 Fatia 4: rodapé com data por
+                                    // extenso à esquerda + botão "Hoje"
+                                    // à direita. Hoje fica dim quando
+                                    // displayed == mês atual (opcional
+                                    // do spec, ativado).
+                                    let footer_y = o.y + popup.size.h
+                                        - t_cal.padding_vertical - t_cal.footer_height;
+                                    // Data por extenso (hoje, não o mês
+                                    // exibido). Formato: "Terça, 26 de maio".
+                                    let dias_extenso = [
+                                        "Domingo", "Segunda", "Terça",
+                                        "Quarta", "Quinta", "Sexta", "Sábado",
+                                    ];
+                                    let meses_lower = [
+                                        "janeiro", "fevereiro", "março",
+                                        "abril", "maio", "junho", "julho",
+                                        "agosto", "setembro", "outubro",
+                                        "novembro", "dezembro",
+                                    ];
+                                    let dow_idx = today
+                                        .weekday()
+                                        .num_days_from_sunday() as usize;
+                                    let mes_lower_idx = (today.month() as usize)
+                                        .saturating_sub(1);
+                                    let data_extenso = format!(
+                                        "{}, {} de {}",
+                                        dias_extenso.get(dow_idx).copied().unwrap_or(""),
+                                        today.day(),
+                                        meses_lower.get(mes_lower_idx).copied().unwrap_or(""),
+                                    );
+                                    let (dpx, dw, dh) = text_r.rasterize_colored(
+                                        &data_extenso,
+                                        t_cal.rodape_size,
+                                        t_cal.rodape_fg,
+                                    );
+                                    if dw > 0 && dh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &dpx,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (dw as i32, dh as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let dx = o.x + t_cal.padding_lateral;
+                                        let dy = footer_y
+                                            + (t_cal.footer_height - dh as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, dy))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    // Botão "Hoje".
+                                    let is_focused = focus_idx == Some(1);
+                                    let is_at_today = show_today_highlight;
+                                    let label_color = if is_at_today {
+                                        // Apagado: usa cor de rodapé.
+                                        t_cal.rodape_fg
+                                    } else {
+                                        t_cal.hoje_botao_fg
+                                    };
                                     let (px, hw, hh) = text_r.rasterize_colored(
                                         "Hoje",
                                         t_cal.rodape_size,
-                                        t_cal.hoje_botao_fg,
+                                        label_color,
                                     );
                                     let btn_h = (t_cal.footer_height - 8).max(28);
                                     let pad_h = 14i32;
                                     let btn_w = (hw as i32 + pad_h * 2).max(64);
-                                    let footer_y = o.y + popup.size.h
-                                        - t_cal.padding_vertical - t_cal.footer_height;
                                     let btn_y = footer_y + (t_cal.footer_height - btn_h) / 2;
                                     let btn_x = o.x + popup.size.w
                                         - t_cal.padding_lateral - btn_w;
+                                    let bg_color = if is_at_today {
+                                        let c = t_cal.hoje_botao_bg;
+                                        smithay::backend::renderer::Color32F::new(
+                                            c.r(), c.g(), c.b(), c.a() * 0.4,
+                                        )
+                                    } else if is_focused {
+                                        t_cal.hoje_botao_bg_hover
+                                    } else {
+                                        t_cal.hoje_botao_bg
+                                    };
+                                    // Anel de foco do teclado pra Hoje.
+                                    if is_focused {
+                                        let ring = 2i32;
+                                        let ring_color = smithay::backend::renderer::Color32F::new(
+                                            amber.r(), amber.g(), amber.b(), 0.55,
+                                        );
+                                        let ring_buf = crate::gfx::make_rounded_panel(
+                                            btn_w + ring * 2,
+                                            btn_h + ring * 2,
+                                            8 + ring,
+                                            ring_color,
+                                        );
+                                        let rloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x - ring, btn_y - ring))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, rloc.to_f64(), &ring_buf,
+                                            None, None, None,
+                                            Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
                                     let bg = crate::gfx::make_rounded_panel(
-                                        btn_w, btn_h, 8, t_cal.hoje_botao_bg,
+                                        btn_w, btn_h, 8, bg_color,
                                     );
                                     let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                         smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x, btn_y))
