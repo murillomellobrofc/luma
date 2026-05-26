@@ -3220,6 +3220,80 @@ pub fn init_winit(
                                 let mut cur_y = header_bot + 4;
                                 data.state.wifi_row_rects.clear();
                                 data.state.wifi_connect_btn_rect = None;
+                                // H57.2: row de Cabeado no topo se conectado.
+                                // Mesma estética da rede conectada (sage),
+                                // mas não clicável.
+                                if let Some(eth) = data.state.wifi_state.ethernet.clone() {
+                                    let row_x = o.x;
+                                    let row_w = popup.size.w;
+                                    let row_y = cur_y;
+                                    if let Some(tr) = text_r_ref {
+                                        // SSID-like: "Cabeado" + device discreto.
+                                        let label = format!("Cabeado · {}", eth.device);
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            &label, t_wp.ssid_size, t_wp.ssid_connected_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = row_x + t_wp.row_padding_h;
+                                            let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        // "conectado" à direita.
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "conectado", t_wp.state_label_size, t_wp.state_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = row_x + row_w
+                                                - t_wp.row_padding_h - w as i32;
+                                            let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                    cur_y += t_wp.row_height;
+                                    // Divisor fino entre cabeado e lista wifi.
+                                    let div = crate::gfx::make_rounded_panel(
+                                        row_w - t_wp.row_padding_h * 2,
+                                        1, 0, t_wp.divider_color,
+                                    );
+                                    let dloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((row_x + t_wp.row_padding_h, cur_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, dloc.to_f64(), &div,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    cur_y += 8;
+                                }
                                 if !wifi_on {
                                     // Estado vazio.
                                     if let Some(tr) = text_r_ref {

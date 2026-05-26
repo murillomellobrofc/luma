@@ -38,6 +38,16 @@ pub struct WifiState {
     /// ícone do tray inteiro (per spec H57).
     pub has_hardware: bool,
     pub networks: Vec<WifiNetwork>,
+    /// Conexão cabeada (ethernet) presente E up. Renderizado como
+    /// row informativa no topo do popup quando ativa.
+    pub ethernet: Option<EthernetInfo>,
+}
+
+/// Info da conexão cabeada quando ativa. H57.2.
+#[derive(Debug, Clone)]
+pub struct EthernetInfo {
+    /// Nome do device (ex: "enp3s0"). Mostrado de forma discreta.
+    pub device: String,
 }
 
 /// Lê estado completo via nmcli. Retorno é snapshot — chamador
@@ -66,11 +76,36 @@ pub fn read_state() -> WifiState {
     } else {
         Vec::new()
     };
+    let ethernet = read_ethernet();
     WifiState {
         enabled,
         has_hardware,
         networks,
+        ethernet,
     }
+}
+
+/// Detecta ethernet conectado via `nmcli -t -f DEVICE,TYPE,STATE
+/// device`. Retorna o primeiro device tipo "ethernet" no estado
+/// "connected". None se não há conexão cabeada ativa.
+fn read_ethernet() -> Option<EthernetInfo> {
+    let out = Command::new("nmcli")
+        .args(["-t", "-f", "DEVICE,TYPE,STATE", "device"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8(out.stdout).ok()?;
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split(':').collect();
+        if parts.len() < 3 {
+            continue;
+        }
+        if parts[1] == "ethernet" && parts[2] == "connected" {
+            return Some(EthernetInfo {
+                device: parts[0].to_string(),
+            });
+        }
+    }
+    None
 }
 
 /// Lista redes via `nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list`.
