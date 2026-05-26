@@ -2021,6 +2021,16 @@ pub fn init_winit(
                             if let Some((buf, sz)) = bt_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
                                          bt_x, center_y_for(sz.h), renderer);
+                                // H57.3: cacheia rect do bluetooth.
+                                let bar_y_l = output_size_logical.h
+                                    - crate::taskbar::taskbar_height();
+                                let tb_h = crate::taskbar::taskbar_height();
+                                data.state.tray.last_bt_rect = Some(
+                                    smithay::utils::Rectangle::new(
+                                        smithay::utils::Point::from((bt_x, bar_y_l)),
+                                        smithay::utils::Size::from((sz.w, tb_h)),
+                                    ),
+                                );
                             }
                             // H55 polish: helper pra desenhar bg "ativo"
                             // atrás de um ícone do tray. Mesma linguagem
@@ -3062,6 +3072,44 @@ pub fn init_winit(
                                 data.state.audio_last_refresh = Some(std::time::Instant::now());
                             }
                         }
+                        // H57.3: live refresh do Bluetooth enquanto
+                        // popup aberto (~2s) + observer do outbox.
+                        if data.state.applet_popup.as_ref().map(|p| p.kind)
+                            == Some(crate::popup::AppletKind::Bluetooth)
+                        {
+                            let stale_bt = data
+                                .state
+                                .bt_last_refresh
+                                .map(|t| t.elapsed() >= std::time::Duration::from_secs(2))
+                                .unwrap_or(true);
+                            if stale_bt {
+                                data.state.bt_state = crate::bluetooth::read_state(
+                                    data.state.bt_pair_mode,
+                                );
+                                data.state.bt_last_refresh = Some(std::time::Instant::now());
+                            }
+                        }
+                        let bt_outcome = data
+                            .state
+                            .bt_op_outbox
+                            .lock()
+                            .ok()
+                            .and_then(|mut g| g.take());
+                        if let Some(outcome) = bt_outcome {
+                            data.state.bt_op_in_flight = None;
+                            match outcome {
+                                crate::bluetooth::BtResult::Success { .. } => {
+                                    data.state.bt_error_for = None;
+                                    data.state.bt_state = crate::bluetooth::read_state(
+                                        data.state.bt_pair_mode,
+                                    );
+                                    data.state.bt_last_refresh = Some(std::time::Instant::now());
+                                }
+                                crate::bluetooth::BtResult::Failure { mac, message, .. } => {
+                                    data.state.bt_error_for = Some((mac, message));
+                                }
+                            }
+                        }
                         // H57.2: live refresh do Wi-Fi enquanto popup
                         // aberto (~2s) + observer do outbox de connect.
                         if data.state.applet_popup.as_ref().map(|p| p.kind)
@@ -3113,9 +3161,375 @@ pub fn init_winit(
                             let theme = crate::theme::current();
                             let t_popup = &theme.popup;
                             let o = popup.origin(output_size_logical);
-                            // H57.2: branch Wifi. Header com toggle +
-                            // lista de redes + senha inline.
-                            if popup.kind == crate::popup::AppletKind::Wifi {
+                            // H57.3: branch Bluetooth. Mesma forma do
+                            // Wi-Fi (toggle + list + footer botão).
+                            // Pair mode troca a lista pra descobertos.
+                            if popup.kind == crate::popup::AppletKind::Bluetooth {
+                                let t_wp = &theme.wifi_popup;
+                                // Bg gradient (shell compartilhada).
+                                let bg = crate::gfx::make_titlebar_bg(
+                                    popup.size.w, popup.size.h,
+                                    t_popup.corner_radius,
+                                    theme.window.titlebar_bg_top,
+                                    theme.window.titlebar_bg_bottom,
+                                );
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    o.to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, bg_loc.to_f64(), &bg,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                let text_r_ref = data.state.text.as_ref();
+                                let inner_x = o.x + t_wp.padding;
+                                let inner_w = popup.size.w - t_wp.padding * 2;
+                                let bt_has_hw = data.state.bt_state.has_hardware;
+                                let bt_on = data.state.bt_state.enabled;
+                                let pair_mode = data.state.bt_pair_mode;
+                                // Header: "Bluetooth" / "Procurando…" + toggle.
+                                let header_text = if pair_mode {
+                                    "Procurando…"
+                                } else {
+                                    "Bluetooth"
+                                };
+                                if let Some(tr) = text_r_ref {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        header_text, t_wp.header_size, t_wp.header_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let ly = o.y + (t_wp.header_height - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((inner_x, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
+                                // Toggle só se tem hw E não está em pair_mode.
+                                if bt_has_hw && !pair_mode {
+                                    let toggle_x = o.x + popup.size.w
+                                        - t_wp.padding - t_wp.toggle_w;
+                                    let toggle_y = o.y + (t_wp.header_height - t_wp.toggle_h) / 2;
+                                    let toggle_bg = crate::gfx::make_rounded_panel(
+                                        t_wp.toggle_w, t_wp.toggle_h, t_wp.toggle_corner,
+                                        if bt_on { t_wp.toggle_on_bg } else { t_wp.toggle_off_bg },
+                                    );
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((toggle_x, toggle_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, loc.to_f64(), &toggle_bg,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let knob_r = (t_wp.toggle_h - 6) / 2;
+                                    let knob_d = knob_r * 2;
+                                    let knob_y = toggle_y + 3;
+                                    let knob_x = if bt_on {
+                                        toggle_x + t_wp.toggle_w - knob_d - 3
+                                    } else {
+                                        toggle_x + 3
+                                    };
+                                    let knob = crate::gfx::make_rounded_panel(
+                                        knob_d, knob_d, knob_r, t_wp.toggle_knob_color,
+                                    );
+                                    let kloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((knob_x, knob_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, kloc.to_f64(), &knob,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    data.state.bt_toggle_rect = Some(
+                                        smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((toggle_x, toggle_y)),
+                                            smithay::utils::Size::from((t_wp.toggle_w, t_wp.toggle_h)),
+                                        ),
+                                    );
+                                } else {
+                                    data.state.bt_toggle_rect = None;
+                                }
+                                let header_bot = o.y + t_wp.header_height;
+                                let div = crate::gfx::make_rounded_panel(
+                                    popup.size.w, 1, 0, t_wp.divider_color,
+                                );
+                                let dloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((o.x, header_bot))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, dloc.to_f64(), &div,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Reserva footer pra botão (pair ou voltar).
+                                let footer_h = t_wp.pw_btn_height + t_wp.padding * 2;
+                                let list_top = header_bot + 4;
+                                let list_bot = o.y + popup.size.h - footer_h;
+                                let mut cur_y = list_top;
+                                data.state.bt_row_rects.clear();
+                                if !bt_has_hw {
+                                    if let Some(tr) = text_r_ref {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "Sem controlador Bluetooth",
+                                            t_wp.empty_label_size,
+                                            t_wp.empty_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = inner_x + (inner_w - w as i32) / 2;
+                                            let ly = (list_top + list_bot) / 2 - h as i32 / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                } else if !bt_on {
+                                    if let Some(tr) = text_r_ref {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "Bluetooth desligado",
+                                            t_wp.empty_label_size,
+                                            t_wp.empty_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = inner_x + (inner_w - w as i32) / 2;
+                                            let ly = (list_top + list_bot) / 2 - h as i32 / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Lista de devices. Em pair_mode lista
+                                    // todos (paired + descobertos). Senão
+                                    // só os paired (já filtrado pelo
+                                    // read_state).
+                                    let devices = data.state.bt_state.devices.clone();
+                                    for dev in devices.iter() {
+                                        if cur_y + t_wp.row_height > list_bot {
+                                            break;
+                                        }
+                                        let row_x = o.x;
+                                        let row_w = popup.size.w;
+                                        let row_y = cur_y;
+                                        let name_color = if dev.connected {
+                                            t_wp.ssid_connected_color
+                                        } else {
+                                            t_wp.ssid_color
+                                        };
+                                        // Glyph type + nome.
+                                        if let Some(tr) = text_r_ref {
+                                            let display = format!("{} {}", dev.icon_kind.glyph(), dev.name);
+                                            let max_w = row_w
+                                                - t_wp.row_padding_h * 2 - 100;
+                                            let lines = wrap_to_lines_pixels(
+                                                &display, tr, t_wp.ssid_size,
+                                                name_color, max_w, 1,
+                                            );
+                                            if let Some(line) = lines.first() {
+                                                let (px, w, h) = tr.rasterize_colored(
+                                                    line, t_wp.ssid_size, name_color,
+                                                );
+                                                if w > 0 && h > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let lx = row_x + t_wp.row_padding_h;
+                                                    let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, loc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                            }
+                                            // Estado à direita.
+                                            let in_flight = data.state.bt_op_in_flight.as_deref() == Some(&dev.mac);
+                                            let right = if in_flight {
+                                                "…".to_string()
+                                            } else if dev.connected {
+                                                "conectado".to_string()
+                                            } else if dev.paired {
+                                                "pareado".to_string()
+                                            } else {
+                                                "novo".to_string()
+                                            };
+                                            let right_color = if dev.connected {
+                                                t_wp.state_label_color
+                                            } else {
+                                                t_wp.signal_color
+                                            };
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                &right, t_wp.state_label_size, right_color,
+                                            );
+                                            if w > 0 && h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (w as i32, h as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let lx = row_x + row_w
+                                                    - t_wp.row_padding_h - w as i32;
+                                                let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
+                                        data.state.bt_row_rects.push((
+                                            dev.mac.clone(),
+                                            smithay::utils::Rectangle::new(
+                                                smithay::utils::Point::from((row_x, row_y)),
+                                                smithay::utils::Size::from((row_w, t_wp.row_height)),
+                                            ),
+                                        ));
+                                        cur_y += t_wp.row_height;
+                                        // Erro inline (se houver pra esse mac).
+                                        if let Some((emac, msg)) = data.state.bt_error_for.clone() {
+                                            if emac == dev.mac {
+                                                if let Some(tr) = text_r_ref {
+                                                    let (px, w, h) = tr.rasterize_colored(
+                                                        &msg, t_wp.state_label_size,
+                                                        t_wp.pw_error_color,
+                                                    );
+                                                    if w > 0 && h > 0 {
+                                                        let buf = MemoryRenderBuffer::from_slice(
+                                                            &px,
+                                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                                            (w as i32, h as i32),
+                                                            1, Transform::Normal, None,
+                                                        );
+                                                        let lx = row_x + t_wp.row_padding_h;
+                                                        let ly = cur_y;
+                                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                                .to_physical_precise_round(1.0);
+                                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                            renderer, loc.to_f64(), &buf,
+                                                            None, None, None, Kind::Unspecified,
+                                                        ) {
+                                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                        }
+                                                        cur_y += h as i32 + 4;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // Footer botão: "Parear novo dispositivo"
+                                // ou "Voltar" no pair_mode.
+                                data.state.bt_pair_btn_rect = None;
+                                data.state.bt_back_btn_rect = None;
+                                if bt_has_hw && bt_on {
+                                    let btn_label = if pair_mode {
+                                        "Voltar"
+                                    } else {
+                                        "Parear novo dispositivo"
+                                    };
+                                    if let Some(tr) = text_r_ref {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            btn_label, t_wp.pw_btn_label_size, t_wp.pw_btn_fg,
+                                        );
+                                        let btn_w = inner_w;
+                                        let btn_x = inner_x;
+                                        let btn_y = o.y + popup.size.h
+                                            - t_wp.padding - t_wp.pw_btn_height;
+                                        let btn_bg = crate::gfx::make_rounded_panel(
+                                            btn_w, t_wp.pw_btn_height, t_wp.pw_btn_corner,
+                                            t_wp.pw_btn_bg,
+                                        );
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x, btn_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &btn_bg,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = btn_x + (btn_w - w as i32) / 2;
+                                            let ly = btn_y + (t_wp.pw_btn_height - h as i32) / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        let rect = smithay::utils::Rectangle::new(
+                                            smithay::utils::Point::from((btn_x, btn_y)),
+                                            smithay::utils::Size::from((btn_w, t_wp.pw_btn_height)),
+                                        );
+                                        if pair_mode {
+                                            data.state.bt_back_btn_rect = Some(rect);
+                                        } else {
+                                            data.state.bt_pair_btn_rect = Some(rect);
+                                        }
+                                    }
+                                }
+                            } else if popup.kind == crate::popup::AppletKind::Wifi {
                                 let t_wp = &theme.wifi_popup;
                                 // Bg gradient.
                                 let bg = crate::gfx::make_titlebar_bg(
