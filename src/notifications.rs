@@ -546,10 +546,9 @@ pub fn tick(slot: &NotificationsSlot) -> Vec<(u32, u32)> {
     }
     // 3. Promove queue→visible enquanto houver espaço.
     while g.visible.len() < MAX_VISIBLE_TOASTS {
-        if let Some(next) = g.queue.pop_front() {
-            push_visible(&mut g, next);
-        } else {
-            break;
+        match g.queue.pop_front() {
+            Some(next) => push_visible(&mut g, next),
+            None => break,
         }
     }
     closed
@@ -911,10 +910,9 @@ impl NotificationServer {
             suppress_sound,
             sound_file,
         };
-        let id = if let Ok(mut g) = self.slot.lock() {
-            apply_notify(&mut g, entry)
-        } else {
-            0
+        let id = match self.slot.lock() {
+            Ok(mut g) => apply_notify(&mut g, entry),
+            Err(_) => 0,
         };
         tracing::info!("notifications: Notify id={id}");
         id
