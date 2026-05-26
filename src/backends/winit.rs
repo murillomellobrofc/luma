@@ -772,8 +772,12 @@ pub fn init_winit(
                 let bt_render = crate::tray::ensure_icon(&mut data.state.tray, bt_name);
                 let volume_name = crate::tray::volume_icon_name(data.state.tray.volume_state);
                 let volume_render = crate::tray::ensure_icon(&mut data.state.tray, volume_name);
-                let notif_count = data.state.tray.notif_count;
-                let bell_name = crate::tray::bell_icon_name(notif_count);
+                // H54.P5: ícone do sino reflete estado de DND.
+                let (dnd_enabled, unread_count) = match data.state.notifications.lock() {
+                    Ok(g) => (g.dnd_enabled, g.unread_count),
+                    Err(_) => (false, 0),
+                };
+                let bell_name = crate::tray::bell_icon_name(dnd_enabled);
                 let bell_render = crate::tray::ensure_icon(&mut data.state.tray, bell_name);
                 let notif_dot_render: Option<MemoryRenderBuffer> = None; // H40 conecta
 
@@ -2001,8 +2005,56 @@ pub fn init_winit(
                                          volume_x, center_y_for(sz.h), renderer);
                             }
                             if let Some((buf, sz)) = bell_render.as_ref() {
+                                let by = center_y_for(sz.h);
                                 push_mem(&mut custom_elements, buf,
-                                         bell_x, center_y_for(sz.h), renderer);
+                                         bell_x, by, renderer);
+                                // H54.P5: cacheia rect do sino pra click hit-test.
+                                data.state.notification_bell_rect =
+                                    Some((bell_x, by, sz.w, sz.h));
+                                // Badge de não-vistas — círculo coral + número.
+                                if unread_count > 0 {
+                                    let t_n = &theme.notifications;
+                                    let badge_size = t_n.bell_badge_size;
+                                    let badge_buf = crate::gfx::make_rounded_panel(
+                                        badge_size,
+                                        badge_size,
+                                        badge_size / 2,
+                                        t_n.bell_badge_bg,
+                                    );
+                                    let badge_x = bell_x + sz.w - badge_size + 2;
+                                    let badge_y = by - 2;
+                                    push_mem(&mut custom_elements, &badge_buf,
+                                             badge_x, badge_y, renderer);
+                                    // Texto do badge: 1-9 ou "9+".
+                                    if let Some(tr) = data.state.text.as_ref() {
+                                        let label = if unread_count > 9 {
+                                            "9+".to_string()
+                                        } else {
+                                            unread_count.to_string()
+                                        };
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            &label,
+                                            t_n.bell_badge_font_size,
+                                            t_n.bell_badge_text_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let lbl_buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1,
+                                                Transform::Normal,
+                                                None,
+                                            );
+                                            let lbl_x = badge_x + (badge_size - w as i32) / 2;
+                                            let lbl_y = badge_y + (badge_size - h as i32) / 2;
+                                            push_mem(&mut custom_elements, &lbl_buf,
+                                                     lbl_x, lbl_y, renderer);
+                                        }
+                                    }
+                                }
+                            } else {
+                                data.state.notification_bell_rect = None;
                             }
                             // Notif dot reservado pra H40 (count sempre 0 hoje).
                             let _ = notif_dot_render;
@@ -4551,6 +4603,386 @@ pub fn init_winit(
                             data.state.notification_rects.clear();
                             data.state.notification_button_rects.clear();
                             data.state.notification_button_hover = None;
+                        }
+
+                        // H54.P5: central de notificações (painel borda direita).
+                        // Renderiza acima dos toasts quando open_factor > 0.
+                        {
+                            let (history_snap, dnd_on, panel_open, open_factor) =
+                                match data.state.notifications.lock() {
+                                    Ok(g) => (
+                                        g.history.iter().cloned().collect::<Vec<_>>(),
+                                        g.dnd_enabled,
+                                        g.panel_open,
+                                        crate::notifications::panel_open_factor(&g),
+                                    ),
+                                    Err(_) => (Vec::new(), false, false, 0.0),
+                                };
+                            if open_factor <= 0.001 {
+                                data.state.notification_panel_rect = None;
+                                data.state.notification_dnd_rect = None;
+                                data.state.notification_clear_rect = None;
+                                data.state.notification_history_dismiss_rects.clear();
+                                data.state.notification_history_hover = None;
+                            } else {
+                                let t_n = crate::theme::current().notifications.clone();
+                                let text_r = data.state.text.as_ref();
+                                let panel_w = t_n.panel_width;
+                                let panel_h = output_size_logical.h;
+                                // Slide: x vai de output_w (factor=0, fora) até
+                                // output_w - panel_w (factor=1, dentro).
+                                let panel_x = output_size_logical.w
+                                    - ((panel_w as f32) * open_factor) as i32;
+                                let panel_y = 0;
+                                // Cacheia rect só quando totalmente aberto.
+                                if panel_open && open_factor >= 0.999 {
+                                    data.state.notification_panel_rect =
+                                        Some((panel_x, panel_y, panel_w, panel_h));
+                                } else {
+                                    data.state.notification_panel_rect = None;
+                                }
+
+                                let mut push_buf = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                                                    buf: &MemoryRenderBuffer,
+                                                    x: i32,
+                                                    y: i32,
+                                                    r: &mut GlesRenderer,
+                                                    front: bool| {
+                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((x, y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        r, loc.to_f64(), buf, None, None, None,
+                                        Kind::Unspecified,
+                                    ) {
+                                        if front {
+                                            elems.insert(0, LumaRenderElement::Memory(elem));
+                                        } else {
+                                            elems.push(LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                };
+
+                                // Sombra da borda esquerda do painel (faixa
+                                // translúcida estreita, fake mas funcional).
+                                let shadow_w = t_n.panel_shadow_blur;
+                                if shadow_w > 0 {
+                                    let shadow_buf = crate::gfx::make_rounded_panel(
+                                        shadow_w, panel_h, 0, t_n.panel_shadow_color,
+                                    );
+                                    push_buf(
+                                        &mut custom_elements,
+                                        &shadow_buf,
+                                        panel_x - shadow_w,
+                                        panel_y,
+                                        renderer,
+                                        false,
+                                    );
+                                }
+                                // BG translúcido + scrim opaco — mesma linguagem
+                                // dos toasts mas valores mais sólidos.
+                                let bg_buf = crate::gfx::make_rounded_panel(
+                                    panel_w, panel_h, 0, t_n.panel_bg,
+                                );
+                                push_buf(&mut custom_elements, &bg_buf, panel_x, panel_y, renderer, true);
+                                let scrim_buf = crate::gfx::make_rounded_panel(
+                                    panel_w, panel_h, 0, t_n.panel_scrim,
+                                );
+                                push_buf(&mut custom_elements, &scrim_buf, panel_x, panel_y, renderer, true);
+
+                                // Header: título + DND + "Limpar".
+                                let header_h = t_n.panel_header_height;
+                                let pad = t_n.panel_padding;
+                                if let Some(tr) = text_r {
+                                    // Título à esquerda, vertical center.
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        "Notificações",
+                                        t_n.panel_header_title_size,
+                                        t_n.panel_header_title_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let title_buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let tx = panel_x + pad;
+                                        let ty = panel_y + (header_h - h as i32) / 2;
+                                        push_buf(&mut custom_elements, &title_buf, tx, ty, renderer, true);
+                                    }
+                                    // Botões header (DND + Limpar) à direita.
+                                    let btn_h = t_n.panel_btn_height;
+                                    let btn_y = panel_y + (header_h - btn_h) / 2;
+                                    // Direita pra esquerda: "Limpar" primeiro.
+                                    let (clr_px, clr_w, clr_h) = tr.rasterize_colored(
+                                        "Limpar",
+                                        t_n.panel_btn_label_size,
+                                        t_n.panel_btn_label_color,
+                                    );
+                                    let clr_btn_w = clr_w as i32 + t_n.panel_btn_padding_h * 2;
+                                    let clr_x = panel_x + panel_w - pad - clr_btn_w;
+                                    let clear_btn_bg = crate::gfx::make_rounded_panel(
+                                        clr_btn_w, btn_h, t_n.panel_btn_corner, t_n.panel_btn_bg,
+                                    );
+                                    push_buf(&mut custom_elements, &clear_btn_bg, clr_x, btn_y, renderer, true);
+                                    if clr_w > 0 && clr_h > 0 {
+                                        let lbl_buf = MemoryRenderBuffer::from_slice(
+                                            &clr_px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (clr_w as i32, clr_h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = clr_x + (clr_btn_w - clr_w as i32) / 2;
+                                        let ly = btn_y + (btn_h - clr_h as i32) / 2;
+                                        push_buf(&mut custom_elements, &lbl_buf, lx, ly, renderer, true);
+                                    }
+                                    if panel_open && open_factor >= 0.999 {
+                                        data.state.notification_clear_rect =
+                                            Some((clr_x, btn_y, clr_btn_w, btn_h));
+                                    } else {
+                                        data.state.notification_clear_rect = None;
+                                    }
+                                    // DND toggle à esquerda do Limpar.
+                                    let dnd_label = if dnd_on { "DND on" } else { "DND" };
+                                    let (dnd_px, dnd_w, dnd_h) = tr.rasterize_colored(
+                                        dnd_label,
+                                        t_n.panel_btn_label_size,
+                                        t_n.panel_btn_label_color,
+                                    );
+                                    let dnd_btn_w = dnd_w as i32 + t_n.panel_btn_padding_h * 2;
+                                    let dnd_x = clr_x - 10 - dnd_btn_w;
+                                    let dnd_bg_color = if dnd_on {
+                                        t_n.panel_dnd_active_bg
+                                    } else {
+                                        t_n.panel_btn_bg
+                                    };
+                                    let dnd_btn_bg = crate::gfx::make_rounded_panel(
+                                        dnd_btn_w, btn_h, t_n.panel_btn_corner, dnd_bg_color,
+                                    );
+                                    push_buf(&mut custom_elements, &dnd_btn_bg, dnd_x, btn_y, renderer, true);
+                                    if dnd_w > 0 && dnd_h > 0 {
+                                        let lbl_buf = MemoryRenderBuffer::from_slice(
+                                            &dnd_px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (dnd_w as i32, dnd_h as i32),
+                                            1,
+                                            Transform::Normal,
+                                            None,
+                                        );
+                                        let lx = dnd_x + (dnd_btn_w - dnd_w as i32) / 2;
+                                        let ly = btn_y + (btn_h - dnd_h as i32) / 2;
+                                        push_buf(&mut custom_elements, &lbl_buf, lx, ly, renderer, true);
+                                    }
+                                    if panel_open && open_factor >= 0.999 {
+                                        data.state.notification_dnd_rect =
+                                            Some((dnd_x, btn_y, dnd_btn_w, btn_h));
+                                    } else {
+                                        data.state.notification_dnd_rect = None;
+                                    }
+                                } else {
+                                    data.state.notification_clear_rect = None;
+                                    data.state.notification_dnd_rect = None;
+                                }
+
+                                // Lista de itens (ou empty state).
+                                data.state.notification_history_dismiss_rects.clear();
+                                let list_top_y = panel_y + header_h + t_n.panel_item_gap;
+                                let item_h = t_n.panel_item_height;
+                                let item_gap = t_n.panel_item_gap;
+                                let hover_id = data.state.notification_history_hover;
+                                if history_snap.is_empty() {
+                                    // Empty state centralizado verticalmente.
+                                    if let Some(tr) = text_r {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "Sem notificações",
+                                            t_n.panel_empty_label_size,
+                                            t_n.panel_empty_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1,
+                                                Transform::Normal,
+                                                None,
+                                            );
+                                            let ex = panel_x + (panel_w - w as i32) / 2;
+                                            let ey = panel_y + panel_h / 3;
+                                            push_buf(&mut custom_elements, &buf, ex, ey, renderer, true);
+                                        }
+                                    }
+                                } else {
+                                    for (i, entry) in history_snap.iter().enumerate() {
+                                        let item_y = list_top_y + (i as i32) * (item_h + item_gap);
+                                        // Para de renderizar se passou da área visível.
+                                        if item_y + item_h > panel_h - pad {
+                                            break;
+                                        }
+                                        let item_x = panel_x + pad;
+                                        let item_w = panel_w - pad * 2;
+                                        let is_hovered = hover_id == Some(entry.id);
+                                        if is_hovered {
+                                            let hover_bg = crate::gfx::make_rounded_panel(
+                                                item_w, item_h, t_n.panel_item_corner,
+                                                t_n.panel_item_hover_bg,
+                                            );
+                                            push_buf(&mut custom_elements, &hover_bg, item_x, item_y, renderer, true);
+                                        }
+                                        let inner_pad = t_n.panel_item_padding;
+                                        // Ícone (scaled to panel_item_icon_size).
+                                        let icon_dst = t_n.panel_item_icon_size;
+                                        let icon_x = item_x + inner_pad;
+                                        let icon_y = item_y + (item_h - icon_dst) / 2;
+                                        if let Some(icon_buf) = entry.icon.as_ref() {
+                                            let icon_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((icon_x, icon_y))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, icon_loc.to_f64(), icon_buf, None, None,
+                                                Some(smithay::utils::Size::from((icon_dst, icon_dst))),
+                                                Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        // Texto à direita do ícone.
+                                        if let Some(tr) = text_r {
+                                            let text_left_x = icon_x + icon_dst + inner_pad;
+                                            // Time (top right) — calcula primeiro pra reservar espaço.
+                                            let time_str = crate::notifications::relative_time(entry.received_at);
+                                            let (t_px, t_w, t_h) = tr.rasterize_colored(
+                                                &time_str,
+                                                t_n.panel_item_time_size,
+                                                t_n.panel_item_time_color,
+                                            );
+                                            let time_right_x = item_x + item_w - inner_pad;
+                                            let time_x = time_right_x - t_w as i32;
+                                            let time_y = item_y + inner_pad;
+                                            if t_w > 0 && t_h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &t_px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (t_w as i32, t_h as i32),
+                                                    1,
+                                                    Transform::Normal,
+                                                    None,
+                                                );
+                                                push_buf(&mut custom_elements, &buf, time_x, time_y, renderer, true);
+                                            }
+                                            // Largura disponível pro título e body.
+                                            let text_w = (time_x - text_left_x - 6).max(0);
+                                            // Title.
+                                            let (ti_px, ti_w, ti_h) = tr.rasterize_colored(
+                                                &entry.summary,
+                                                t_n.panel_item_title_size,
+                                                t_n.panel_item_title_color,
+                                            );
+                                            if ti_w > 0 && ti_h > 0 && text_w > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &ti_px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (ti_w as i32, ti_h as i32),
+                                                    1,
+                                                    Transform::Normal,
+                                                    None,
+                                                );
+                                                let ti_x = text_left_x;
+                                                let ti_y = item_y + inner_pad;
+                                                // Smithay clipa por dst — passamos src crop pra
+                                                // truncar visualmente.
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((ti_x, ti_y))
+                                                        .to_physical_precise_round(1.0);
+                                                let src_w = (ti_w as i32).min(text_w);
+                                                let src = smithay::utils::Rectangle::<f64, smithay::utils::Logical>::from_size(
+                                                    smithay::utils::Size::<f64, smithay::utils::Logical>::from((
+                                                        src_w as f64, ti_h as f64,
+                                                    )),
+                                                );
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &buf, None, Some(src),
+                                                    Some(smithay::utils::Size::from((src_w, ti_h as i32))),
+                                                    Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                            // Body (1 linha, truncado).
+                                            let (b_px, b_w, b_h) = tr.rasterize_colored(
+                                                &entry.body,
+                                                t_n.panel_item_body_size,
+                                                t_n.panel_item_body_color,
+                                            );
+                                            if b_w > 0 && b_h > 0 && text_w > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &b_px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (b_w as i32, b_h as i32),
+                                                    1,
+                                                    Transform::Normal,
+                                                    None,
+                                                );
+                                                let b_x = text_left_x;
+                                                let b_y = item_y + inner_pad + ti_h as i32 + 4;
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((b_x, b_y))
+                                                        .to_physical_precise_round(1.0);
+                                                let src_w = (b_w as i32).min(text_w);
+                                                let src = smithay::utils::Rectangle::<f64, smithay::utils::Logical>::from_size(
+                                                    smithay::utils::Size::<f64, smithay::utils::Logical>::from((
+                                                        src_w as f64, b_h as f64,
+                                                    )),
+                                                );
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &buf, None, Some(src),
+                                                    Some(smithay::utils::Size::from((src_w, b_h as i32))),
+                                                    Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
+                                        // Dismiss X só no item sob hover.
+                                        if is_hovered {
+                                            let d_size = t_n.panel_item_dismiss_size;
+                                            let d_x = item_x + item_w - inner_pad - d_size;
+                                            let d_y = item_y + item_h - inner_pad - d_size;
+                                            // Render minimal X — usamos texto "×" caso fonte tenha.
+                                            if let Some(tr) = text_r {
+                                                let (px, w, h) = tr.rasterize_colored(
+                                                    "×",
+                                                    t_n.panel_btn_label_size + 4.0,
+                                                    t_n.panel_item_dismiss_color,
+                                                );
+                                                if w > 0 && h > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1,
+                                                        Transform::Normal,
+                                                        None,
+                                                    );
+                                                    let lx = d_x + (d_size - w as i32) / 2;
+                                                    let ly = d_y + (d_size - h as i32) / 2;
+                                                    push_buf(&mut custom_elements, &buf, lx, ly, renderer, true);
+                                                }
+                                            }
+                                            if panel_open && open_factor >= 0.999 {
+                                                data.state.notification_history_dismiss_rects.push((
+                                                    entry.id, d_x, d_y, d_size, d_size,
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Background gradient da taskbar (Coffee→Black, H32.5.3).

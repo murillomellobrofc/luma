@@ -948,3 +948,23 @@ pub fn ease_out_cubic(t: f32) -> f32 {
     let inv = (1.0 - t.clamp(0.0, 1.0)).max(0.0);
     1.0 - inv * inv * inv
 }
+
+/// Renderiza a idade de um evento como string curta:
+/// - <60s → "agora"
+/// - <60min → "{n} min"
+/// - ≥60min → "HH:MM" (hora absoluta local do evento, formato 24h).
+/// H54.P5.
+pub fn relative_time(received_at: Instant) -> String {
+    let elapsed = received_at.elapsed();
+    let secs = elapsed.as_secs();
+    if secs < 60 {
+        return "agora".into();
+    }
+    if secs < 3600 {
+        let m = secs / 60;
+        return format!("{m} min");
+    }
+    let then = chrono::Local::now()
+        - chrono::Duration::from_std(elapsed).unwrap_or(chrono::Duration::zero());
+    then.format("%H:%M").to_string()
+}
