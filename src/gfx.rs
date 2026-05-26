@@ -419,6 +419,82 @@ pub fn make_rounded_panel(w: i32, h: i32, radius: i32, color: Color32F) -> Memor
     )
 }
 
+/// Cria um buffer de sombra externa pra um rounded rect de tamanho
+/// `inner_w × inner_h` com raio de canto `corner_radius`. O buffer
+/// retornado tem tamanho `(inner_w + 2*blur) × (inner_h + 2*blur)`
+/// — o rounded rect "interno" fica centrado no buffer, com `blur`
+/// pixels de bleed em volta pra acomodar a decay gaussiana.
+///
+/// Alpha decai por SDF (signed distance field) do rounded rect:
+/// dentro = sólido (mas o caller cobre com bg), fora = exp decay com
+/// σ = blur/2.
+///
+/// Cor + alpha base vêm de `color: Color32F` (alpha embutida — fica
+/// multiplicada pelo decay gaussiano). Saída em Argb8888 BGRA
+/// premultiplied. H54.P3.shadow.
+pub fn make_drop_shadow(
+    inner_w: i32,
+    inner_h: i32,
+    corner_radius: i32,
+    blur: i32,
+    color: Color32F,
+) -> MemoryRenderBuffer {
+    let w = inner_w + 2 * blur;
+    let h = inner_h + 2 * blur;
+    let r = color.r();
+    let g = color.g();
+    let b = color.b();
+    let alpha_max = color.a();
+    // Centro do rect interno dentro do buffer.
+    let center_x = (w as f32) / 2.0;
+    let center_y = (h as f32) / 2.0;
+    let hw = (inner_w as f32) / 2.0;
+    let hh = (inner_h as f32) / 2.0;
+    let cr = corner_radius as f32;
+    let sigma = (blur as f32 / 2.0).max(1.0);
+    let two_sigma_sq = 2.0 * sigma * sigma;
+    let mut pixels = vec![0u8; (w * h * 4) as usize];
+    // SDF rounded rect: dist negativa dentro, positiva fora.
+    let sdf = |px: f32, py: f32| -> f32 {
+        let qx = (px - center_x).abs() - hw + cr;
+        let qy = (py - center_y).abs() - hh + cr;
+        let outside = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt();
+        let inside = qx.max(qy).min(0.0);
+        outside + inside - cr
+    };
+    for py in 0..h {
+        for px in 0..w {
+            let dist = sdf(px as f32 + 0.5, py as f32 + 0.5);
+            let alpha_factor = if dist <= 0.0 {
+                1.0
+            } else {
+                (-(dist * dist) / two_sigma_sq).exp()
+            };
+            let a = (alpha_max * alpha_factor * 255.0).round().clamp(0.0, 255.0) as u8;
+            if a == 0 {
+                continue;
+            }
+            // Argb8888 little-endian = bytes [B, G, R, A] premultiplied.
+            let pr = ((r * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let pg = ((g * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let pb_ = ((b * 255.0).round() as u16 * a as u16 / 255) as u8;
+            let off = ((py * w + px) * 4) as usize;
+            pixels[off] = pb_;
+            pixels[off + 1] = pg;
+            pixels[off + 2] = pr;
+            pixels[off + 3] = a;
+        }
+    }
+    MemoryRenderBuffer::from_slice(
+        &pixels,
+        Fourcc::Argb8888,
+        (w, h),
+        1,
+        Transform::Normal,
+        None,
+    )
+}
+
 // H33.taskbar.SVG: pixel art legado (draw_line, make_bluetooth_icon,
 // make_bell_icon, make_dot, make_wifi_icon, make_volume_icon,
 // make_battery_icon) removido — agora todos os ícones do tray e do

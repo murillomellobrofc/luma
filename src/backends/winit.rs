@@ -4252,22 +4252,106 @@ pub fn init_winit(
                                     )
                                     .ok()
                                 };
-                            // Cache do bg + scrim panels (mesmas dimensões
-                            // pra todos os toasts no stack, render
-                            // **idêntico** entre eles — garantia visual de
-                            // consistência).
-                            let bg_panel = crate::gfx::make_rounded_panel(
-                                t_n.width, toasts.first().map(|t| t.card_h).unwrap_or(0),
-                                t_n.corner, t_n.bg,
-                            );
-                            let _ = bg_panel; // criamos por toast pq card_h varia
+                            // H54.P3.shadow: cache de sombras por card_h
+                            // (contact + ambient). Gera 1x por tamanho —
+                            // reflow só translada, não recalcula gaussian.
+                            use std::collections::HashMap;
+                            use std::sync::{Mutex, OnceLock};
+                            static SHADOW_CACHE: OnceLock<
+                                Mutex<HashMap<i32, (MemoryRenderBuffer, MemoryRenderBuffer)>>,
+                            > = OnceLock::new();
+                            let cache = SHADOW_CACHE
+                                .get_or_init(|| Mutex::new(HashMap::new()));
+                            let get_shadow = |card_h: i32| -> Option<(MemoryRenderBuffer, MemoryRenderBuffer)> {
+                                let mut g = cache.lock().ok()?;
+                                if let Some(pair) = g.get(&card_h) {
+                                    return Some(pair.clone());
+                                }
+                                let contact = crate::gfx::make_drop_shadow(
+                                    t_n.width,
+                                    card_h,
+                                    t_n.corner,
+                                    t_n.shadow_contact_blur,
+                                    t_n.shadow_color_contact,
+                                );
+                                let ambient = crate::gfx::make_drop_shadow(
+                                    t_n.width,
+                                    card_h,
+                                    t_n.corner,
+                                    t_n.shadow_ambient_blur,
+                                    t_n.shadow_color_ambient,
+                                );
+                                let pair = (contact.clone(), ambient.clone());
+                                g.insert(card_h, pair.clone());
+                                Some(pair)
+                            };
+
                             for t in &toasts {
                                 let card_x = output_size_logical.w
                                     - t_n.margin
                                     - t.card_w
                                     + t.slide_offset_x as i32;
                                 let card_y = t.current_y as i32;
-                                // Layer 1 (back): bg translúcido — "blur"
+                                // Layer 0 (BACK, push pra END do vec):
+                                // sombras macOS-style. Ambient grande +
+                                // contact pequena. Sombras NÃO aparecem na
+                                // notification_rects (input region) — clique
+                                // na área da sombra passa pra wallpaper/janela.
+                                if let Some((contact, ambient)) = get_shadow(t.card_h) {
+                                    // Ambient (mais difusa) primeiro =
+                                    // mais ATRÁS no vec (drawn first).
+                                    let ax = card_x - t_n.shadow_ambient_blur;
+                                    let ay = card_y - t_n.shadow_ambient_blur
+                                        + t_n.shadow_ambient_offset_y;
+                                    let aloc: smithay::utils::Point<
+                                        i32,
+                                        smithay::utils::Physical,
+                                    > = smithay::utils::Point::<
+                                        i32,
+                                        smithay::utils::Logical,
+                                    >::from((ax, ay))
+                                        .to_physical_precise_round(1.0);
+                                    if let Ok(elem) =
+                                        MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer,
+                                            aloc.to_f64(),
+                                            &ambient,
+                                            Some(t.alpha),
+                                            None,
+                                            None,
+                                            Kind::Unspecified,
+                                        )
+                                    {
+                                        custom_elements
+                                            .push(LumaRenderElement::Memory(elem));
+                                    }
+                                    let cx = card_x - t_n.shadow_contact_blur;
+                                    let cy = card_y - t_n.shadow_contact_blur
+                                        + t_n.shadow_contact_offset_y;
+                                    let cloc: smithay::utils::Point<
+                                        i32,
+                                        smithay::utils::Physical,
+                                    > = smithay::utils::Point::<
+                                        i32,
+                                        smithay::utils::Logical,
+                                    >::from((cx, cy))
+                                        .to_physical_precise_round(1.0);
+                                    if let Ok(elem) =
+                                        MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer,
+                                            cloc.to_f64(),
+                                            &contact,
+                                            Some(t.alpha),
+                                            None,
+                                            None,
+                                            Kind::Unspecified,
+                                        )
+                                    {
+                                        custom_elements
+                                            .push(LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Layer 1 (BACK do toast): bg translúcido — "blur"
                                 // estético.
                                 let bg = crate::gfx::make_rounded_panel(
                                     t.card_w, t.card_h, t_n.corner, t_n.bg,
