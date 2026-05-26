@@ -1957,6 +1957,47 @@ fn dispatch_context_action(
                 }
             }
         }
+        ContextAction::ClipboardCopy | ContextAction::ClipboardCut => {
+            // H56 parte 3 (pre-Colar): popula o clipboard interno
+            // com o target + qualquer outra seleção. Substitui slot
+            // anterior (slot único).
+            let op = matches!(action, ContextAction::ClipboardCut)
+                .then_some(crate::desktop_icons::LumaClipOp::Cut)
+                .unwrap_or(crate::desktop_icons::LumaClipOp::Copy);
+            let paths: Vec<std::path::PathBuf> = if let Some(t) = icon_target.as_ref() {
+                if state.desktop_selection.contains(t) && state.desktop_selection.len() > 1 {
+                    state.desktop_selection.iter().cloned().collect()
+                } else {
+                    vec![t.clone()]
+                }
+            } else {
+                return;
+            };
+            state.luma_clipboard = Some(crate::desktop_icons::LumaClipboard {
+                paths,
+                op,
+            });
+            // Sincroniza cut_paths com o layer pra o render aplicar
+            // a opacidade. Copy = clear (sem visual).
+            let cut_set: std::collections::HashSet<std::path::PathBuf> =
+                if op == crate::desktop_icons::LumaClipOp::Cut {
+                    state
+                        .luma_clipboard
+                        .as_ref()
+                        .map(|c| c.paths.iter().cloned().collect())
+                        .unwrap_or_default()
+                } else {
+                    std::collections::HashSet::new()
+                };
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_cut_paths(cut_set);
+            }
+            tracing::info!(
+                "luma clipboard <- {:?} ({} paths)",
+                op,
+                state.luma_clipboard.as_ref().map(|c| c.paths.len()).unwrap_or(0),
+            );
+        }
         ContextAction::CreateNew(kind) => {
             // H56 parte 2: cria pasta/arquivo no ~/Desktop com nome
             // default único, ancora perto do clique, abre rename

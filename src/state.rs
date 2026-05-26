@@ -246,6 +246,10 @@ pub struct LumaState {
     pub calendar_prev_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     pub calendar_next_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     pub calendar_hoje_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
+    /// Clipboard de arquivo interno do Luma (NÃO o clipboard do
+    /// Wayland). Populado por Copiar/Recortar do per-icon menu;
+    /// consumido por Colar do menu do desktop. H56 parte 3.
+    pub luma_clipboard: Option<crate::desktop_icons::LumaClipboard>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -704,6 +708,7 @@ impl LumaState {
             calendar_prev_rect: None,
             calendar_next_rect: None,
             calendar_hoje_rect: None,
+            luma_clipboard: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),

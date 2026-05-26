@@ -38,14 +38,15 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let tray_overflow_open = state.tray.overflow_open;
     // H48.ctx.1: context menu aberto intercepta Esc.
     let context_menu_open = state.context_menu.is_some();
-    // H50.2a.sel.3: Esc desseleciona ícones do desktop quando não há
-    // popup/menu aberto.
-    let desktop_has_selection = !state.desktop_selection.is_empty()
-        && !context_menu_open
-        && !menu_open_now
-        && !applet_popup_open
-        && !tray_overflow_open;
+    // H50.2a.sel.3 + H56 parte 3 (pre-Colar): Esc desseleciona ícones
+    // do desktop OU limpa o clipboard interno do Luma quando há algo
+    // pra limpar e nenhum popup aberto.
+    let any_popup =
+        context_menu_open || menu_open_now || applet_popup_open || tray_overflow_open;
+    let desktop_has_selection = !state.desktop_selection.is_empty() && !any_popup;
+    let desktop_has_clipboard = state.luma_clipboard.is_some() && !any_popup;
     let mut clear_desktop_selection = false;
+    let mut clear_luma_clipboard = false;
     // H50.2c.kb: navegação por teclado quando há seleção + nenhuma
     // window com keyboard focus.
     let no_window_focus = keyboard.current_focus().is_none();
@@ -179,10 +180,17 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 }
                 // Outras teclas (modifiers só, F-keys etc) passam.
             }
-            if desktop_has_selection && key_state == KeyState::Pressed {
+            if (desktop_has_selection || desktop_has_clipboard)
+                && key_state == KeyState::Pressed
+            {
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
-                    clear_desktop_selection = true;
+                    if desktop_has_selection {
+                        clear_desktop_selection = true;
+                    }
+                    if desktop_has_clipboard {
+                        clear_luma_clipboard = true;
+                    }
                     return FilterResult::Intercept(());
                 }
             }
@@ -307,10 +315,19 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         return;
     }
 
-    if clear_desktop_selection {
-        state.desktop_selection.clear();
-        if let Some(l) = state.desktop_icons.as_ref() {
-            l.set_selection(std::collections::HashSet::new());
+    if clear_desktop_selection || clear_luma_clipboard {
+        if clear_desktop_selection {
+            state.desktop_selection.clear();
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_selection(std::collections::HashSet::new());
+            }
+        }
+        if clear_luma_clipboard {
+            state.luma_clipboard = None;
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_cut_paths(std::collections::HashSet::new());
+            }
+            tracing::info!("luma clipboard cleared (Esc)");
         }
         return;
     }

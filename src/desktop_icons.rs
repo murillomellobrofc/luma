@@ -405,6 +405,23 @@ pub fn compute_layout(
     result.into_iter().map(|p| p.unwrap_or((0, 0))).collect()
 }
 
+/// H56 parte 3 (pre-Colar): operação do clipboard de arquivo do Luma.
+/// Diferente do clipboard do Wayland (que continua só pra texto).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LumaClipOp {
+    Copy,
+    Cut,
+}
+
+/// Conteúdo do clipboard de arquivo do Luma. Slot único — Copiar ou
+/// Recortar substituem qualquer estado anterior. Multi-path quando
+/// a seleção tinha vários ícones na hora do click. H56 parte 3.
+#[derive(Debug, Clone)]
+pub struct LumaClipboard {
+    pub paths: Vec<PathBuf>,
+    pub op: LumaClipOp,
+}
+
 /// H56 parte 2: cria pasta ou arquivo no ~/Desktop com nome default
 /// único (sufixo " (2)", " (3)" se já existir). Retorna o path
 /// criado, ou None se a pasta do desktop não existe / o write falhou.
@@ -635,6 +652,10 @@ pub struct DesktopIconsLayer {
     /// Animação de "Organizar ícones" em curso (H56). None quando
     /// estática. Limpa sozinha quando elapsed >= duration no render.
     arrange_anim: Mutex<Option<ArrangeAnim>>,
+    /// H56 parte 3 (pre-Colar): paths marcados como "Recortar" no
+    /// clipboard interno. Renderizam translúcidos. Vazio quando
+    /// clipboard vazio ou em modo Copy.
+    cut_paths: Mutex<std::collections::HashSet<PathBuf>>,
 }
 
 impl DesktopIconsLayer {
@@ -651,12 +672,19 @@ impl DesktopIconsLayer {
             rubber_band: Mutex::new(None),
             renaming: Mutex::new(None),
             arrange_anim: Mutex::new(None),
+            cut_paths: Mutex::new(std::collections::HashSet::new()),
         }
     }
 
     /// H56: inicia (ou substitui) a animação de organização.
     pub fn set_arrange_anim(&self, anim: Option<ArrangeAnim>) {
         *self.arrange_anim.lock().unwrap() = anim;
+    }
+
+    /// H56 parte 3 (pre-Colar): atualiza o set de paths Cut. Render
+    /// pinta esses ícones com `t.cut_opacity`.
+    pub fn set_cut_paths(&self, paths: std::collections::HashSet<PathBuf>) {
+        *self.cut_paths.lock().unwrap() = paths;
     }
 
     pub fn set_output_size(&self, size: Size<i32, Logical>) {
@@ -1123,6 +1151,14 @@ where
             .map(|a| a.progress());
         let rb_snap = self.rubber_band.lock().ok().and_then(|g| g.clone());
         let rename_snap = self.renaming.lock().ok().and_then(|g| g.clone());
+        // H56 parte 3 (pre-Colar): snapshot do set de paths Cut pra
+        // aplicar opacidade no render de cada ícone/label.
+        let cut_paths_snap: std::collections::HashSet<PathBuf> = self
+            .cut_paths
+            .lock()
+            .ok()
+            .map(|g| (*g).clone())
+            .unwrap_or_default();
         // H50.2a.sel.2: bg de seleção lazy-cacheado (uma textura só,
         // reusada pra todos selecionados; mesmo tamanho da célula
         // menos um pequeno padding).
@@ -1224,6 +1260,12 @@ where
             }
             let icon_x = cell_x + (t.cell_width - t.icon_size) / 2;
             let icon_y = cell_y + 8;
+            // H56 parte 3 (pre-Colar): ícone Cut = translúcido.
+            let cut_alpha = if cut_paths_snap.contains(&entry.path) {
+                Some(t.cut_opacity)
+            } else {
+                None
+            };
             if let Some(icon_buf) = self.load_pack_icon(entry.kind.icon_name(), t.icon_size) {
                 let pos = Point::<i32, Logical>::from((icon_x, icon_y))
                     .to_physical_precise_round(1.0);
@@ -1232,7 +1274,7 @@ where
                     renderer,
                     loc.to_f64(),
                     &icon_buf,
-                    None,
+                    cut_alpha,
                     None,
                     None,
                     Kind::Unspecified,
@@ -1271,7 +1313,7 @@ where
                         renderer,
                         loc.to_f64(),
                         &lbuf,
-                        None,
+                        cut_alpha,
                         None,
                         None,
                         Kind::Unspecified,

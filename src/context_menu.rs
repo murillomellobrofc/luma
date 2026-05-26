@@ -45,6 +45,13 @@ pub enum ContextAction {
     /// H56 parte 2: cria pasta ou arquivo no desktop, ancora perto
     /// do clique, ativa rename inline.
     CreateNew(NewKind),
+    /// H56 parte 3 (pre-Colar): copia arquivo(s) selecionado(s) pro
+    /// clipboard interno do Luma (modo Copy — Colar duplica).
+    ClipboardCopy,
+    /// H56 parte 3 (pre-Colar): recorta — clipboard interno modo Cut.
+    /// Ícone(s) selecionado(s) ficam translúcidos até Colar / outro
+    /// Copiar / outro Recortar / Esc.
+    ClipboardCut,
     /// Placeholder pros items que dependem de features ainda não
     /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
@@ -418,6 +425,20 @@ fn icon_items() -> Vec<ContextItem> {
             kind: ItemKind::Separator,
             enabled: false,
             shortcut: None,
+        },
+        ContextItem {
+            label: "Copiar".into(),
+            icon: Some("ctx-paste"),
+            kind: ItemKind::Action(ContextAction::ClipboardCopy),
+            enabled: true,
+            shortcut: Some("Ctrl+C"),
+        },
+        ContextItem {
+            label: "Recortar".into(),
+            icon: Some("ctx-paste"),
+            kind: ItemKind::Action(ContextAction::ClipboardCut),
+            enabled: true,
+            shortcut: Some("Ctrl+X"),
         },
         ContextItem {
             label: "Copiar caminho".into(),
