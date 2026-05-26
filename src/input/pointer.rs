@@ -52,6 +52,44 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // H54.P5: hover sobre item do histórico da central — mostra o X
+    // de dismiss. Computamos a partir do panel_rect + tokens (não
+    // cacheamos rect por item, fica mais leve recalcular).
+    {
+        let mut new_hover: Option<u32> = None;
+        if let Some((px, py, pw, ph)) = state.notification_panel_rect {
+            let t_n = crate::theme::current().notifications.clone();
+            let pad = t_n.panel_padding;
+            let header_h = t_n.panel_header_height;
+            let item_h = t_n.panel_item_height;
+            let item_gap = t_n.panel_item_gap;
+            let list_top = py + header_h + item_gap;
+            // Snapshot dos ids do histórico na ordem visual.
+            let ids: Vec<u32> = match state.notifications.lock() {
+                Ok(g) => g.history.iter().map(|h| h.id).collect(),
+                Err(_) => Vec::new(),
+            };
+            let inside_panel_x = pos.x >= px as f64 && pos.x < (px + pw) as f64;
+            if inside_panel_x {
+                for (i, id) in ids.iter().enumerate() {
+                    let iy = list_top + (i as i32) * (item_h + item_gap);
+                    if iy + item_h > py + ph - pad {
+                        break;
+                    }
+                    if pos.y >= iy as f64
+                        && pos.y < (iy + item_h) as f64
+                        && pos.x >= (px + pad) as f64
+                        && pos.x < (px + pw - pad) as f64
+                    {
+                        new_hover = Some(*id);
+                        break;
+                    }
+                }
+            }
+        }
+        state.notification_history_hover = new_hover;
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
@@ -443,6 +481,116 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H54.P5: central de notificações — bell, panel toggle, DND,
+        // clear all, item dismiss. Ordem de prioridade.
+        let bell_hit = state.notification_bell_rect.map_or(false, |(x, y, w, h)| {
+            pointer_pos.x >= x as f64
+                && pointer_pos.x < (x + w) as f64
+                && pointer_pos.y >= y as f64
+                && pointer_pos.y < (y + h) as f64
+        });
+        if bell_hit {
+            let now_open = match state.notifications.lock() {
+                Ok(g) => g.panel_open,
+                Err(_) => false,
+            };
+            if let Ok(mut g) = state.notifications.lock() {
+                if now_open {
+                    crate::notifications::close_panel(&mut g);
+                } else {
+                    crate::notifications::open_panel(&mut g);
+                }
+            }
+            pointer.button(state, &ButtonEvent {
+                button, state: button_state, serial, time: event.time_msec(),
+            });
+            pointer.frame(state);
+            return;
+        }
+        // Painel aberto: testa rects internos primeiro.
+        if state.notification_panel_rect.is_some() {
+            // Dismiss item.
+            let mut dismiss_id: Option<u32> = None;
+            for (id, x, y, w, h) in state.notification_history_dismiss_rects.iter() {
+                if pointer_pos.x >= *x as f64
+                    && pointer_pos.x < (*x + *w) as f64
+                    && pointer_pos.y >= *y as f64
+                    && pointer_pos.y < (*y + *h) as f64
+                {
+                    dismiss_id = Some(*id);
+                    break;
+                }
+            }
+            if let Some(id) = dismiss_id {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::dismiss_history_item(&mut g, id);
+                }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // DND toggle.
+            let dnd_hit = state.notification_dnd_rect.map_or(false, |(x, y, w, h)| {
+                pointer_pos.x >= x as f64
+                    && pointer_pos.x < (x + w) as f64
+                    && pointer_pos.y >= y as f64
+                    && pointer_pos.y < (y + h) as f64
+            });
+            if dnd_hit {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::toggle_dnd(&mut g);
+                }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Clear all.
+            let clear_hit = state.notification_clear_rect.map_or(false, |(x, y, w, h)| {
+                pointer_pos.x >= x as f64
+                    && pointer_pos.x < (x + w) as f64
+                    && pointer_pos.y >= y as f64
+                    && pointer_pos.y < (y + h) as f64
+            });
+            if clear_hit {
+                if let Ok(mut g) = state.notifications.lock() {
+                    crate::notifications::clear_history(&mut g);
+                }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Click dentro do painel mas fora de qualquer botão: consome.
+            let inside_panel = state.notification_panel_rect
+                .map_or(false, |(x, y, w, h)| {
+                    pointer_pos.x >= x as f64
+                        && pointer_pos.x < (x + w) as f64
+                        && pointer_pos.y >= y as f64
+                        && pointer_pos.y < (y + h) as f64
+                });
+            if inside_panel {
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Click fora do painel: fecha.
+            if let Ok(mut g) = state.notifications.lock() {
+                crate::notifications::close_panel(&mut g);
+            }
+            pointer.button(state, &ButtonEvent {
+                button, state: button_state, serial, time: event.time_msec(),
+            });
+            pointer.frame(state);
+            return;
+        }
+
         // H54.P4: action buttons têm prioridade sobre o body.
         // Primeiro testa contra notification_button_rects; se hit,
         // emite ActionInvoked + fecha (a menos que resident=true).

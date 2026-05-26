@@ -421,9 +421,15 @@ pub fn volume_icon_name(state: VolumeState) -> &'static str {
     }
 }
 
-/// Nome do SVG do sino. H33 sempre "bell-normal" (H40 conecta).
-pub fn bell_icon_name(_count: usize) -> &'static str {
-    "bell-normal"
+/// Nome do SVG do sino. H54.P5: alterna entre normal e dnd
+/// dependendo do estado do Do Not Disturb. O badge de não-vistas
+/// é renderizado por cima, fora dessa função.
+pub fn bell_icon_name(dnd_enabled: bool) -> &'static str {
+    if dnd_enabled {
+        "bell-dnd"
+    } else {
+        "bell-normal"
+    }
 }
 
 // ────────────────────────── Cache + load ──────────────────────────

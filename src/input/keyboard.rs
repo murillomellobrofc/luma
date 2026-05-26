@@ -64,6 +64,12 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
+    // H54.P5: painel da central de notificações aberto intercepta Esc.
+    let notification_panel_open = match state.notifications.lock() {
+        Ok(g) => g.panel_open,
+        Err(_) => false,
+    };
+    let mut close_notif_panel = false;
     let _ = keyboard.input::<(), _>(
         state,
         key_code,
@@ -71,6 +77,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         serial,
         time,
         |_state, _modifiers, handle| {
+            if notification_panel_open && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    close_notif_panel = true;
+                    return FilterResult::Intercept(());
+                }
+            }
             if applet_popup_open && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
@@ -226,6 +239,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             FilterResult::Forward
         },
     );
+
+    if close_notif_panel {
+        if let Ok(mut g) = state.notifications.lock() {
+            crate::notifications::close_panel(&mut g);
+        }
+        return;
+    }
 
     if close_applet_popup {
         state.applet_popup = None;

@@ -216,6 +216,21 @@ pub struct LumaState {
     /// Botão hovered atualmente: (notif_id, action_key). Pintado com
     /// bg_hover. H54.P4.
     pub notification_button_hover: Option<(u32, String)>,
+    /// Rect (x, y, w, h) do sino no system tray. Cacheado pelo render
+    /// pra click hit-test. H54.P5.
+    pub notification_bell_rect: Option<(i32, i32, i32, i32)>,
+    /// Rect do painel da central (x, y, w, h). None quando fechado e
+    /// sem animação. H54.P5.
+    pub notification_panel_rect: Option<(i32, i32, i32, i32)>,
+    /// Rect do toggle DND no header (x, y, w, h). H54.P5.
+    pub notification_dnd_rect: Option<(i32, i32, i32, i32)>,
+    /// Rect do botão "Limpar tudo" no header (x, y, w, h). H54.P5.
+    pub notification_clear_rect: Option<(i32, i32, i32, i32)>,
+    /// Rects de dismiss de cada item do histórico
+    /// (history_id, x, y, w, h). Mostrado só no item sob hover. H54.P5.
+    pub notification_history_dismiss_rects: Vec<(u32, i32, i32, i32, i32)>,
+    /// Hover no histórico: id da entrada sob cursor (mostra o X). H54.P5.
+    pub notification_history_hover: Option<u32>,
     /// Posições customizadas (basename → (col, row)) persistidas em
     /// `~/.cache/luma/desktop-positions.toml`. Entries sem entrada
     /// caem no auto-arrange (column-major). H50.2b.
@@ -660,6 +675,12 @@ impl LumaState {
             notification_rects: Vec::new(),
             notification_button_rects: Vec::new(),
             notification_button_hover: None,
+            notification_bell_rect: None,
+            notification_panel_rect: None,
+            notification_dnd_rect: None,
+            notification_clear_rect: None,
+            notification_history_dismiss_rects: Vec::new(),
+            notification_history_hover: None,
             desktop_positions: crate::desktop_icons::load_positions(),
             overview: crate::overview::OverviewState::new(),
             saved_positions: Vec::new(),
