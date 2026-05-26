@@ -35,53 +35,100 @@ fn with_alpha_color(
     smithay::backend::renderer::Color32F::new(c.r(), c.g(), c.b(), alpha)
 }
 
-/// Quebra texto em até `max_lines` linhas com no máximo `max_chars`
-/// chars cada (boundary em espaço, fallback hard-cut). Ultima linha
-/// ganha "…" se sobrou texto. H54.notifications.
-fn wrap_to_lines(text: &str, max_lines: usize, max_chars: usize) -> Vec<String> {
-    if max_lines == 0 || max_chars == 0 {
+/// Quebra texto em linhas **medindo a largura real em pixels** via
+/// rasterize (fontdue). Layout natural primeiro: cada linha recebe
+/// quantas palavras couberem em `max_width_px`. SÓ depois aplica
+/// truncation: se o resultado natural tem mais que `max_lines`, mantém
+/// as primeiras e adiciona "…" na última (não no meio). Palavra única
+/// maior que `max_width_px` é hard-cut por chars.
+/// H54.P3.fix: substitui o wrap por char-count que truncava errado.
+fn wrap_to_lines_pixels(
+    text: &str,
+    text_renderer: &crate::text::TextRenderer,
+    size: f32,
+    color: smithay::backend::renderer::Color32F,
+    max_width_px: i32,
+    max_lines: usize,
+) -> Vec<String> {
+    if text.is_empty() || max_lines == 0 || max_width_px <= 0 {
         return Vec::new();
     }
-    let mut lines: Vec<String> = Vec::new();
-    let mut remaining = text.trim();
-    while !remaining.is_empty() && lines.len() < max_lines {
-        if remaining.chars().count() <= max_chars {
-            lines.push(remaining.to_string());
-            remaining = "";
-            break;
+    // Mede a largura em pixels de um texto qualquer.
+    let measure = |s: &str| -> i32 {
+        if s.is_empty() {
+            return 0;
         }
-        // Acha o último espaço dentro de max_chars.
-        let cut: usize = remaining
-            .char_indices()
-            .take(max_chars + 1)
-            .last()
-            .map(|(i, c)| i + c.len_utf8())
-            .unwrap_or(remaining.len());
-        let slice = &remaining[..cut.min(remaining.len())];
-        let (head, tail): (&str, &str) = if let Some(sp) = slice.rfind(' ') {
-            (&slice[..sp], remaining[sp..].trim_start())
+        text_renderer.rasterize_colored(s, size, color).1 as i32
+    };
+    // Phase 1: word wrap natural por largura.
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if words.is_empty() {
+        return Vec::new();
+    }
+    let mut natural: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in &words {
+        let candidate = if current.is_empty() {
+            (*word).to_string()
         } else {
-            let safe = slice
-                .char_indices()
-                .take(max_chars)
-                .last()
-                .map(|(i, c)| i + c.len_utf8())
-                .unwrap_or(slice.len());
-            (&slice[..safe], &remaining[safe..])
+            format!("{} {}", current, word)
         };
-        lines.push(head.to_string());
-        remaining = tail.trim_start();
+        if measure(&candidate) <= max_width_px {
+            current = candidate;
+            continue;
+        }
+        // Não cabe junto com current. Fecha current se tiver algo.
+        if !current.is_empty() {
+            natural.push(std::mem::take(&mut current));
+        }
+        // Palavra sozinha cabe?
+        if measure(word) <= max_width_px {
+            current = (*word).to_string();
+            continue;
+        }
+        // Hard-cut por char.
+        let mut acc = String::new();
+        for ch in word.chars() {
+            let next = format!("{}{}", acc, ch);
+            if measure(&next) > max_width_px {
+                if !acc.is_empty() {
+                    natural.push(acc.clone());
+                }
+                acc = ch.to_string();
+            } else {
+                acc = next;
+            }
+        }
+        current = acc;
     }
-    if !remaining.is_empty() {
-        // Sobrou texto — última linha ganha ellipsis.
-        if let Some(last) = lines.last_mut() {
-            let cap = max_chars.saturating_sub(1);
-            let mut t: String = last.chars().take(cap).collect();
-            t.push('…');
-            *last = t;
+    if !current.is_empty() {
+        natural.push(current);
+    }
+    // Phase 2: clamp em max_lines com "…" só na última se sobrou.
+    if natural.len() <= max_lines {
+        return natural;
+    }
+    let mut clipped: Vec<String> = natural.into_iter().take(max_lines).collect();
+    // Última linha visível ganha "…" — encolhe por palavra/char até caber.
+    if let Some(last) = clipped.last_mut() {
+        loop {
+            let candidate = format!("{}…", last);
+            if measure(&candidate) <= max_width_px || last.is_empty() {
+                *last = candidate;
+                break;
+            }
+            // Remove última palavra OU char se sem espaço.
+            if let Some(sp) = last.rfind(' ') {
+                last.truncate(sp);
+                while last.ends_with(' ') {
+                    last.pop();
+                }
+            } else {
+                last.pop();
+            }
         }
     }
-    lines
+    clipped
 }
 
 /// Trunca string em N chars adicionando "…" se passou. H44.volume.5.
@@ -4030,14 +4077,24 @@ pub fn init_winit(
                                         h as i32,
                                     ))
                                 });
+                                // H54.P3.fix: wrap por pixel width (não
+                                // char-count). Largura disponível = card
+                                // menos icon column + paddings.
+                                let body_max_width =
+                                    t_n.width - t_n.padding * 3 - t_n.icon_size;
                                 let body_lines: Vec<String> = if entry.body.is_empty() {
                                     Vec::new()
-                                } else {
-                                    wrap_to_lines(
+                                } else if let Some(tr) = text_r {
+                                    wrap_to_lines_pixels(
                                         &entry.body,
+                                        tr,
+                                        t_n.body_size,
+                                        t_n.body_color,
+                                        body_max_width,
                                         t_n.max_body_lines,
-                                        48,
                                     )
+                                } else {
+                                    Vec::new()
                                 };
                                 let body_bufs: Vec<(MemoryRenderBuffer, i32, i32)> = text_r
                                     .map(|t| {
@@ -4210,8 +4267,12 @@ pub fn init_winit(
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }
                                 if let Some(icon_buf) = t.icon.as_ref() {
+                                    // H54.P3.fix: icon top-align (mesma
+                                    // linha do title) — não centralizado
+                                    // verticalmente. Consistente entre
+                                    // toasts de 1 e 3 linhas.
                                     let ix = card_x + t_n.padding;
-                                    let iy = card_y + (t.card_h - t.icon_size) / 2;
+                                    let iy = card_y + t_n.padding;
                                     if let Some(elem) =
                                         mk_alpha_n(icon_buf, ix, iy, t.alpha, renderer)
                                     {
