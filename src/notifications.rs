@@ -1,57 +1,153 @@
-//! Servidor de notificações `org.freedesktop.Notifications` via D-Bus.
-//! H54.notifications.
+//! Servidor de notificações `org.freedesktop.Notifications` via D-Bus
+//! + stacking de toasts no canto sup-direito. H54 P3.
 //!
-//! Comportamento env-gated: só registra quando `LUMA_TAKE_NOTIFICATIONS=1`
-//! está setado. Sem isso, o thread retorna no-op silencioso pra não
-//! roubar as notificações do KDE/GNOME em modo aninhado. Mesmo padrão
-//! seguro do `LUMA_FAKE_SNI`.
+//! Comportamento env-gated: só registra como servidor D-Bus quando
+//! `LUMA_TAKE_NOTIFICATIONS=1` está setado (não rouba notificações
+//! do host KDE em modo aninhado). Pra debug visual sem servidor,
+//! `LUMA_FAKE_NOTIFICATION=1` injeta 1 fake;
+//! `LUMA_FAKE_NOTIFICATION=N` (N>1) injeta N fakes pra testar stack
+//! + queue + reflow.
 //!
-//! Quando ativo, mantém o `Arc<Mutex<Option<Notification>>>` que o
-//! main loop lê pra renderizar o toast. Cada Notify substitui a
-//! notificação anterior (empilhar é fase futura — debt em DEBT.md).
+//! Modelo do stack:
+//! - `visible: Vec<NotificationEntry>` — até `MAX_VISIBLE_TOASTS` (4)
+//!   renderizados no canto sup-direito, newest on top
+//!   (`STACK_NEWEST_ON_TOP = true`).
+//! - `queue: VecDeque` — overflow. Quando um visible fecha, pop_front.
+//! - `hover_paused: bool` — qualquer hover sobre rect pausa TODOS os
+//!   timers (per spec).
+//!
+//! Timer: elapsed-based via render frame cadence (luma chama
+//! request_redraw a cada frame, então acompanha em ~16ms). Calloop
+//! one-shot wake-on-idle é debt em DRM (DEBT.md).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::memory::MemoryRenderBuffer;
 use smithay::utils::Transform;
 
-/// Notificação ativa (visível como toast). H54.notif.2.
+/// Máximo de toasts renderizados simultaneamente; resto vai pra fila.
+/// H54.P3.b1.
+pub const MAX_VISIBLE_TOASTS: usize = 4;
+
+/// `true` = newer entries no topo (index 0 = mais novo). Token
+/// funcional — inverter é trocar pra `false`. H54.P3.b1.
+pub const STACK_NEWEST_ON_TOP: bool = true;
+
+pub const ENTRY_ANIM_MS: u64 = 200;
+pub const REFLOW_ANIM_MS: u64 = 180;
+pub const EXIT_ANIM_MS: u64 = 150;
+
+/// Urgência do notify (hint `urgency: y`). H54.P3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Urgency {
+    Low,
+    Normal,
+    Critical,
+}
+
+impl Urgency {
+    fn from_byte(b: u8) -> Self {
+        match b {
+            0 => Self::Low,
+            2 => Self::Critical,
+            _ => Self::Normal,
+        }
+    }
+}
+
+/// Entry no stack/queue. Cada entry tem timer próprio + posição
+/// animada. H54.P3.
 #[derive(Debug, Clone)]
-pub struct Notification {
+pub struct NotificationEntry {
     pub id: u32,
     pub app_name: String,
     pub summary: String,
     pub body: String,
-    /// Ícone já rasterizado em BGRA premultiplied (Argb8888 little
-    /// endian). `None` se não veio ícone ou decode falhou.
     pub icon: Option<MemoryRenderBuffer>,
     pub icon_size: smithay::utils::Size<i32, smithay::utils::Logical>,
-    /// Instante em que a notificação foi recebida — usado pra fade
-    /// e auto-dismiss.
+    /// Quando entrou no estado visible (ou foi resetada por replaces_id).
     pub received_at: Instant,
-    /// Timeout pedido pelo app: `-1` = use default do token; `0` =
-    /// nunca expira; `>0` = ms. H54.notif.2.
-    pub expire_timeout_ms: i32,
+    /// Timeout: `Some(ms)` ou `None` se nunca expira (critical +
+    /// expire_timeout=0). H54.P3.
+    pub timeout_ms: Option<u64>,
+    /// Total acumulado de tempo pausado — descontado do elapsed
+    /// pro cálculo do remaining. H54.P3.d.
+    pub paused_total: Duration,
+    /// Quando entrou em hover-pause; None = não pausado agora.
+    pub pause_started_at: Option<Instant>,
+    /// Posição Y atual (animada).
+    pub current_y: f32,
+    /// Posição Y alvo (resultado do reflow).
+    pub target_y: f32,
+    /// Início da última anim de Y (pra interpolar).
+    pub anim_started_at: Instant,
+    pub anim_start_y: f32,
+    /// Estado de saída: Some(closed_at) → fade-out + remoção. H54.P3.c.
+    pub closing_since: Option<Instant>,
+    /// Quando criada: pra slide-in + fade-in nos primeiros ENTRY_ANIM_MS.
+    pub entered_at: Instant,
 }
 
-/// Slot compartilhado entre thread D-Bus e main loop. None = sem
-/// toast visível.
-pub type NotificationSlot = Arc<Mutex<Option<Notification>>>;
+impl NotificationEntry {
+    /// Elapsed efetivo pro cálculo de expiração: descontando o tempo
+    /// que ficou pausado por hover.
+    pub fn effective_elapsed(&self) -> Duration {
+        let base = self.received_at.elapsed();
+        let in_pause_now = self
+            .pause_started_at
+            .map(|t| t.elapsed())
+            .unwrap_or(Duration::ZERO);
+        base.saturating_sub(self.paused_total + in_pause_now)
+    }
+
+    /// `true` se passou do timeout (e tem timeout). Critical e
+    /// `timeout_ms == None` retorna sempre `false`.
+    pub fn is_expired(&self) -> bool {
+        match self.timeout_ms {
+            Some(t) => self.effective_elapsed().as_millis() as u64 >= t,
+            None => false,
+        }
+    }
+}
+
+/// Estado completo do stack de notificações. Compartilhado com a
+/// thread D-Bus via `Arc<Mutex<...>>`. H54.P3.
+#[derive(Debug, Default)]
+pub struct NotificationsState {
+    pub visible: Vec<NotificationEntry>,
+    pub queue: VecDeque<NotificationEntry>,
+    /// `true` quando o cursor está sobre QUALQUER rect de toast.
+    /// Atualizado pelo motion handler em pointer.rs.
+    pub hover_paused: bool,
+    /// Próximo id incremental atribuído quando o app não passa
+    /// `replaces_id`.
+    pub next_id: u32,
+}
+
+pub type NotificationsSlot = Arc<Mutex<NotificationsState>>;
 
 /// Spawna a thread D-Bus em background (se LUMA_TAKE_NOTIFICATIONS).
-/// Retorna o slot compartilhado (sempre — pode ficar vazio se a
-/// thread não registrou).
-pub fn spawn() -> NotificationSlot {
-    let slot: NotificationSlot = Arc::new(Mutex::new(None));
-    // H54.fake: injeção de notificação fake pra teste visual sem
-    // precisar registrar como servidor D-Bus (que conflita com
-    // plasmashell etc). Mesmo padrão do LUMA_FAKE_SNI.
-    if std::env::var("LUMA_FAKE_NOTIFICATION").is_ok() {
-        inject_fake(&slot);
-        tracing::info!("notifications: LUMA_FAKE_NOTIFICATION ativo — toast fake injetado");
+/// Retorna o slot compartilhado. Se LUMA_FAKE_NOTIFICATION é setado,
+/// injeta fakes pra teste visual.
+pub fn spawn() -> NotificationsSlot {
+    let slot: NotificationsSlot = Arc::new(Mutex::new(NotificationsState {
+        visible: Vec::new(),
+        queue: VecDeque::new(),
+        hover_paused: false,
+        next_id: 1,
+    }));
+    if let Ok(val) = std::env::var("LUMA_FAKE_NOTIFICATION") {
+        let count: usize = val.parse().unwrap_or(1).max(1);
+        for i in 0..count {
+            inject_fake(&slot, i);
+        }
+        tracing::info!(
+            "notifications: LUMA_FAKE_NOTIFICATION={count} ativo \
+             — {count} toast(s) fake injetado(s)"
+        );
     }
     if std::env::var("LUMA_TAKE_NOTIFICATIONS").is_err() {
         tracing::info!(
@@ -71,31 +167,141 @@ pub fn spawn() -> NotificationSlot {
     slot
 }
 
-fn inject_fake(slot: &NotificationSlot) {
-    // Usa um ícone XDG genérico que existe em todo tema (Adwaita/
-    // Breeze/hicolor). Cai pro placeholder se não resolver.
-    let (icon, icon_size) = decode_icon(&HashMap::new(), "applications-internet");
-    let n = Notification {
-        id: 1,
-        app_name: "Luma".to_string(),
-        summary: "Notificação de teste".to_string(),
-        body: "Toast estilo macOS no canto superior direito. \
-               Clique pra fechar ou espere 5 segundos."
-            .to_string(),
-        icon,
-        icon_size,
-        received_at: Instant::now(),
-        expire_timeout_ms: -1,
+/// Faz a manutenção do stack: expira, remove fechadas após exit-anim,
+/// promove queue→visible. Chamado a cada frame pelo render path.
+/// Retorna `true` se mudou algo (sinaliza dirty).
+pub fn tick(slot: &NotificationsSlot) -> bool {
+    let mut g = match slot.lock() {
+        Ok(g) => g,
+        Err(_) => return false,
     };
-    if let Ok(mut g) = slot.lock() {
-        *g = Some(n);
+    let mut dirty = false;
+    // 1. Marca como closing as que expiraram.
+    for e in g.visible.iter_mut() {
+        if e.closing_since.is_some() {
+            continue;
+        }
+        if e.is_expired() {
+            e.closing_since = Some(Instant::now());
+            dirty = true;
+        }
+    }
+    // 2. Remove as que terminaram a anim de exit.
+    let before = g.visible.len();
+    g.visible.retain(|e| {
+        e.closing_since
+            .map(|t| t.elapsed().as_millis() as u64 <= EXIT_ANIM_MS)
+            .unwrap_or(true)
+    });
+    if g.visible.len() != before {
+        dirty = true;
+    }
+    // 3. Promove queue→visible enquanto houver espaço.
+    while g.visible.len() < MAX_VISIBLE_TOASTS {
+        if let Some(next) = g.queue.pop_front() {
+            push_visible(&mut g, next);
+            dirty = true;
+        } else {
+            break;
+        }
+    }
+    dirty
+}
+
+/// Insere um entry no slot visible respeitando STACK_NEWEST_ON_TOP.
+/// O entry deve ter `entered_at = Instant::now()` setado pelo caller.
+fn push_visible(state: &mut NotificationsState, mut entry: NotificationEntry) {
+    entry.entered_at = Instant::now();
+    entry.anim_started_at = Instant::now();
+    if STACK_NEWEST_ON_TOP {
+        entry.current_y = -50.0; // start off-top, anim_start_y aplica em reflow
+        entry.anim_start_y = entry.current_y;
+        state.visible.insert(0, entry);
+    } else {
+        entry.current_y = 0.0;
+        entry.anim_start_y = 0.0;
+        state.visible.push(entry);
     }
 }
 
-fn run(slot: NotificationSlot) -> Result<(), Box<dyn std::error::Error>> {
+/// Coloca uma notification recém chegada — visible se cabe, queue
+/// senão. Retorna o id atribuído.
+fn enqueue_or_visible(
+    state: &mut NotificationsState,
+    mut entry: NotificationEntry,
+) -> u32 {
+    let id = entry.id;
+    if state.visible.len() < MAX_VISIBLE_TOASTS {
+        push_visible(state, entry);
+    } else {
+        entry.entered_at = Instant::now();
+        state.queue.push_back(entry);
+    }
+    id
+}
+
+/// Aplica o resultado do `Notify`. Trata replaces_id (in-place
+/// update no visible ou queue), hover_paused (se ativo, marca o
+/// novo entry como pausado também), e overflow. H54.P3.b.
+fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) -> u32 {
+    let replaces_id = entry.id;
+    // (1) Tenta atualizar in-place no visible.
+    if replaces_id != 0 {
+        if let Some(existing) = state.visible.iter_mut().find(|e| e.id == replaces_id) {
+            existing.app_name = entry.app_name.clone();
+            existing.summary = entry.summary.clone();
+            existing.body = entry.body.clone();
+            existing.icon = entry.icon.clone();
+            existing.icon_size = entry.icon_size;
+            existing.timeout_ms = entry.timeout_ms;
+            existing.received_at = Instant::now();
+            existing.paused_total = Duration::ZERO;
+            existing.pause_started_at = if state.hover_paused {
+                Some(Instant::now())
+            } else {
+                None
+            };
+            // Reflow será recomputado no próximo frame.
+            return replaces_id;
+        }
+        // (2) Tenta na queue.
+        if let Some(q) = state.queue.iter_mut().find(|e| e.id == replaces_id) {
+            q.app_name = entry.app_name.clone();
+            q.summary = entry.summary.clone();
+            q.body = entry.body.clone();
+            q.icon = entry.icon.clone();
+            q.icon_size = entry.icon_size;
+            q.timeout_ms = entry.timeout_ms;
+            return replaces_id;
+        }
+        // Cai pro caminho de criar novo, mas usando replaces_id.
+    }
+    // (3) Cria novo. Atribui id incremental se replaces_id == 0.
+    if entry.id == 0 {
+        entry.id = state.next_id;
+        state.next_id = state.next_id.checked_add(1).unwrap_or(1);
+    }
+    // Se há hover ativo, novo entry já começa pausado.
+    if state.hover_paused {
+        entry.pause_started_at = Some(Instant::now());
+    }
+    enqueue_or_visible(state, entry)
+}
+
+/// Fecha por id externo: visible → marca closing_since; queue → remove.
+pub fn close_by_id(state: &mut NotificationsState, id: u32) {
+    if let Some(e) = state.visible.iter_mut().find(|e| e.id == id) {
+        if e.closing_since.is_none() {
+            e.closing_since = Some(Instant::now());
+        }
+        return;
+    }
+    state.queue.retain(|e| e.id != id);
+}
+
+fn run(slot: NotificationsSlot) -> Result<(), Box<dyn std::error::Error>> {
     let server = NotificationServer {
         slot,
-        next_id: Arc::new(Mutex::new(1)),
     };
     let _conn = zbus::blocking::connection::Builder::session()?
         .name("org.freedesktop.Notifications")?
@@ -104,29 +310,72 @@ fn run(slot: NotificationSlot) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(
         "notifications: registrado em /org/freedesktop/Notifications"
     );
-    // Mantém a conexão viva enquanto luma roda. zbus dispatcha
-    // chamadas em background — a thread só precisa não dropar conn.
     loop {
         std::thread::sleep(std::time::Duration::from_secs(60));
     }
 }
 
-/// Interface D-Bus exposta pelo servidor. zbus gera o dispatch.
+fn inject_fake(slot: &NotificationsSlot, idx: usize) {
+    let icons = [
+        "applications-internet",
+        "applications-multimedia",
+        "applications-system",
+        "applications-graphics",
+        "applications-games",
+        "applications-office",
+    ];
+    let icon_name = icons[idx % icons.len()];
+    let titles = [
+        "Mensagem nova",
+        "Música tocando",
+        "Atualização disponível",
+        "Imagem salva",
+        "Convite recebido",
+        "Lembrete",
+    ];
+    let bodies = [
+        "Olá! Esse é um toast de teste pra validar o stacking.",
+        "Spotify · Bossa Nova Mix · faixa 3 de 24",
+        "Sistema tem 3 atualizações pendentes. Toque pra revisar.",
+        "Captura salva em ~/Imagens/screenshot.png",
+        "Reunião amanhã às 14h. Aceite pra confirmar.",
+        "Não esquece de revisar o PR antes das 18h.",
+    ];
+    let (icon_buf, icon_size) =
+        decode_icon(&HashMap::new(), icon_name);
+    let entry = NotificationEntry {
+        id: 0,
+        app_name: titles[idx % titles.len()].to_string(),
+        summary: titles[idx % titles.len()].to_string(),
+        body: bodies[idx % bodies.len()].to_string(),
+        icon: icon_buf,
+        icon_size,
+        received_at: Instant::now(),
+        timeout_ms: Some(5000),
+        paused_total: Duration::ZERO,
+        pause_started_at: None,
+        current_y: 0.0,
+        target_y: 0.0,
+        anim_started_at: Instant::now(),
+        anim_start_y: 0.0,
+        closing_since: None,
+        entered_at: Instant::now(),
+    };
+    if let Ok(mut g) = slot.lock() {
+        apply_notify(&mut g, entry);
+    }
+}
+
 struct NotificationServer {
-    slot: NotificationSlot,
-    next_id: Arc<Mutex<u32>>,
+    slot: NotificationsSlot,
 }
 
 #[zbus::interface(name = "org.freedesktop.Notifications")]
 impl NotificationServer {
-    /// Spec freedesktop §1.1. Retorna lista de capabilities. H54
-    /// suporta só `body` (texto multilinha); sem actions/markup/sound.
     fn get_capabilities(&self) -> Vec<String> {
         vec!["body".to_string()]
     }
 
-    /// Spec freedesktop §1.2. Cria/substitui notificação.
-    /// `replaces_id` = 0 → cria nova com id incremental.
     #[allow(clippy::too_many_arguments)]
     fn notify(
         &self,
@@ -139,48 +388,56 @@ impl NotificationServer {
         hints: HashMap<String, zbus::zvariant::OwnedValue>,
         expire_timeout: i32,
     ) -> u32 {
-        let id = if replaces_id != 0 {
-            replaces_id
+        let urgency = hints
+            .get("urgency")
+            .and_then(|v| u8::try_from(v.clone()).ok())
+            .map(Urgency::from_byte)
+            .unwrap_or(Urgency::Normal);
+        // Per spec H54.P3: critical OU expire_timeout=0 = never-expire.
+        let timeout_ms: Option<u64> = if urgency == Urgency::Critical {
+            None
         } else {
-            let mut g = self.next_id.lock().unwrap();
-            let id = *g;
-            *g = g.checked_add(1).unwrap_or(1);
-            id
+            match expire_timeout {
+                0 => None,
+                t if t > 0 => Some(t as u64),
+                _ => Some(crate::theme::current().notifications.timeout_ms),
+            }
         };
         let (icon, icon_size) = decode_icon(&hints, &app_icon);
-        let n = Notification {
-            id,
+        let entry = NotificationEntry {
+            id: replaces_id, // 0 = novo, será reescrito pelo apply_notify
             app_name,
             summary,
             body,
             icon,
             icon_size,
             received_at: Instant::now(),
-            expire_timeout_ms: expire_timeout,
+            timeout_ms,
+            paused_total: Duration::ZERO,
+            pause_started_at: None,
+            current_y: 0.0,
+            target_y: 0.0,
+            anim_started_at: Instant::now(),
+            anim_start_y: 0.0,
+            closing_since: None,
+            entered_at: Instant::now(),
         };
-        if let Ok(mut g) = self.slot.lock() {
-            // Substitui a notificação atual. Empilhar é debt futuro.
-            *g = Some(n);
-        }
+        let id = if let Ok(mut g) = self.slot.lock() {
+            apply_notify(&mut g, entry)
+        } else {
+            0
+        };
         tracing::info!("notifications: Notify id={id}");
         id
     }
 
-    /// Spec freedesktop §1.3. Fecha por id externo.
     fn close_notification(&self, id: u32) {
         if let Ok(mut g) = self.slot.lock() {
-            if let Some(n) = g.as_ref() {
-                if n.id == id {
-                    *g = None;
-                    tracing::info!("notifications: CloseNotification id={id}");
-                    return;
-                }
-            }
+            close_by_id(&mut g, id);
         }
-        // Id desconhecido — spec permite ignorar silencioso.
+        tracing::info!("notifications: CloseNotification id={id}");
     }
 
-    /// Spec freedesktop §1.4. Identificação do servidor.
     fn get_server_information(&self) -> (String, String, String, String) {
         (
             "Luma".into(),
@@ -191,12 +448,7 @@ impl NotificationServer {
     }
 }
 
-/// Decodifica o ícone da notificação seguindo a ordem da spec:
-/// 1. `hints["image-data"]` — struct (iiibiiay) com pixels raw RGBA
-///    (GdkPixbuf format).
-/// 2. `hints["image-path"]` — caminho absoluto pra PNG/JPG/SVG.
-/// 3. `app_icon` — nome XDG OU caminho absoluto.
-/// Falha em qualquer ponto = `(None, (0,0))`.
+/// Decodifica o ícone (mesma cascata da Phase 2). Pública pros fakes.
 fn decode_icon(
     hints: &HashMap<String, zbus::zvariant::OwnedValue>,
     app_icon: &str,
@@ -204,13 +456,11 @@ fn decode_icon(
     Option<MemoryRenderBuffer>,
     smithay::utils::Size<i32, smithay::utils::Logical>,
 ) {
-    // (1) image-data — struct(i,i,i,b,i,i,ay).
     if let Some(val) = hints.get("image-data").or_else(|| hints.get("icon_data")) {
         if let Some(buf) = decode_image_data(val.clone()) {
             return buf;
         }
     }
-    // (2) image-path — string com caminho absoluto.
     if let Some(val) = hints.get("image-path").or_else(|| hints.get("image_path")) {
         if let Ok(path) = String::try_from(val.clone()) {
             if let Some(buf) = load_icon_path(&path) {
@@ -218,7 +468,6 @@ fn decode_icon(
             }
         }
     }
-    // (3) app_icon — XDG name ou path absoluto.
     if !app_icon.is_empty() {
         let resolved = if app_icon.starts_with('/') {
             Some(std::path::PathBuf::from(app_icon))
@@ -240,8 +489,6 @@ fn decode_image_data(
     Option<MemoryRenderBuffer>,
     smithay::utils::Size<i32, smithay::utils::Logical>,
 )> {
-    // signature: (iiibiiay) - width, height, rowstride, has_alpha,
-    // bits_per_sample, channels, data
     let tuple: (i32, i32, i32, bool, i32, i32, Vec<u8>) =
         TryFrom::try_from(val).ok()?;
     let (w, h, rowstride, has_alpha, bps, channels, data) = tuple;
@@ -252,7 +499,6 @@ fn decode_image_data(
     if channels != bytes_per_px {
         return None;
     }
-    // Reorganiza RGB(A) → BGRA premultiplied.
     let mut bgra: Vec<u8> = Vec::with_capacity((w * h * 4) as usize);
     for row in 0..h {
         let off = (row as usize) * (rowstride as usize);
@@ -265,13 +511,9 @@ fn decode_image_data(
             let g = data[p + 1];
             let b = data[p + 2];
             let a = if has_alpha { data[p + 3] } else { 255 };
-            // Premultiply.
-            let pr = ((b as u16 * a as u16) / 255) as u8;
-            let pg = ((g as u16 * a as u16) / 255) as u8;
-            let pb_ = ((r as u16 * a as u16) / 255) as u8;
-            bgra.push(pr);
-            bgra.push(pg);
-            bgra.push(pb_);
+            bgra.push(((b as u16 * a as u16) / 255) as u8);
+            bgra.push(((g as u16 * a as u16) / 255) as u8);
+            bgra.push(((r as u16 * a as u16) / 255) as u8);
             bgra.push(a);
         }
     }
@@ -296,19 +538,22 @@ fn load_icon_path(
     if !p.exists() {
         return None;
     }
-    let ext = p.extension().and_then(|e| e.to_str()).map(|s| s.to_ascii_lowercase());
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase());
     if ext.as_deref() == Some("svg") {
-        // Rasteriza no tamanho do ícone do toast (definido pelo token).
         let size = crate::theme::current().notifications.icon_size as u32;
         let buf = crate::menu::icon_loader::load_svg_file(path, size)?;
-        return Some((Some(buf), smithay::utils::Size::from((size as i32, size as i32))));
+        return Some((
+            Some(buf),
+            smithay::utils::Size::from((size as i32, size as i32)),
+        ));
     }
-    // PNG/JPG via image crate.
     let img = image::open(p).ok()?;
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as i32, rgba.height() as i32);
     let mut data = rgba.into_raw();
-    // RGBA → BGRA premultiplied.
     for chunk in data.chunks_exact_mut(4) {
         let r = chunk[0];
         let g = chunk[1];
@@ -328,4 +573,11 @@ fn load_icon_path(
         None,
     );
     Some((Some(buf), smithay::utils::Size::from((w, h))))
+}
+
+/// Ease-out cubic: `1 - (1-t)^3`. Usado pra slide-in, reflow,
+/// fade-in. H54.P3.c.
+pub fn ease_out_cubic(t: f32) -> f32 {
+    let inv = (1.0 - t.clamp(0.0, 1.0)).max(0.0);
+    1.0 - inv * inv * inv
 }
