@@ -1767,6 +1767,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                 pointer_pos.y.round() as i32,
                             )),
                         );
+                        // H56 parte 3: Colar dinâmico — aceso só se o
+                        // clipboard interno tem conteúdo no momento.
+                        menu.set_paste_enabled(state.luma_clipboard.is_some());
                         menu.clamp_into(out, &tokens);
                         state.context_menu = Some(menu);
                         pointer.frame(state);
@@ -1955,6 +1958,124 @@ fn dispatch_context_action(
                 if let Some(l) = state.desktop_icons.as_ref() {
                     l.set_arrange_anim(None);
                 }
+            }
+        }
+        ContextAction::ClipboardPaste => {
+            // H56 parte 3 (Colar): cola o conteúdo do clipboard
+            // interno no ~/Desktop. Copy = duplica e clipboard
+            // continua. Cut = move e clipboard esvazia depois.
+            let Some(clipboard) = state.luma_clipboard.clone() else {
+                return;
+            };
+            let created = crate::desktop_icons::paste_to_desktop(&clipboard);
+            if created.is_empty() {
+                // Tudo falhou (ex: cut + source já não existe).
+                // Limpa o clipboard pra não ficar pendurado e o
+                // ícone translúcido voltar ao normal na próxima
+                // tela.
+                if matches!(clipboard.op, crate::desktop_icons::LumaClipOp::Cut) {
+                    state.luma_clipboard = None;
+                    if let Some(l) = state.desktop_icons.as_ref() {
+                        l.set_cut_paths(std::collections::HashSet::new());
+                    }
+                }
+                return;
+            }
+            // Refresh imediato pra new entries aparecerem sem
+            // esperar polling.
+            let fresh = crate::desktop_icons::scan();
+            let theme = crate::theme::current();
+            let t_di = &theme.desktop_icons;
+            let Some(output) = state
+                .space
+                .output_geometry(state.primary_output())
+                .map(|g| g.size)
+            else {
+                return;
+            };
+            let taskbar_h = crate::taskbar::taskbar_height();
+            let usable_h = output.h - t_di.grid_margin - taskbar_h - 8;
+            let rows = (usable_h / t_di.cell_height).max(1);
+            // Computa células ocupadas pelas entries EXISTENTES
+            // (excluindo as recém-criadas).
+            let created_basenames: std::collections::HashSet<String> = created
+                .iter()
+                .filter_map(|p| {
+                    p.file_name()
+                        .and_then(|s| s.to_str())
+                        .map(|s| s.to_string())
+                })
+                .collect();
+            let prev_entries: Vec<_> = fresh
+                .iter()
+                .filter(|e| !created_basenames.contains(&e.name))
+                .cloned()
+                .collect();
+            let prev_layout = crate::desktop_icons::compute_layout(
+                &prev_entries,
+                &state.desktop_positions,
+                rows,
+            );
+            let mut used: std::collections::HashSet<(i32, i32)> =
+                prev_layout.iter().cloned().collect();
+            // Âncora do clique (origin do menu).
+            let (mut anchor_col, mut anchor_row) = if let Some(p) = click_anchor {
+                let col = ((p.x - t_di.grid_margin) as f32
+                    / t_di.cell_width as f32)
+                    .round() as i32;
+                let row = ((p.y - t_di.grid_margin) as f32
+                    / t_di.cell_height as f32)
+                    .round() as i32;
+                (col.max(0), row.max(0))
+            } else {
+                (0, 0)
+            };
+            // Placa sequencial: cada novo entry pega a primeira
+            // célula livre a partir da âncora; âncora avança
+            // column-major pra o próximo.
+            let mut new_selection: std::collections::HashSet<std::path::PathBuf> =
+                std::collections::HashSet::with_capacity(created.len());
+            for path in created.iter() {
+                let basename = path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                let cell = crate::desktop_icons::find_free_cell_near(
+                    &used,
+                    (anchor_col, anchor_row),
+                    rows,
+                );
+                used.insert(cell);
+                state.desktop_positions.insert(basename, cell);
+                new_selection.insert(path.clone());
+                // Avança âncora pra próxima célula column-major.
+                let (mut c, mut r) = cell;
+                r += 1;
+                if r >= rows {
+                    r = 0;
+                    c += 1;
+                }
+                anchor_col = c;
+                anchor_row = r;
+            }
+            crate::desktop_icons::save_positions(&state.desktop_positions);
+            state.desktop_entries = fresh.clone();
+            state.desktop_last_scan = Some(std::time::Instant::now());
+            // Cut: esvazia clipboard agora (depois do primeiro paste).
+            // Copy: mantém pra colar de novo.
+            if matches!(clipboard.op, crate::desktop_icons::LumaClipOp::Cut) {
+                state.luma_clipboard = None;
+                if let Some(l) = state.desktop_icons.as_ref() {
+                    l.set_cut_paths(std::collections::HashSet::new());
+                }
+            }
+            // Seleciona só os novos entries.
+            state.desktop_selection = new_selection;
+            if let Some(l) = state.desktop_icons.as_ref() {
+                l.set_entries(fresh);
+                l.set_positions(state.desktop_positions.clone());
+                l.set_selection(state.desktop_selection.clone());
             }
         }
         ContextAction::ClipboardCopy | ContextAction::ClipboardCut => {
