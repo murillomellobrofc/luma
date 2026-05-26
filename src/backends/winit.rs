@@ -4252,17 +4252,38 @@ pub fn init_winit(
                                     )
                                     .ok()
                                 };
+                            // Cache do bg + scrim panels (mesmas dimensões
+                            // pra todos os toasts no stack, render
+                            // **idêntico** entre eles — garantia visual de
+                            // consistência).
+                            let bg_panel = crate::gfx::make_rounded_panel(
+                                t_n.width, toasts.first().map(|t| t.card_h).unwrap_or(0),
+                                t_n.corner, t_n.bg,
+                            );
+                            let _ = bg_panel; // criamos por toast pq card_h varia
                             for t in &toasts {
                                 let card_x = output_size_logical.w
                                     - t_n.margin
                                     - t.card_w
                                     + t.slide_offset_x as i32;
                                 let card_y = t.current_y as i32;
+                                // Layer 1 (back): bg translúcido — "blur"
+                                // estético.
                                 let bg = crate::gfx::make_rounded_panel(
                                     t.card_w, t.card_h, t_n.corner, t_n.bg,
                                 );
                                 if let Some(elem) =
                                     mk_alpha_n(&bg, card_x, card_y, t.alpha, renderer)
+                                {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Layer 2 (middle): scrim opaco —
+                                // garante piso de contraste. H54.P3.fix2.
+                                let scrim = crate::gfx::make_rounded_panel(
+                                    t.card_w, t.card_h, t_n.corner, t_n.scrim,
+                                );
+                                if let Some(elem) =
+                                    mk_alpha_n(&scrim, card_x, card_y, t.alpha, renderer)
                                 {
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }

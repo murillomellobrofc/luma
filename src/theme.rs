@@ -1052,9 +1052,20 @@ impl Default for NotificationsTokens {
         Self {
             width: 380,
             corner: 22,
-            // H54.P3.fix: undertone Golden Hour (mais quente que
-            // #2A2520 neutro). Sutil — coffee dark com hint marrom.
-            bg: hex_color("#2D2219", 0.96),
+            // H54.P3.fix2: dois layers — bg translúcido (estética) +
+            // scrim quase opaco (contraste). Combinado: ~94% opacidade
+            // efetiva sobre wallpaper qualquer, garantindo AA 4.5:1 do
+            // body text mesmo em fundo claro.
+            // bg alpha 0.55 = 45% wallpaper leak (forma o "blur" feel).
+            bg: hex_color("#2D2219", 0.55),
+            // Scrim alpha 0.88 = combinado 1-(1-0.55)*(1-0.88) = 0.946
+            // → 5.4% wallpaper leak total. Contraste body cream sobre
+            // bg coffee ~6:1, passa AA com folga (worst case wallpaper
+            // 100% branco). H54.P3.fix2.
+            scrim: hex_color("#1F1611", 0.88),
+            // PCD Max preset: combinado 1-(1-0.55)*(1-0.96) = 0.982
+            // → 1.8% leak. Contraste body sobre quase-opaco ~10:1, AAA.
+            scrim_pcd: hex_color("#1F1611", 0.96),
             title_color: hex_color("#FBF6EE", 1.0),
             // H54.P3.fix: body bumpado pra contraste AAA (~12:1) —
             // cream-cinza claro. Antes #C9BDB0 era ~8:1 (passa AAA mas
@@ -1799,7 +1810,19 @@ impl Default for OsdTokens {
 pub struct NotificationsTokens {
     pub width: i32,
     pub corner: i32,
+    /// Camada inferior "blur" — translúcida, mantém estética.
+    /// Wallpaper vaza por aqui. H54.P3.fix2.
     pub bg: Color32F,
+    /// Scrim: camada escura semi-opaca por cima do bg, garante piso
+    /// de contraste fixo independente do wallpaper. Cor carvão Golden
+    /// Hour. Alpha calibrada pra AA 4.5:1 mesmo sobre wallpaper claro.
+    /// H54.P3.fix2.
+    pub scrim: Color32F,
+    /// Mesma família do scrim mas mais opaco — preset PCD Max
+    /// (AAA 7:1) ativável via config futuro. Hoje não usado, fica
+    /// pronto pro toggle de acessibilidade.
+    #[allow(dead_code)]
+    pub scrim_pcd: Color32F,
     pub title_color: Color32F,
     pub body_color: Color32F,
     pub time_color: Color32F,
