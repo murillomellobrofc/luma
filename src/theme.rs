@@ -1066,6 +1066,17 @@ impl Default for NotificationsTokens {
             // PCD Max preset: combinado 1-(1-0.55)*(1-0.96) = 0.982
             // → 1.8% leak. Contraste body sobre quase-opaco ~10:1, AAA.
             scrim_pcd: hex_color("#1F1611", 0.96),
+            // Sombra: espresso #15090A (coffee bem escuro com hint
+            // brown-vinho, vem da família Golden Hour mas mais escuro
+            // que o bg pra dar profundidade real).
+            // Contact: opacidade 0.32 — define a borda.
+            // Ambient: opacidade 0.14 — difusão larga.
+            shadow_color_contact: hex_color("#15090A", 0.32),
+            shadow_color_ambient: hex_color("#15090A", 0.14),
+            shadow_contact_blur: 8,
+            shadow_contact_offset_y: 3,
+            shadow_ambient_blur: 28,
+            shadow_ambient_offset_y: 10,
             title_color: hex_color("#FBF6EE", 1.0),
             // H54.P3.fix: body bumpado pra contraste AAA (~12:1) —
             // cream-cinza claro. Antes #C9BDB0 era ~8:1 (passa AAA mas
@@ -1823,6 +1834,21 @@ pub struct NotificationsTokens {
     /// pronto pro toggle de acessibilidade.
     #[allow(dead_code)]
     pub scrim_pcd: Color32F,
+    /// Sombra macOS-style dois layers (contact + ambient) — dá
+    /// profundidade, separa o toast de qualquer wallpaper. Cor não é
+    /// preto puro; é espresso quente da paleta Golden Hour (luz vem
+    /// de cima → sombra cai). H54.P3.shadow.
+    pub shadow_color_contact: Color32F,
+    pub shadow_color_ambient: Color32F,
+    /// Raio de blur da contact shadow (px). Pequeno — cola o toast
+    /// na superfície.
+    pub shadow_contact_blur: i32,
+    /// Offset vertical da contact shadow (px). Curto.
+    pub shadow_contact_offset_y: i32,
+    /// Raio de blur da ambient shadow (px). Grande — difusão larga.
+    pub shadow_ambient_blur: i32,
+    /// Offset vertical da ambient shadow (px). Maior.
+    pub shadow_ambient_offset_y: i32,
     pub title_color: Color32F,
     pub body_color: Color32F,
     pub time_color: Color32F,
