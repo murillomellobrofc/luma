@@ -1167,6 +1167,27 @@ impl Default for NotificationsTokens {
             sound_critical_path: "assets/sounds/notification-critical.ogg".into(),
             sound_debounce_ms: 200,
             sound_enabled_default: true,
+            // H54.P7: cores quentes do Golden Hour.
+            // Honey amber (#E89B3D) pra normal — mesmo tom do active_bg
+            // do DND, coerente com a paleta.
+            flash_normal_color: hex_color("#E89B3D", 1.0),
+            // Coral (#D97757) pra critical — mesma família do bell badge.
+            flash_critical_color: hex_color("#D97757", 1.0),
+            // Tetos de opacidade conservadores. NUNCA aumentar sem
+            // reavaliar fotossensibilidade. WCAG seizure safety: <3
+            // flashes/s e contraste limitado. Aqui é 1 flash, não strobe.
+            flash_normal_peak_alpha: 0.18,
+            flash_critical_peak_alpha: 0.28,
+            // Total ~300ms: fade-in 80 + hold 80 + fade-out 140.
+            // Curva ease_out na entrada e na saída — sem corte abrupto.
+            flash_fade_in_ms: 80,
+            flash_hold_ms: 80,
+            flash_fade_out_ms: 140,
+            // Debounce 600ms — rajada de 6 toasts vira 1 piscada.
+            // Anti-strobe: garante < 1 flash/s no pior caso.
+            flash_debounce_ms: 600,
+            // Default OFF. Só preset PCD Max liga (theme.toml override).
+            flash_enabled_default: false,
         }
     }
 }
@@ -2009,6 +2030,24 @@ pub struct NotificationsTokens {
     pub sound_debounce_ms: u64,
     /// Estado inicial do toggle de som no painel. Default = on.
     pub sound_enabled_default: bool,
+    /// H54.P7 piscada de tela (visual bell). Acessibilidade pra quem
+    /// não ouve. LIMITES DE SEGURANÇA são duros (risco fotossensível),
+    /// ajustar com critério.
+    /// Cores do overlay (alpha embutida = 1.0; alpha real vem dos peaks).
+    pub flash_normal_color: Color32F,
+    pub flash_critical_color: Color32F,
+    /// Teto de opacidade. Default conservador. NUNCA aumentar sem
+    /// reavaliar segurança.
+    pub flash_normal_peak_alpha: f32,
+    pub flash_critical_peak_alpha: f32,
+    /// Durações (ms) — fade-in + hold + fade-out, total 250-400ms.
+    pub flash_fade_in_ms: u64,
+    pub flash_hold_ms: u64,
+    pub flash_fade_out_ms: u64,
+    /// Debounce — rajada vira 1 piscada só. Anti-strobe.
+    pub flash_debounce_ms: u64,
+    /// Default desligada. Só PCD Max liga (via theme.toml override).
+    pub flash_enabled_default: bool,
 }
 
 /// Grid de ícones de arquivo no desktop. H50.

@@ -113,11 +113,13 @@ pub struct NotificationEntry {
     pub transient: bool,
     /// Urgência da notificação. Critical fura o DND. H54.P5.
     pub urgency: Urgency,
-    /// Som ainda não tocou e tem que tocar quando o toast virar visível.
-    /// True em fresh creates não-silenciadas; false em updates (linhagem
-    /// via replaces_id), em low urgency, transient, suppress_sound, e
-    /// DND-on (não critical) que vai direto pra história. H54.P6.
-    pub sound_pending: bool,
+    /// Toast ainda não disparou alerta (som + piscada). True em fresh
+    /// creates não-silenciadas; false em updates (replaces_id), em low
+    /// urgency, em transient, e em notif que vai direto pra história
+    /// por DND-on. Consumido uma vez quando o toast vira visível.
+    /// `suppress_sound` é filtro extra só-do-som, NÃO mata o alerta —
+    /// piscada ainda dispara. H54.P6+P7.
+    pub alert_pending: bool,
     /// Hint `suppress-sound`: se true, nunca toca som mesmo no fresh
     /// create. Combinado com outras regras de silêncio. H54.P6.
     pub suppress_sound: bool,
@@ -188,6 +190,17 @@ pub struct NotificationsState {
     /// toast aparecer mas sem áudio. DND ligado supprime os dois
     /// (toast + som) juntos. H54.P6.
     pub sound_enabled: bool,
+    /// Toggle da piscada de tela (visual bell). Independente de som
+    /// e DND. Default por preset (`flash_enabled_default` token).
+    /// Sem toggle de usuário até a tela de settings existir. H54.P7.
+    pub flash_enabled: bool,
+    /// Piscada ativa: Instant em que começou. None = sem piscada.
+    pub flash_started_at: Option<Instant>,
+    /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
+    pub flash_urgency: Option<Urgency>,
+    /// Última piscada disparada (mesmo após terminar). Usado pro
+    /// debounce — anti-strobe. H54.P7.
+    pub flash_last_at: Option<Instant>,
     /// Painel da central aberto. Quando aberto, novas notif que
     /// caem no histórico não incrementam `unread_count` (já vista).
     /// H54.P5.
@@ -288,6 +301,64 @@ pub fn toggle_sound(state: &mut NotificationsState) -> bool {
     state.sound_enabled
 }
 
+/// Dispara uma piscada de tela. Respeita o debounce — se a última
+/// piscada foi há menos que `debounce`, ignora silenciosamente.
+/// É a única função que muta `flash_started_at` / `flash_urgency`.
+/// H54.P7. SEGURANÇA: nunca encadear strobes — o debounce é o gate.
+pub fn trigger_flash(
+    state: &mut NotificationsState,
+    urgency: Urgency,
+    debounce: Duration,
+) {
+    if let Some(last) = state.flash_last_at {
+        if last.elapsed() < debounce {
+            return;
+        }
+    }
+    let now = Instant::now();
+    state.flash_started_at = Some(now);
+    state.flash_urgency = Some(urgency);
+    state.flash_last_at = Some(now);
+}
+
+/// Resultado atual da piscada: `Some((color_rgb, alpha_efetiva))` ou
+/// `None` se não há piscada (terminou ou nunca disparou). Aplica o
+/// envelope fade-in → hold → fade-out com ease_out_cubic. H54.P7.
+pub fn flash_alpha_now(
+    state: &NotificationsState,
+    tokens: &crate::theme::NotificationsTokens,
+) -> Option<(smithay::backend::renderer::Color32F, f32)> {
+    let started = state.flash_started_at?;
+    let urgency = state.flash_urgency?;
+    let elapsed_ms = started.elapsed().as_millis() as u64;
+    let fi = tokens.flash_fade_in_ms;
+    let hold = tokens.flash_hold_ms;
+    let fo = tokens.flash_fade_out_ms;
+    let total = fi + hold + fo;
+    if elapsed_ms >= total {
+        return None;
+    }
+    let (color, peak) = match urgency {
+        Urgency::Critical => (
+            tokens.flash_critical_color,
+            tokens.flash_critical_peak_alpha,
+        ),
+        _ => (tokens.flash_normal_color, tokens.flash_normal_peak_alpha),
+    };
+    let alpha = if elapsed_ms < fi {
+        // Fade-in: ease_out cresce de 0 a peak.
+        let t = (elapsed_ms as f32) / (fi as f32);
+        ease_out_cubic(t) * peak
+    } else if elapsed_ms < fi + hold {
+        peak
+    } else {
+        // Fade-out: ease_out decresce de peak a 0.
+        let t = ((elapsed_ms - fi - hold) as f32) / (fo as f32);
+        (1.0 - ease_out_cubic(t.min(1.0))) * peak
+    };
+    Some((color, alpha))
+}
+
 /// Abre o painel da central. Zera badge, marca como vista, e dispara
 /// a animação de slide-in. H54.P5.
 pub fn open_panel(state: &mut NotificationsState) {
@@ -381,8 +452,7 @@ pub fn emit_notification_closed(
 /// Retorna o slot compartilhado. Se LUMA_FAKE_NOTIFICATION é setado,
 /// injeta fakes pra teste visual.
 pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
-    let sound_default_on =
-        crate::theme::current().notifications.sound_enabled_default;
+    let t_n = crate::theme::current().notifications.clone();
     let slot: NotificationsSlot = Arc::new(Mutex::new(NotificationsState {
         visible: Vec::new(),
         queue: VecDeque::new(),
@@ -390,7 +460,11 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         next_id: 1,
         history: VecDeque::new(),
         dnd_enabled: false,
-        sound_enabled: sound_default_on,
+        sound_enabled: t_n.sound_enabled_default,
+        flash_enabled: t_n.flash_enabled_default,
+        flash_started_at: None,
+        flash_urgency: None,
+        flash_last_at: None,
         panel_open: false,
         unread_count: 0,
         panel_anim_started_at: None,
@@ -541,7 +615,7 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             };
             // H54.P6: update nunca toca som, mesmo se o som ainda
             // não tinha tocado por algum motivo.
-            existing.sound_pending = false;
+            existing.alert_pending = false;
             return replaces_id;
         }
         // (2) Tenta na queue.
@@ -557,7 +631,7 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             q.resident = entry.resident;
             q.transient = entry.transient;
             q.urgency = entry.urgency;
-            q.sound_pending = false;
+            q.alert_pending = false;
             return replaces_id;
         }
         // (3) H54.P5: tenta no histórico. Se achar, atualiza a
@@ -587,7 +661,7 @@ fn apply_notify(state: &mut NotificationsState, mut entry: NotificationEntry) ->
             }
             // Re-popa toast como evento novo. H54.P6: update nunca
             // retoca som, mesmo no re-pop.
-            entry.sound_pending = false;
+            entry.alert_pending = false;
         }
         // Cai pro caminho de criar novo, usando replaces_id.
     }
@@ -730,7 +804,7 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
         resident: false,
         transient: false,
         urgency: Urgency::Normal,
-        sound_pending: true,
+        alert_pending: true,
         suppress_sound: false,
         sound_file: None,
     };
@@ -805,12 +879,11 @@ impl NotificationServer {
         let sound_file = hints
             .get("sound-file")
             .and_then(|v| String::try_from(v.clone()).ok());
-        // H54.P6: regras de silêncio iniciais (urgency, suppress,
-        // transient) — DND e sound_enabled são checados no momento
-        // do play. Update via replaces_id zera sound_pending depois.
-        let initial_sound_pending = !suppress_sound
-            && !transient
-            && urgency != Urgency::Low;
+        // H54.P6+P7: gate inicial do alerta — transient/low matam som
+        // E piscada. `suppress_sound` é só-do-som, filtrado no consume.
+        // DND é checado no consume (pode mudar antes do toast aparecer).
+        // Update via replaces_id zera alert_pending depois.
+        let initial_alert_pending = !transient && urgency != Urgency::Low;
         let entry = NotificationEntry {
             id: replaces_id,
             app_name,
@@ -834,7 +907,7 @@ impl NotificationServer {
             resident,
             transient,
             urgency,
-            sound_pending: initial_sound_pending,
+            alert_pending: initial_alert_pending,
             suppress_sound,
             sound_file,
         };
