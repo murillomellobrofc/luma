@@ -16,6 +16,8 @@ pub enum AppletKind {
     /// H57: bateria — % grande, estado, barra, slider 3 paradas
     /// (Economia / Equilibrado / Desempenho via PPD).
     Battery,
+    /// H57.2: wifi — toggle, lista de redes, conexão inline.
+    Wifi,
 }
 
 /// Aba ativa no popup de volume. H44.volume.2.
@@ -83,6 +85,10 @@ impl AppletPopup {
             // Mesma largura do Volume (360). Altura calibrada pra
             // hero (% grande + estado + barra) + modo de energia.
             AppletKind::Battery => Size::from((360, 340)),
+            // H57.2: wifi — mesma largura, altura calibrada pra
+            // header (toggle) + ~6 linhas de rede + expansão de
+            // password. Lista rola por dentro se passar do teto.
+            AppletKind::Wifi => Size::from((360, 460)),
         };
         // H55: init do mês exibido = hoje (Calendar). Volume ignora.
         let (displayed_year, displayed_month) = if kind == AppletKind::Calendar {
@@ -228,10 +234,12 @@ impl AppletPopup {
         let taskbar_h = crate::taskbar::taskbar_height();
         let y = output_size.h - taskbar_h - self.size.h - margin;
         let x = match self.kind {
-            // Volume e Battery: centralizado sobre o ícone do tray.
-            AppletKind::Volume | AppletKind::Battery => (self.anchor_x - self.size.w / 2)
-                .max(8)
-                .min(output_size.w - self.size.w - 8),
+            // Volume, Battery, Wifi: centralizado sobre o ícone.
+            AppletKind::Volume | AppletKind::Battery | AppletKind::Wifi => {
+                (self.anchor_x - self.size.w / 2)
+                    .max(8)
+                    .min(output_size.w - self.size.w - 8)
+            }
             AppletKind::Calendar => (self.anchor_x - self.size.w)
                 .max(8)
                 .min(output_size.w - self.size.w - 8),

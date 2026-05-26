@@ -34,6 +34,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         .unwrap_or(false);
     enum CalNav { Prev, Next, TabFwd, TabBack, Enter }
     let mut cal_nav: Option<CalNav> = None;
+    // H57.2: popup wifi com password expansion → captura teclado.
+    let wifi_pw_active = state.applet_popup.as_ref()
+        .map(|p| p.kind == crate::popup::AppletKind::Wifi)
+        .unwrap_or(false)
+        && state.wifi_password_for.is_some();
+    enum WifiPwKey { Char(char), Backspace, Submit, Cancel }
+    let mut wifi_pw_event: Option<WifiPwKey> = None;
     // H47a.tray.2: painel de overflow aberto intercepta Esc.
     let tray_overflow_open = state.tray.overflow_open;
     // H48.ctx.1: context menu aberto intercepta Esc.
@@ -96,6 +103,26 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 if sym == Keysym::Escape {
                     close_applet_popup = true;
                     return FilterResult::Intercept(());
+                }
+                // H57.2: password inline do Wi-Fi captura teclas.
+                if wifi_pw_active {
+                    if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                        wifi_pw_event = Some(WifiPwKey::Submit);
+                        return FilterResult::Intercept(());
+                    }
+                    if sym == Keysym::BackSpace {
+                        wifi_pw_event = Some(WifiPwKey::Backspace);
+                        return FilterResult::Intercept(());
+                    }
+                    let codepoint = smithay::input::keyboard::xkb::keysym_to_utf32(sym);
+                    if codepoint != 0 {
+                        if let Some(ch) = char::from_u32(codepoint) {
+                            if !ch.is_control() {
+                                wifi_pw_event = Some(WifiPwKey::Char(ch));
+                                return FilterResult::Intercept(());
+                            }
+                        }
+                    }
                 }
                 // H55: navegação por teclado quando é o calendário.
                 if calendar_open {
@@ -288,6 +315,37 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if close_applet_popup {
         state.applet_popup = None;
+        return;
+    }
+
+    // H57.2: aplica evento de password do Wi-Fi.
+    if let Some(ev) = wifi_pw_event {
+        match ev {
+            WifiPwKey::Char(ch) => {
+                state.wifi_password_text.push(ch);
+                state.wifi_password_cursor = state.wifi_password_text.len();
+            }
+            WifiPwKey::Backspace => {
+                state.wifi_password_text.pop();
+                state.wifi_password_cursor = state.wifi_password_text.len();
+            }
+            WifiPwKey::Submit => {
+                if let Some(ssid) = state.wifi_password_for.clone() {
+                    let pw = state.wifi_password_text.clone();
+                    state.wifi_connecting = Some(ssid.clone());
+                    state.wifi_error_for = None;
+                    crate::wifi::connect_async(
+                        state.wifi_connect_outbox.clone(),
+                        ssid, Some(pw),
+                    );
+                }
+            }
+            WifiPwKey::Cancel => {
+                state.wifi_password_for = None;
+                state.wifi_password_text.clear();
+                state.wifi_password_cursor = 0;
+            }
+        }
         return;
     }
 

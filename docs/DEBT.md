@@ -504,3 +504,33 @@ MemoryRenderBufferRenderElement).
 
 **Quando desbloqueia:** quando for fazer polish geral pré-v1.0 OU
 quando alguém pedir, junto com `prefers-reduced-motion` (PCD Max).
+
+---
+
+## H57.2 Wi-Fi: features futuras
+
+**Status:** adiado.
+
+### Esquecer rede / propriedades / redes ocultas
+
+O popup H57.2 entrega o ciclo mínimo: toggle on/off, lista de redes
+visíveis, conectar a uma (open ou com senha inline). Três features
+adicionais ficam pra quando existir o centro de configurações do
+Luma:
+
+- Esquecer rede: remover o perfil salvo do NetworkManager (`nmcli
+  connection delete`). Hoje o user precisa usar nm-connection-editor.
+- Conectar a redes ocultas (SSID não broadcast): precisa de UI extra
+  pra digitar o SSID manualmente + security type.
+- Propriedades da rede: IP, gateway, DNS, BSSID, etc.
+
+**Quando desbloqueia:** ao construir a tela de settings nativa do
+Luma. Os 3 são tecnicamente fáceis (nmcli já cobre), só falta lugar
+visual proporcional pra eles.
+
+### Connect inteligente (perfil salvo)
+
+Hoje, clicar numa rede protegida SEMPRE expande o campo de senha.
+O ideal seria: tentar `nmcli connection up <ssid>` primeiro, e só
+expandir senha se falhar com "no profile". Pequeno refactor, segue
+pra polish pré-v1.

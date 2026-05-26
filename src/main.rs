@@ -30,6 +30,7 @@ mod text;
 mod theme;
 mod tray;
 mod wallpaper;
+mod wifi;
 mod window;
 mod window_shadow;
 

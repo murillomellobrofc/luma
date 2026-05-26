@@ -2007,6 +2007,16 @@ pub fn init_winit(
                             if let Some((buf, sz)) = wifi_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
                                          wifi_x, center_y_for(sz.h), renderer);
+                                // H57.2: cacheia rect do wifi pra click.
+                                let bar_y_l = output_size_logical.h
+                                    - crate::taskbar::taskbar_height();
+                                let tb_h = crate::taskbar::taskbar_height();
+                                data.state.tray.last_wifi_rect = Some(
+                                    smithay::utils::Rectangle::new(
+                                        smithay::utils::Point::from((wifi_x, bar_y_l)),
+                                        smithay::utils::Size::from((sz.w, tb_h)),
+                                    ),
+                                );
                             }
                             if let Some((buf, sz)) = bt_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
@@ -3052,6 +3062,48 @@ pub fn init_winit(
                                 data.state.audio_last_refresh = Some(std::time::Instant::now());
                             }
                         }
+                        // H57.2: live refresh do Wi-Fi enquanto popup
+                        // aberto (~2s) + observer do outbox de connect.
+                        if data.state.applet_popup.as_ref().map(|p| p.kind)
+                            == Some(crate::popup::AppletKind::Wifi)
+                        {
+                            let stale_wifi = data
+                                .state
+                                .wifi_last_refresh
+                                .map(|t| t.elapsed() >= std::time::Duration::from_secs(2))
+                                .unwrap_or(true);
+                            if stale_wifi {
+                                data.state.wifi_state = crate::wifi::read_state();
+                                data.state.wifi_last_refresh = Some(std::time::Instant::now());
+                            }
+                        }
+                        // Observer do outbox de connect — sempre, mesmo
+                        // se o popup fechou no meio.
+                        let outcome = data
+                            .state
+                            .wifi_connect_outbox
+                            .lock()
+                            .ok()
+                            .and_then(|mut g| g.take());
+                        if let Some(outcome) = outcome {
+                            match outcome {
+                                crate::wifi::ConnectResult::Success { ssid } => {
+                                    tracing::info!("wifi connected to {ssid}");
+                                    data.state.wifi_connecting = None;
+                                    data.state.wifi_password_for = None;
+                                    data.state.wifi_password_text.clear();
+                                    data.state.wifi_password_cursor = 0;
+                                    data.state.wifi_error_for = None;
+                                    // Refresh imediato.
+                                    data.state.wifi_state = crate::wifi::read_state();
+                                    data.state.wifi_last_refresh = Some(std::time::Instant::now());
+                                }
+                                crate::wifi::ConnectResult::Failure { ssid, message } => {
+                                    data.state.wifi_connecting = None;
+                                    data.state.wifi_error_for = Some((ssid, message));
+                                }
+                            }
+                        }
                         // H44.volume.1-4: applet popup com bg gradient +
                         // tabs + slider. Tokens vêm de theme.popup.
                         // Z-stack: insert(0, ...) coloca cada item NO TOPO.
@@ -3061,10 +3113,399 @@ pub fn init_winit(
                             let theme = crate::theme::current();
                             let t_popup = &theme.popup;
                             let o = popup.origin(output_size_logical);
-                            // H57: branch Battery. Header + hero
-                            // (% grande + estado + barra) + slider
-                            // de modo de energia (se PPD presente).
-                            if popup.kind == crate::popup::AppletKind::Battery {
+                            // H57.2: branch Wifi. Header com toggle +
+                            // lista de redes + senha inline.
+                            if popup.kind == crate::popup::AppletKind::Wifi {
+                                let t_wp = &theme.wifi_popup;
+                                // Bg gradient.
+                                let bg = crate::gfx::make_titlebar_bg(
+                                    popup.size.w, popup.size.h,
+                                    t_popup.corner_radius,
+                                    theme.window.titlebar_bg_top,
+                                    theme.window.titlebar_bg_bottom,
+                                );
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    o.to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, bg_loc.to_f64(), &bg,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                let text_r_ref = data.state.text.as_ref();
+                                let inner_x = o.x + t_wp.padding;
+                                let inner_w = popup.size.w - t_wp.padding * 2;
+                                // Header: "Wi-Fi" à esquerda + toggle à direita.
+                                if let Some(tr) = text_r_ref {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        "Wi-Fi", t_wp.header_size, t_wp.header_color,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let ly = o.y + (t_wp.header_height - h as i32) / 2;
+                                        let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((inner_x, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, loc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
+                                // Toggle: pill rounded + knob.
+                                let toggle_x = o.x + popup.size.w
+                                    - t_wp.padding - t_wp.toggle_w;
+                                let toggle_y = o.y + (t_wp.header_height - t_wp.toggle_h) / 2;
+                                let wifi_on = data.state.wifi_state.enabled;
+                                let toggle_bg = crate::gfx::make_rounded_panel(
+                                    t_wp.toggle_w, t_wp.toggle_h, t_wp.toggle_corner,
+                                    if wifi_on { t_wp.toggle_on_bg } else { t_wp.toggle_off_bg },
+                                );
+                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((toggle_x, toggle_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, loc.to_f64(), &toggle_bg,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                let knob_r = (t_wp.toggle_h - 6) / 2;
+                                let knob_d = knob_r * 2;
+                                let knob_y = toggle_y + 3;
+                                let knob_x = if wifi_on {
+                                    toggle_x + t_wp.toggle_w - knob_d - 3
+                                } else {
+                                    toggle_x + 3
+                                };
+                                let knob = crate::gfx::make_rounded_panel(
+                                    knob_d, knob_d, knob_r, t_wp.toggle_knob_color,
+                                );
+                                let kloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((knob_x, knob_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, kloc.to_f64(), &knob,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                data.state.wifi_toggle_rect = Some(
+                                    smithay::utils::Rectangle::new(
+                                        smithay::utils::Point::from((toggle_x, toggle_y)),
+                                        smithay::utils::Size::from((t_wp.toggle_w, t_wp.toggle_h)),
+                                    ),
+                                );
+                                let header_bot = o.y + t_wp.header_height;
+                                // Divisor.
+                                let div = crate::gfx::make_rounded_panel(
+                                    popup.size.w, 1, 0, t_wp.divider_color,
+                                );
+                                let dloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((o.x, header_bot))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, dloc.to_f64(), &div,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                let mut cur_y = header_bot + 4;
+                                data.state.wifi_row_rects.clear();
+                                data.state.wifi_connect_btn_rect = None;
+                                if !wifi_on {
+                                    // Estado vazio.
+                                    if let Some(tr) = text_r_ref {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            "Wi-Fi desligado",
+                                            t_wp.empty_label_size,
+                                            t_wp.empty_label_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = inner_x + (inner_w - w as i32) / 2;
+                                            let ly = cur_y + (popup.size.h
+                                                - t_wp.header_height) / 2 - h as i32 / 2;
+                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, loc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Lista de redes. Conectada primeiro (já ordenada por
+                                    // read_state). Cada row é uma linha clicável.
+                                    let networks = data.state.wifi_state.networks.clone();
+                                    let max_y = o.y + popup.size.h - t_wp.padding;
+                                    for net in networks.iter() {
+                                        if cur_y + t_wp.row_height > max_y {
+                                            break;
+                                        }
+                                        let row_x = o.x;
+                                        let row_w = popup.size.w;
+                                        let row_y = cur_y;
+                                        // Cor por estado.
+                                        let ssid_color = if net.in_use {
+                                            t_wp.ssid_connected_color
+                                        } else {
+                                            t_wp.ssid_color
+                                        };
+                                        let signal_color = if net.in_use {
+                                            t_wp.signal_connected_color
+                                        } else {
+                                            t_wp.signal_color
+                                        };
+                                        // SSID (truncado se largo).
+                                        if let Some(tr) = text_r_ref {
+                                            let max_ssid_w = row_w
+                                                - t_wp.row_padding_h * 2 - 80;
+                                            let lines = wrap_to_lines_pixels(
+                                                &net.ssid, tr, t_wp.ssid_size,
+                                                ssid_color, max_ssid_w, 1,
+                                            );
+                                            if let Some(line) = lines.first() {
+                                                let (px, w, h) = tr.rasterize_colored(
+                                                    line, t_wp.ssid_size, ssid_color,
+                                                );
+                                                if w > 0 && h > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let lx = row_x + t_wp.row_padding_h;
+                                                    let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, loc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                            }
+                                            // À direita: "conectado" se in_use, ou
+                                            // sinal + cadeado.
+                                            let right_label = if net.in_use {
+                                                "conectado".to_string()
+                                            } else if net.is_protected() {
+                                                format!("{}% 🔒", net.signal)
+                                            } else {
+                                                format!("{}%", net.signal)
+                                            };
+                                            let (px, w, h) = tr.rasterize_colored(
+                                                &right_label,
+                                                t_wp.state_label_size,
+                                                if net.in_use { t_wp.state_label_color } else { signal_color },
+                                            );
+                                            if w > 0 && h > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (w as i32, h as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let lx = row_x + row_w
+                                                    - t_wp.row_padding_h - w as i32;
+                                                let ly = row_y + (t_wp.row_height - h as i32) / 2;
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                        }
+                                        data.state.wifi_row_rects.push((
+                                            net.ssid.clone(),
+                                            smithay::utils::Rectangle::new(
+                                                smithay::utils::Point::from((row_x, row_y)),
+                                                smithay::utils::Size::from((row_w, t_wp.row_height)),
+                                            ),
+                                        ));
+                                        cur_y += t_wp.row_height;
+                                        // Expansão de senha inline.
+                                        if data.state.wifi_password_for.as_deref()
+                                            == Some(&net.ssid)
+                                        {
+                                            let exp_h = t_wp.pw_field_height + 8
+                                                + t_wp.pw_btn_height + 16;
+                                            if cur_y + exp_h > max_y {
+                                                break;
+                                            }
+                                            // Field bg.
+                                            let field_w = row_w - t_wp.row_padding_h * 2;
+                                            let field = crate::gfx::make_rounded_panel(
+                                                field_w, t_wp.pw_field_height,
+                                                t_wp.pw_field_corner,
+                                                t_wp.pw_field_bg,
+                                            );
+                                            let floc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((row_x + t_wp.row_padding_h, cur_y))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, floc.to_f64(), &field,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                            // Senha mascarada (•) + cursor.
+                                            let masked: String = "•".repeat(
+                                                data.state.wifi_password_text.chars().count(),
+                                            );
+                                            let display = if masked.is_empty() {
+                                                "Senha".to_string()
+                                            } else {
+                                                masked
+                                            };
+                                            let display_color = if data.state.wifi_password_text.is_empty() {
+                                                t_wp.empty_label_color
+                                            } else {
+                                                t_wp.pw_field_text_color
+                                            };
+                                            if let Some(tr) = text_r_ref {
+                                                let (px, w, h) = tr.rasterize_colored(
+                                                    &display, t_wp.pw_field_size, display_color,
+                                                );
+                                                if w > 0 && h > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let lx = row_x + t_wp.row_padding_h + 12;
+                                                    let ly = cur_y
+                                                        + (t_wp.pw_field_height - h as i32) / 2;
+                                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, loc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                            }
+                                            cur_y += t_wp.pw_field_height + 8;
+                                            // Botão "Conectar".
+                                            let btn_label = if data.state.wifi_connecting.as_deref()
+                                                == Some(&net.ssid)
+                                            {
+                                                "Conectando…"
+                                            } else {
+                                                "Conectar"
+                                            };
+                                            if let Some(tr) = text_r_ref {
+                                                let (px, w, h) = tr.rasterize_colored(
+                                                    btn_label, t_wp.pw_btn_label_size, t_wp.pw_btn_fg,
+                                                );
+                                                let btn_w = (w as i32 + 32).max(100);
+                                                let btn_x = row_x + row_w
+                                                    - t_wp.row_padding_h - btn_w;
+                                                let btn_y = cur_y;
+                                                let btn_bg = crate::gfx::make_rounded_panel(
+                                                    btn_w, t_wp.pw_btn_height, t_wp.pw_btn_corner,
+                                                    t_wp.pw_btn_bg,
+                                                );
+                                                let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x, btn_y))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, loc.to_f64(), &btn_bg,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                                if w > 0 && h > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &px,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, h as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let lx = btn_x + (btn_w - w as i32) / 2;
+                                                    let ly = btn_y + (t_wp.pw_btn_height - h as i32) / 2;
+                                                    let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, loc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                                data.state.wifi_connect_btn_rect = Some(
+                                                    smithay::utils::Rectangle::new(
+                                                        smithay::utils::Point::from((btn_x, btn_y)),
+                                                        smithay::utils::Size::from((btn_w, t_wp.pw_btn_height)),
+                                                    ),
+                                                );
+                                                cur_y += t_wp.pw_btn_height + 8;
+                                            }
+                                            // Erro inline (se houver pra esse ssid).
+                                            if let Some((esid, msg)) =
+                                                data.state.wifi_error_for.clone()
+                                            {
+                                                if esid == net.ssid {
+                                                    if let Some(tr) = text_r_ref {
+                                                        let (px, w, h) = tr.rasterize_colored(
+                                                            &msg, t_wp.state_label_size,
+                                                            t_wp.pw_error_color,
+                                                        );
+                                                        if w > 0 && h > 0 {
+                                                            let buf = MemoryRenderBuffer::from_slice(
+                                                                &px,
+                                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                                (w as i32, h as i32),
+                                                                1, Transform::Normal, None,
+                                                            );
+                                                            let lx = row_x + t_wp.row_padding_h;
+                                                            let ly = cur_y;
+                                                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                                    .to_physical_precise_round(1.0);
+                                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                                renderer, loc.to_f64(), &buf,
+                                                                None, None, None, Kind::Unspecified,
+                                                            ) {
+                                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                            }
+                                                            cur_y += h as i32 + 4;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            cur_y += 8;
+                                        }
+                                    }
+                                }
+                            } else if popup.kind == crate::popup::AppletKind::Battery {
                                 let t_bp = &theme.battery_popup;
                                 // Bg gradient (mesma casca de applet).
                                 let bg = crate::gfx::make_titlebar_bg(
