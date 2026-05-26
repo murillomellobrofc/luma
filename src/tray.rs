@@ -125,6 +125,20 @@ pub struct TrayState {
     /// até H47b conectar zbus). Usado pelo render pra dim a setinha
     /// quando vazia. H47a.tray.4.
     pub sni_count: usize,
+    /// Qual applet do tray está sob hover do mouse. None = nenhum.
+    /// Atualizado pelo motion handler. H57 polish.
+    pub hover: Option<TrayHover>,
+}
+
+/// Hover do mouse sobre applets do tray. H57 polish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrayHover {
+    Volume,
+    Battery,
+    Wifi,
+    Bluetooth,
+    Bell,
+    Clock,
 }
 
 impl TrayState {

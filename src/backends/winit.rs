@@ -1986,6 +1986,11 @@ pub fn init_winit(
                             let bat_label_x = bat_icon_x + bat_icon_w + 4;
 
                             // Pinta os ícones.
+                            // H57 hover/active calculados antes do
+                            // render dos applets (push_applet_bg vem
+                            // depois). Definidos mais abaixo após o
+                            // helper — usamos uma versão postergada
+                            // chamando inline aqui via closure data.
                             if let Some((bat_buf, bat_sz, lbl_buf, lbl_sz)) = battery_render.as_ref() {
                                 push_mem(&mut custom_elements, bat_buf,
                                          bat_icon_x, center_y_for(bat_sz.h), renderer);
@@ -2032,12 +2037,14 @@ pub fn init_winit(
                                     ),
                                 );
                             }
-                            // H55 polish: helper pra desenhar bg "ativo"
-                            // atrás de um ícone do tray. Mesma linguagem
-                            // visual do clock acender.
-                            let push_active_bg = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                            // H55 polish + H57 hover: helper pra desenhar
+                            // bg atrás de um ícone do tray. Cor varia
+                            // por estado — active (popup aberto) usa
+                            // applet_bg_active, hover usa applet_bg_hover.
+                            let push_applet_bg = |elems: &mut Vec<LumaRenderElement<GlesRenderer>>,
                                                   icon_x: i32,
                                                   icon_w: i32,
+                                                  color: smithay::backend::renderer::Color32F,
                                                   r: &mut GlesRenderer| {
                                 let tb_h = crate::taskbar::taskbar_height();
                                 let bar_y_l = output_size_logical.h - tb_h;
@@ -2047,7 +2054,7 @@ pub fn init_winit(
                                 let bg_x = icon_x - pad;
                                 let bg_y = bar_y_l + (tb_h - bg_h) / 2;
                                 let bg = crate::gfx::make_rounded_panel(
-                                    bg_w, bg_h, 8, theme.colors.applet_bg_active,
+                                    bg_w, bg_h, 8, color,
                                 );
                                 let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                     smithay::utils::Point::<i32, smithay::utils::Logical>::from((bg_x, bg_y))
@@ -2060,20 +2067,61 @@ pub fn init_winit(
                                     elems.push(LumaRenderElement::Memory(elem));
                                 }
                             };
-                            let volume_active = data.state.applet_popup.as_ref()
-                                .map(|p| p.kind == crate::popup::AppletKind::Volume)
-                                .unwrap_or(false);
+                            let active_color = theme.colors.applet_bg_active;
+                            let hover_color = theme.colors.applet_bg_hover;
+                            let tray_hover = data.state.tray.hover;
+                            let popup_kind = data.state.applet_popup.as_ref()
+                                .map(|p| p.kind);
+                            let volume_active = popup_kind == Some(crate::popup::AppletKind::Volume);
+                            let battery_active = popup_kind == Some(crate::popup::AppletKind::Battery);
+                            let wifi_active = popup_kind == Some(crate::popup::AppletKind::Wifi);
+                            let bt_active = popup_kind == Some(crate::popup::AppletKind::Bluetooth);
                             let bell_active = match data.state.notifications.lock() {
                                 Ok(g) => g.panel_open,
                                 Err(_) => false,
                             };
+                            // Push bg dos applets que NÃO sejam volume/bell
+                            // (esses tem sua própria branch abaixo).
+                            // Battery: usa bloco icon+label, anchor no icon.
+                            if let Some((_, bat_sz, _, lbl_sz)) = battery_render.as_ref() {
+                                let block_w = bat_label_x + lbl_sz.w - bat_icon_x;
+                                let _ = bat_sz;
+                                if battery_active {
+                                    push_applet_bg(&mut custom_elements,
+                                                   bat_icon_x, block_w, active_color, renderer);
+                                } else if tray_hover == Some(crate::tray::TrayHover::Battery) {
+                                    push_applet_bg(&mut custom_elements,
+                                                   bat_icon_x, block_w, hover_color, renderer);
+                                }
+                            }
+                            if let Some((_, sz)) = wifi_render.as_ref() {
+                                if wifi_active {
+                                    push_applet_bg(&mut custom_elements,
+                                                   wifi_x, sz.w, active_color, renderer);
+                                } else if tray_hover == Some(crate::tray::TrayHover::Wifi) {
+                                    push_applet_bg(&mut custom_elements,
+                                                   wifi_x, sz.w, hover_color, renderer);
+                                }
+                            }
+                            if let Some((_, sz)) = bt_render.as_ref() {
+                                if bt_active {
+                                    push_applet_bg(&mut custom_elements,
+                                                   bt_x, sz.w, active_color, renderer);
+                                } else if tray_hover == Some(crate::tray::TrayHover::Bluetooth) {
+                                    push_applet_bg(&mut custom_elements,
+                                                   bt_x, sz.w, hover_color, renderer);
+                                }
+                            }
 
                             if let Some((buf, sz)) = volume_render.as_ref() {
                                 push_mem(&mut custom_elements, buf,
                                          volume_x, center_y_for(sz.h), renderer);
                                 if volume_active {
-                                    push_active_bg(&mut custom_elements,
-                                                   volume_x, sz.w, renderer);
+                                    push_applet_bg(&mut custom_elements,
+                                                   volume_x, sz.w, active_color, renderer);
+                                } else if tray_hover == Some(crate::tray::TrayHover::Volume) {
+                                    push_applet_bg(&mut custom_elements,
+                                                   volume_x, sz.w, hover_color, renderer);
                                 }
                             }
                             if let Some((buf, sz)) = bell_render.as_ref() {
@@ -2081,8 +2129,11 @@ pub fn init_winit(
                                 push_mem(&mut custom_elements, buf,
                                          bell_x, by, renderer);
                                 if bell_active {
-                                    push_active_bg(&mut custom_elements,
-                                                   bell_x, sz.w, renderer);
+                                    push_applet_bg(&mut custom_elements,
+                                                   bell_x, sz.w, active_color, renderer);
+                                } else if tray_hover == Some(crate::tray::TrayHover::Bell) {
+                                    push_applet_bg(&mut custom_elements,
+                                                   bell_x, sz.w, hover_color, renderer);
                                 }
                                 // H54.P5: cacheia rect do sino pra click hit-test.
                                 data.state.notification_bell_rect =
@@ -2714,11 +2765,15 @@ pub fn init_winit(
                             // applet_bg_active com folga lateral pra
                             // hit target visual ~40px. Push depois dos
                             // labels = atrás deles (end of vec = back).
+                            // H57 hover: também acende ao hover (com
+                            // applet_bg_hover ao invés de _active).
                             let calendar_open_visual =
                                 data.state.applet_popup.as_ref()
                                     .map(|p| p.kind == crate::popup::AppletKind::Calendar)
                                     .unwrap_or(false);
-                            if calendar_open_visual {
+                            let clock_hover_visual = !calendar_open_visual
+                                && data.state.tray.hover == Some(crate::tray::TrayHover::Clock);
+                            if calendar_open_visual || clock_hover_visual {
                                 let th = crate::theme::current();
                                 let tb_h = crate::taskbar::taskbar_height();
                                 let pad_h = 10i32;
@@ -2731,8 +2786,13 @@ pub fn init_winit(
                                 let bg_x = left_edge - pad_h;
                                 let bg_y = (output_size_logical.h - tb_h)
                                     + (tb_h - bg_h) / 2;
+                                let bg_color = if calendar_open_visual {
+                                    th.colors.applet_bg_active
+                                } else {
+                                    th.colors.applet_bg_hover
+                                };
                                 let bg = crate::gfx::make_rounded_panel(
-                                    bg_w, bg_h, 8, th.colors.applet_bg_active,
+                                    bg_w, bg_h, 8, bg_color,
                                 );
                                 let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                     smithay::utils::Point::<i32, smithay::utils::Logical>::from((bg_x, bg_y))

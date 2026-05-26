@@ -34,6 +34,52 @@ pub fn handle_motion_absolute<I: InputBackend>(
         return;
     };
 
+    // H57 polish: hover sobre algum applet do tray — pinta com
+    // applet_bg_hover atrás do ícone.
+    {
+        let mut h: Option<crate::tray::TrayHover> = None;
+        // Ordem: bell, clock, bluetooth, wifi, battery, volume.
+        // Cada um cacheia seu rect no render path.
+        if state.notification_bell_rect.map_or(false, |(x, y, w, ht)| {
+            pos.x >= x as f64 && pos.x < (x + w) as f64
+                && pos.y >= y as f64 && pos.y < (y + ht) as f64
+        }) {
+            h = Some(crate::tray::TrayHover::Bell);
+        } else if state.tray.last_clock_rect
+            .map_or(false, |r| r.to_f64().contains(pos))
+        {
+            h = Some(crate::tray::TrayHover::Clock);
+        } else if state.tray.last_bt_rect
+            .map_or(false, |r| r.to_f64().contains(pos))
+        {
+            h = Some(crate::tray::TrayHover::Bluetooth);
+        } else if state.tray.last_wifi_rect
+            .map_or(false, |r| r.to_f64().contains(pos))
+        {
+            h = Some(crate::tray::TrayHover::Wifi);
+        } else if state.tray.last_battery_rect
+            .map_or(false, |r| r.to_f64().contains(pos))
+        {
+            h = Some(crate::tray::TrayHover::Battery);
+        } else {
+            // Volume usa tray_volume_zone (computado, não cacheado).
+            let output_size = state
+                .space
+                .output_geometry(state.output_under_cursor(pos))
+                .map(|g| g.size);
+            if let Some(output) = output_size {
+                if let Some(zone) = crate::taskbar::tray_volume_zone(output, &state.tray) {
+                    if zone.to_f64().contains(pos) {
+                        h = Some(crate::tray::TrayHover::Volume);
+                    }
+                }
+            }
+        }
+        if state.tray.hover != h {
+            state.tray.hover = h;
+        }
+    }
+
     // H54.P4: hover sobre algum action button — pinta com bg_hover.
     {
         let mut new_hover: Option<(u32, String)> = None;
