@@ -308,12 +308,29 @@ pub fn handle_motion_absolute<I: InputBackend>(
                 let in_sub_rect = snap
                     .submenu_rect(&tokens, out)
                     .map(|r| {
-                        let pad_left = 12;
-                        let extended = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
-                            smithay::utils::Point::from((r.loc.x - pad_left, r.loc.y)),
-                            smithay::utils::Size::from((r.size.w + pad_left, r.size.h)),
+                        // H56.fix: bounding box que cobre main ∪ sub
+                        // ∪ qualquer gap entre eles. O submenu pode
+                        // abrir à esquerda OU direita do main, e ficar
+                        // clamped pra cima/baixo quando o menu encosta
+                        // na borda. O bounding union garante que o
+                        // cursor mantém o submenu aberto durante toda
+                        // a viagem main↔sub, em qualquer eixo.
+                        let main = snap.rect(&tokens);
+                        let l = main.loc.x.min(r.loc.x);
+                        let t = main.loc.y.min(r.loc.y);
+                        let r_edge = (main.loc.x + main.size.w)
+                            .max(r.loc.x + r.size.w);
+                        let b = (main.loc.y + main.size.h)
+                            .max(r.loc.y + r.size.h);
+                        let unified = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                            smithay::utils::Point::from((l, t)),
+                            smithay::utils::Size::from((r_edge - l, b - t)),
                         );
-                        extended.to_f64().contains(pos)
+                        // NÃO contains o ponto se estiver no rect main
+                        // (esse caso já é tratado por in_main_rect com
+                        // semântica diferente). Aqui só queremos saber
+                        // se cursor está perto do submenu ou no gap.
+                        unified.to_f64().contains(pos)
                     })
                     .unwrap_or(false);
                 let new_open_submenu: Option<usize> = if let Some(idx) = main_hover {
