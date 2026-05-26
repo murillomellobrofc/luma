@@ -130,6 +130,9 @@ pub struct Theme {
     pub notifications: NotificationsTokens,
     /// Popup de calendário ao clicar no relógio. H55.
     pub calendario: CalendarTokens,
+    /// Popup do applet de bateria (% + estado + slider de modo
+    /// de energia). H57.
+    pub battery_popup: BatteryPopupTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1046,6 +1049,7 @@ impl Default for Theme {
             desktop_icons: DesktopIconsTokens::default(),
             notifications: NotificationsTokens::default(),
             calendario: CalendarTokens::default(),
+            battery_popup: BatteryPopupTokens::default(),
         }
     }
 }
@@ -1224,6 +1228,79 @@ impl Default for DesktopIconsTokens {
             // contraste efetivo ~5.5:1 (AA com margem). Não derrubar
             // pra <0.50 sem reavaliar contraste do label.
             cut_opacity: 0.55,
+        }
+    }
+}
+
+/// Popup de bateria. H57. Hero block + slider de 3 paradas pra
+/// modo de energia. Tudo aqui — zero hex hardcoded.
+#[derive(Debug, Clone)]
+pub struct BatteryPopupTokens {
+    pub padding: i32,
+    pub header_height: i32,
+    pub header_color: Color32F,
+    pub header_size: f32,
+    /// Hero: % grande, estado, tempo, barra.
+    pub hero_pct_size: f32,
+    pub hero_pct_color: Color32F,
+    /// Cor do % quando bateria está baixa (< low_threshold).
+    pub hero_pct_low_color: Color32F,
+    pub hero_state_size: f32,
+    pub hero_state_color: Color32F,
+    pub level_bar_height: i32,
+    pub level_bar_corner: i32,
+    pub level_bar_bg_color: Color32F,
+    pub level_bar_fill_color: Color32F,
+    pub level_bar_fill_low_color: Color32F,
+    /// % abaixo da qual fg vira coral.
+    pub low_threshold_pct: u8,
+    /// Slider de modo de energia.
+    pub mode_label_color: Color32F,
+    pub mode_label_size: f32,
+    pub mode_slider_track_height: i32,
+    pub mode_slider_track_color: Color32F,
+    pub mode_slider_fill_color: Color32F,
+    pub mode_slider_thumb_radius: i32,
+    pub mode_slider_thumb_color: Color32F,
+    pub mode_slider_thumb_ring_color: Color32F,
+    pub mode_stop_label_size: f32,
+    pub mode_stop_label_color: Color32F,
+    pub mode_stop_label_active_color: Color32F,
+    pub divider_color: Color32F,
+}
+
+impl Default for BatteryPopupTokens {
+    fn default() -> Self {
+        Self {
+            padding: 20,
+            header_height: 40,
+            header_color: hex_color("#FBF6EE", 1.0),
+            header_size: 14.0,
+            hero_pct_size: 48.0,
+            hero_pct_color: hex_color("#FBF6EE", 1.0),
+            // Coral pra baixa (mesma família do bell badge).
+            hero_pct_low_color: hex_color("#D97757", 1.0),
+            hero_state_size: 12.0,
+            hero_state_color: hex_color("#C9BDB0", 1.0),
+            level_bar_height: 6,
+            level_bar_corner: 3,
+            level_bar_bg_color: hex_color("#2A1F1A", 1.0),
+            // Honey amber pra preenchimento normal.
+            level_bar_fill_color: hex_color("#E89B3D", 1.0),
+            level_bar_fill_low_color: hex_color("#D97757", 1.0),
+            low_threshold_pct: 20,
+            mode_label_color: hex_color("#9A8B7E", 1.0),
+            mode_label_size: 10.0,
+            mode_slider_track_height: 6,
+            mode_slider_track_color: hex_color("#2A1F1A", 1.0),
+            mode_slider_fill_color: hex_color("#E89B3D", 1.0),
+            mode_slider_thumb_radius: 12,
+            mode_slider_thumb_color: hex_color("#FBF6EE", 1.0),
+            mode_slider_thumb_ring_color: hex_color("#E89B3D", 1.0),
+            mode_stop_label_size: 11.0,
+            mode_stop_label_color: hex_color("#9A8B7E", 1.0),
+            mode_stop_label_active_color: hex_color("#E89B3D", 1.0),
+            divider_color: hex_color("#3D2520", 0.55),
         }
     }
 }
@@ -3071,6 +3148,7 @@ impl ThemeFile {
             desktop_icons: default.desktop_icons.clone(),
             notifications,
             calendario: default.calendario.clone(),
+            battery_popup: default.battery_popup.clone(),
         }
     }
 }

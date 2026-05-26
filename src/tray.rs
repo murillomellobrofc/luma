@@ -104,6 +104,9 @@ pub struct TrayState {
     /// hit-test do click (abrir popup). None até o primeiro render.
     /// H44.volume.1.
     pub last_volume_x: Option<i32>,
+    /// Rect do bloco da bateria (ícone + label) no último render.
+    /// Usado pelo hit-test do click que abre o popup. H57.
+    pub last_battery_rect: Option<smithay::utils::Rectangle<i32, Logical>>,
     /// X (lógico) da setinha de overflow no último render. Usado pelo
     /// hit-test do click (toggle painel). None até o primeiro render.
     /// H47a.tray.1.

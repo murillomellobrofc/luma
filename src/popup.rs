@@ -13,6 +13,9 @@ pub enum AppletKind {
     /// H55: calendário ao clicar no relógio. Só visualização de data,
     /// sem eventos.
     Calendar,
+    /// H57: bateria — % grande, estado, barra, slider 3 paradas
+    /// (Economia / Equilibrado / Desempenho via PPD).
+    Battery,
 }
 
 /// Aba ativa no popup de volume. H44.volume.2.
@@ -76,6 +79,10 @@ impl AppletPopup {
             // sempre 6 linhas. width = 7*40 + 2*12 = 304. height =
             // 12+48+28+6*40+48+12 = 388.
             AppletKind::Calendar => Size::from((304, 388)),
+            // H57: bateria — header fino + hero block + slider.
+            // Mesma largura do Volume (360). Altura calibrada pra
+            // hero (% grande + estado + barra) + modo de energia.
+            AppletKind::Battery => Size::from((360, 340)),
         };
         // H55: init do mês exibido = hoje (Calendar). Volume ignora.
         let (displayed_year, displayed_month) = if kind == AppletKind::Calendar {
@@ -221,7 +228,8 @@ impl AppletPopup {
         let taskbar_h = crate::taskbar::taskbar_height();
         let y = output_size.h - taskbar_h - self.size.h - margin;
         let x = match self.kind {
-            AppletKind::Volume => (self.anchor_x - self.size.w / 2)
+            // Volume e Battery: centralizado sobre o ícone do tray.
+            AppletKind::Volume | AppletKind::Battery => (self.anchor_x - self.size.w / 2)
                 .max(8)
                 .min(output_size.w - self.size.w - 8),
             AppletKind::Calendar => (self.anchor_x - self.size.w)
