@@ -7277,7 +7277,9 @@ pub fn init_winit(
                                         }
                                     }
                                 } else {
-                                    // Auth panel: avatar + saudação + campo.
+                                    // Auth panel: avatar + saudação + campo,
+                                    // centralizado verticalmente (clock fica
+                                    // no topo, painel no centro da tela).
                                     let user = std::env::var("USER")
                                         .unwrap_or_else(|_| "Usuário".to_string());
                                     let initial = user
@@ -7285,7 +7287,6 @@ pub fn init_winit(
                                         .next()
                                         .map(|c| c.to_uppercase().to_string())
                                         .unwrap_or_default();
-                                    // Saudação por horário.
                                     let h = now.hour();
                                     let saudacao = if (5..12).contains(&h) {
                                         "Bom dia"
@@ -7295,8 +7296,18 @@ pub fn init_winit(
                                         "Boa noite"
                                     };
                                     let greeting = format!("{}, {}", saudacao, user);
-                                    // Avatar centralizado, abaixo do clock.
-                                    let avatar_y = date_y + dh as i32 + 60;
+                                    // Calcula altura total do bloco:
+                                    // avatar + 20 + greeting_h + 24 +
+                                    // field_h + 12 + indicator_h.
+                                    let block_h = t_lock.avatar_size
+                                        + 20 + (t_lock.greeting_size as i32 + 4)
+                                        + 24 + t_lock.field_height
+                                        + 12 + (t_lock.indicator_size as i32 + 4);
+                                    // Painel centralizado verticalmente
+                                    // entre o fim do clock e o fim da tela.
+                                    let panel_top_min = date_y + dh as i32 + 40;
+                                    let block_y_center = output_size_logical.h / 2 - block_h / 2;
+                                    let avatar_y = block_y_center.max(panel_top_min);
                                     let avatar_r = t_lock.avatar_size / 2;
                                     let avatar = crate::gfx::make_rounded_panel(
                                         t_lock.avatar_size, t_lock.avatar_size,
