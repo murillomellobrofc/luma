@@ -22,68 +22,24 @@ use crate::{render::LumaRenderElement, wallpaper::Wallpaper, window::LumaWindow}
 /// Mutex. last_tick segue paralelo ao Vec<Instant> do painel, só que
 /// per-widget porque cada DesktopWidget vive sozinho.
 ///
-/// Posição (x, y lógicos, origem canto superior-esquerdo do output
-/// principal) NÃO é guardada aqui — fica no Space, lida via
-/// `space.element_location(item)`. Multi-monitor fica pra depois.
-///
-/// `id` é o identificador estável da entrada [[widget]] no
-/// layout.toml. O modo de edição usa esse id pra achar a entrada
-/// certa na hora de salvar x/y ou reordenar, sem depender de
-/// posição (que muda quando o arquivo é reescrito).
+/// x/y são lógicos, origem no canto superior-esquerdo do output
+/// principal. Multi-monitor fica pra depois (spec fatia 4).
 pub struct DesktopWidgetItem {
     pub widget: Mutex<Box<dyn luma_widget::Widget + Send>>,
     pub last_tick: Mutex<Instant>,
-    pub id: String,
-    /// Tamanho custom do modo de edição. None = natural. Set pelo
-    /// cartão "Redimensionar" e persistido em placement.width/height.
-    pub user_size: Mutex<Option<(u32, u32)>>,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl DesktopWidgetItem {
-    pub fn new(
-        widget: Box<dyn luma_widget::Widget + Send>,
-        id: String,
-    ) -> Self {
+    pub fn new(widget: Box<dyn luma_widget::Widget + Send>, x: i32, y: i32) -> Self {
         Self {
             widget: Mutex::new(widget),
             last_tick: Mutex::new(Instant::now()),
-            id,
-            user_size: Mutex::new(None),
+            x,
+            y,
         }
     }
-
-    pub fn new_with_size(
-        widget: Box<dyn luma_widget::Widget + Send>,
-        id: String,
-        size: Option<(u32, u32)>,
-    ) -> Self {
-        Self {
-            widget: Mutex::new(widget),
-            last_tick: Mutex::new(Instant::now()),
-            id,
-            user_size: Mutex::new(size),
-        }
-    }
-}
-
-/// Estado de drag de um widget de desktop. Vive em
-/// `LumaState::desktop_widget_drag` enquanto o botão está pressionado
-/// dentro do modo de edição. Threshold pequeno antes de ativar pra
-/// não promover click sem intenção de mover.
-pub struct DesktopWidgetDrag {
-    /// Widget sendo arrastado. Arc é cheap clone — o real continua
-    /// no Space.
-    pub item: std::sync::Arc<DesktopWidgetItem>,
-    /// Offset do cursor pra origem do widget no momento do press.
-    /// Mantém o widget firme sob o cursor (não pula pra origem).
-    pub offset: smithay::utils::Point<i32, smithay::utils::Logical>,
-    /// Posição inicial do cursor (screen) — usada pra threshold.
-    pub start_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
-    /// Posição atual do cursor (screen) — atualizada por motion.
-    pub current_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
-    /// true quando o drag passou do threshold e está mexendo de fato.
-    /// Click curto sem mover = ativa nunca, no-op.
-    pub active: bool,
 }
 
 /// Item do `Space` do Luma. Wallpaper e janelas convivem no mesmo Space
@@ -287,11 +243,9 @@ where
                 // no location que o Space nos passou (já contém o
                 // x/y mapeado, em coords Physical).
                 let _ = alpha;
-                let us = dw.user_size.lock().ok().and_then(|g| *g);
                 let ctx = luma_widget::RenderCtx {
                     host: luma_widget::WidgetHost::Desktop,
                     theme: crate::theme::current(),
-                    user_size: us,
                 };
                 let buffer = {
                     let w = dw.widget.lock().expect("widget poisoned");

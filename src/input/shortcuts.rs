@@ -48,9 +48,6 @@ pub enum KeyAction {
     MediaStop,
     /// Ativa a tela de bloqueio (Ctrl+Alt+L em modo aninhado). H58 fatia 6.
     LockSession,
-    /// Modo de edição geral do Luma (Super+E ou Ctrl+Alt+E).
-    /// Toggle: liga se desligado, desliga se ligado.
-    ToggleEditMode,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -102,11 +99,6 @@ pub fn match_shortcut(
     if modifiers.logo && keysym == Keysym::k {
         return Some(KeyAction::OpenMenuToSearch);
     }
-    // Super+E: toggle do modo de edição. Em modo aninhado o host
-    // pode comer Super, daí o fallback Ctrl+Alt+E abaixo.
-    if modifiers.logo && (keysym == Keysym::e || keysym == Keysym::E) {
-        return Some(KeyAction::ToggleEditMode);
-    }
     // Super+D: toggle "Mostrar área de trabalho". H33.taskbar.F.17.
     // Aceita Ctrl+Alt+D como fallback em modo aninhado (KDE/GNOME que
     // interceptam Super).
@@ -123,10 +115,6 @@ pub fn match_shortcut(
         // Super+L). XF86_ScreenSaver também vira lock direto, sem mod.
         if keysym == Keysym::l || keysym == Keysym::L {
             return Some(KeyAction::LockSession);
-        }
-        // Modo de edição fallback: Ctrl+Alt+E (Super+E é o canônico).
-        if keysym == Keysym::e || keysym == Keysym::E {
-            return Some(KeyAction::ToggleEditMode);
         }
         // Mídia.
         if keysym == Keysym::space {
@@ -215,19 +203,7 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::MediaPrev => media_action(state, MediaCmd::Previous),
         KeyAction::MediaStop => media_action(state, MediaCmd::Stop),
         KeyAction::LockSession => lock_session(state),
-        KeyAction::ToggleEditMode => toggle_edit_mode(state),
     }
-}
-
-/// Toggle do modo de edição. Liga se desligado, desliga se ligado.
-/// Loga pra debug.
-fn toggle_edit_mode(state: &mut LumaState) {
-    state.edit_mode = !state.edit_mode;
-    if !state.edit_mode {
-        state.selected_widget_id = None;
-        state.handle_confirm_mode = false;
-    }
-    tracing::info!("modo de edição: {}", if state.edit_mode { "ligado" } else { "desligado" });
 }
 
 /// H58 fatia 6: trigger interno do lock. Idempotente — segundo trigger

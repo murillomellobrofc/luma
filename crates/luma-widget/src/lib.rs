@@ -35,11 +35,6 @@ pub struct RenderCtx<'a> {
     pub host: WidgetHost,
     /// Tema atual (cores Golden Hour, tamanhos de fonte, etc).
     pub theme: &'a Theme,
-    /// Tamanho custom definido pelo usuário via "Redimensionar" do
-    /// modo de edição. None = tamanho natural (conteúdo determina).
-    /// Some((w, h)) = pill exatamente w×h, texto centralizado.
-    /// Só desktop widgets usam hoje; painel é auto-sized na fileira.
-    pub user_size: Option<(u32, u32)>,
 }
 
 /// Um widget do Luma. Sabe se desenhar num buffer e (opcionalmente)
