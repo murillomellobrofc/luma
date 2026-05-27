@@ -81,7 +81,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // H58: lock screen ativo. Esc no placeholder libera (substituído
     // por PAM nas próximas fatias).
     let locked = state.locked;
+    let lock_revealed = state.lock_revealed;
     let mut unlock_request = false;
+    enum LockKey { RevealOnly, Char(char), Backspace, Submit, Cancel }
+    let mut lock_event: Option<LockKey> = None;
+    let mut caps_state: Option<bool> = None;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -97,11 +101,44 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         |_state, _modifiers, handle| {
             // H58: lock ativo intercepta TODA tecla. Brilho e volume
             // (XF86 keys) ficam na whitelist em fatias futuras.
-            // Por ora, Esc libera (placeholder até PAM).
             if locked && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
+                // Track Caps Lock pra indicator no auth panel.
+                caps_state = Some(_modifiers.caps_lock);
+                if !lock_revealed {
+                    // Primeira tecla revela o auth panel. Não entra
+                    // no campo de senha (per spec H58).
+                    if sym == Keysym::Escape {
+                        // Esc na capa: libera (placeholder até PAM).
+                        unlock_request = true;
+                    } else {
+                        lock_event = Some(LockKey::RevealOnly);
+                    }
+                    return FilterResult::Intercept(());
+                }
+                // Auth panel revelado: edição do campo de senha.
                 if sym == Keysym::Escape {
-                    unlock_request = true;
+                    // Esc no auth: volta pra capa (cancela tentativa).
+                    lock_event = Some(LockKey::Cancel);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                    // Enter: submete (placeholder até PAM na fatia 5).
+                    lock_event = Some(LockKey::Submit);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::BackSpace {
+                    lock_event = Some(LockKey::Backspace);
+                    return FilterResult::Intercept(());
+                }
+                let codepoint = smithay::input::keyboard::xkb::keysym_to_utf32(sym);
+                if codepoint != 0 {
+                    if let Some(ch) = char::from_u32(codepoint) {
+                        if !ch.is_control() {
+                            lock_event = Some(LockKey::Char(ch));
+                            return FilterResult::Intercept(());
+                        }
+                    }
                 }
                 return FilterResult::Intercept(());
             }
@@ -320,9 +357,48 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         },
     );
 
+    if let Some(c) = caps_state {
+        if state.lock_caps_on != c {
+            state.lock_caps_on = c;
+        }
+    }
+    if let Some(ev) = lock_event {
+        match ev {
+            LockKey::RevealOnly => {
+                state.lock_revealed = true;
+                state.lock_password.clear();
+            }
+            LockKey::Char(ch) => {
+                state.lock_password.push(ch);
+            }
+            LockKey::Backspace => {
+                state.lock_password.pop();
+            }
+            LockKey::Submit => {
+                // Fatia 5 (PAM) substitui isso. Por ora: aceita
+                // qualquer senha não-vazia como desbloqueio
+                // placeholder pra testar o ciclo de UI.
+                if !state.lock_password.is_empty() {
+                    state.locked = false;
+                    state.locked_at = None;
+                    state.lock_revealed = false;
+                    state.lock_password.clear();
+                    state.lock_surfaces.clear();
+                    tracing::info!("luma unlock (placeholder até PAM)");
+                }
+            }
+            LockKey::Cancel => {
+                state.lock_revealed = false;
+                state.lock_password.clear();
+            }
+        }
+        return;
+    }
     if unlock_request {
         state.locked = false;
         state.locked_at = None;
+        state.lock_revealed = false;
+        state.lock_password.clear();
         state.lock_surfaces.clear();
         tracing::info!("luma unlock via Esc (placeholder até PAM)");
         return;

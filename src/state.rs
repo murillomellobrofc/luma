@@ -264,6 +264,16 @@ pub struct LumaState {
     /// H58: Instant em que o lock foi ativado. Usado pro delay
     /// da dica "tecle pra desbloquear" + animações futuras.
     pub locked_at: Option<std::time::Instant>,
+    /// H58 fatia 4: true quando o user revelou o auth panel
+    /// (primeira tecla/click depois de locked). Render alterna
+    /// entre capa (false) e painel de autenticação (true).
+    pub lock_revealed: bool,
+    /// H58 fatia 4: buffer do campo de senha. Renderizado mascarado
+    /// com bullets. PAM consume na fatia 5.
+    pub lock_password: String,
+    /// H58: estado atual do Caps Lock (atualizado pelo keyboard
+    /// handler quando o modificador muda).
+    pub lock_caps_on: bool,
     /// H58: lock surfaces criadas pelos clientes (uma por output).
     pub lock_surfaces: Vec<smithay::wayland::session_lock::LockSurface>,
     /// Rects clicáveis do slider de modo de energia (popup de
@@ -784,6 +794,9 @@ impl LumaState {
             session_lock_state: session_lock_state_init,
             locked: false,
             locked_at: None,
+            lock_revealed: false,
+            lock_password: String::new(),
+            lock_caps_on: false,
             lock_surfaces: Vec::new(),
             battery_mode_zones: Vec::new(),
             wifi_state: crate::wifi::WifiState::default(),

@@ -1340,6 +1340,33 @@ pub struct LockTokens {
     pub hint_size: f32,
     pub hint_color: Color32F,
     pub hint_delay_ms: u64,
+    /// Estado autenticação (fatia 4): relógio menor no topo.
+    pub auth_hour_size: f32,
+    pub auth_date_size: f32,
+    /// Avatar redondo placeholder.
+    pub avatar_size: i32,
+    pub avatar_bg: Color32F,
+    pub avatar_initial_color: Color32F,
+    pub avatar_initial_size: f32,
+    /// Saudação dinâmica ("Boa noite, Murillo").
+    pub greeting_size: f32,
+    pub greeting_color: Color32F,
+    /// Campo de senha.
+    pub field_width: i32,
+    pub field_height: i32,
+    pub field_bg: Color32F,
+    pub field_border: Color32F,
+    pub field_border_focus: Color32F,
+    pub field_corner: i32,
+    pub field_text_color: Color32F,
+    pub field_text_size: f32,
+    pub field_placeholder: String,
+    pub field_placeholder_color: Color32F,
+    /// Indicadores de Caps Lock + layout (linha pequena embaixo
+    /// do campo).
+    pub indicator_color: Color32F,
+    pub indicator_warn_color: Color32F,
+    pub indicator_size: f32,
 }
 
 impl Default for LockTokens {
@@ -1354,6 +1381,27 @@ impl Default for LockTokens {
             hint_size: 13.0,
             hint_color: hex_color("#9A8B7E", 1.0),
             hint_delay_ms: 3000,
+            auth_hour_size: 36.0,
+            auth_date_size: 14.0,
+            avatar_size: 96,
+            avatar_bg: hex_color("#3D2520", 1.0),
+            avatar_initial_color: hex_color("#E89B3D", 1.0),
+            avatar_initial_size: 48.0,
+            greeting_size: 18.0,
+            greeting_color: hex_color("#FBF6EE", 1.0),
+            field_width: 320,
+            field_height: 44,
+            field_bg: hex_color("#2A1F1A", 1.0),
+            field_border: hex_color("#3D2520", 1.0),
+            field_border_focus: hex_color("#E89B3D", 1.0),
+            field_corner: 8,
+            field_text_color: hex_color("#FBF6EE", 1.0),
+            field_text_size: 14.0,
+            field_placeholder: "Senha".to_string(),
+            field_placeholder_color: hex_color("#9A8B7E", 1.0),
+            indicator_color: hex_color("#9A8B7E", 1.0),
+            indicator_warn_color: hex_color("#E89B3D", 1.0),
+            indicator_size: 11.0,
         }
     }
 }
