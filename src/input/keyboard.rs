@@ -78,6 +78,10 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
+    // H58: lock screen ativo. Esc no placeholder libera (substituído
+    // por PAM nas próximas fatias).
+    let locked = state.locked;
+    let mut unlock_request = false;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -91,6 +95,16 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         serial,
         time,
         |_state, _modifiers, handle| {
+            // H58: lock ativo intercepta TODA tecla. Brilho e volume
+            // (XF86 keys) ficam na whitelist em fatias futuras.
+            // Por ora, Esc libera (placeholder até PAM).
+            if locked && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    unlock_request = true;
+                }
+                return FilterResult::Intercept(());
+            }
             if notification_panel_open && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
@@ -305,6 +319,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             FilterResult::Forward
         },
     );
+
+    if unlock_request {
+        state.locked = false;
+        state.lock_surfaces.clear();
+        tracing::info!("luma unlock via Esc (placeholder até PAM)");
+        return;
+    }
 
     if close_notif_panel {
         if let Ok(mut g) = state.notifications.lock() {

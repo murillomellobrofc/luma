@@ -1455,9 +1455,15 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             state.menu_new.pending_action = None;
                         }
                         Some(1) => {
-                            // Confirmar — executa e fecha.
+                            // Confirmar — executa e fecha. H58: Lock vai
+                            // pelo trigger interno, não loginctl.
                             if let Some(action) = state.menu_new.pending_action {
-                                crate::menu::session_bar::execute_action(action);
+                                if action == crate::menu::state::SessionButton::Lock {
+                                    state.locked = true;
+                                    tracing::info!("luma lock: requested via confirm modal");
+                                } else {
+                                    crate::menu::session_bar::execute_action(action);
+                                }
                             }
                             state.menu_open = false;
                             state.menu_new.reset();
@@ -1482,6 +1488,14 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     if crate::menu::confirm_modal::requires_confirmation(btn) {
                         // Abre modal em vez de executar direto.
                         state.menu_new.pending_action = Some(btn);
+                    } else if btn == crate::menu::state::SessionButton::Lock {
+                        // H58 fatia 2: Lock dispara o lock interno do
+                        // Luma — NÃO `loginctl lock-session` que pegaria
+                        // a sessão host (KDE) quando rodando aninhado.
+                        state.locked = true;
+                        state.menu_open = false;
+                        state.menu_new.reset();
+                        tracing::info!("luma lock: requested via session menu");
                     } else {
                         crate::menu::session_bar::execute_action(btn);
                         state.menu_open = false;
