@@ -1480,6 +1480,29 @@ pub struct EditModeTokens {
     /// Margens da barra. `margin_h` é a folga horizontal de cada
     /// lado (rótulo encosta do início, botão do fim, com essa folga).
     pub margin_h: i32,
+    // ── Fatia 2.3: seleção + alça de widget ────────────────────
+    /// Borda de realce no widget selecionado.
+    pub highlight_color: Color32F,
+    pub highlight_width: i32,
+    /// Alça flutuante (4 botões). Aparece sobre o widget selecionado.
+    pub handle_bg: Color32F,
+    pub handle_corner: i32,
+    pub handle_padding: i32,
+    pub handle_gap: i32,
+    /// Cada botão da alça: pill ≥ 40px de altura.
+    pub handle_btn_height: i32,
+    pub handle_btn_padding_h: i32,
+    pub handle_btn_corner: i32,
+    pub handle_btn_bg: Color32F,
+    pub handle_btn_bg_hover: Color32F,
+    pub handle_btn_bg_disabled: Color32F,
+    pub handle_btn_text_color: Color32F,
+    pub handle_btn_text_disabled: Color32F,
+    pub handle_btn_text_size: f32,
+    /// Background do estado de confirmação ("Remover? Sim / Não").
+    pub handle_confirm_bg: Color32F,
+    pub handle_confirm_text_color: Color32F,
+    pub handle_confirm_text_size: f32,
 }
 
 impl Default for EditModeTokens {
@@ -1501,6 +1524,27 @@ impl Default for EditModeTokens {
             done_button_corner: 12,
             done_button_text: "Pronto".to_string(),
             margin_h: 20,
+            // Fatia 2.3: seleção + alça.
+            // WCAG AA: #E89B3D sobre #1F1611 → 7.1:1.
+            // #FBF6EE sobre #3D2520 → 12:1.
+            highlight_color: hex_color("#E89B3D", 0.6),
+            highlight_width: 2,
+            handle_bg: hex_color("#1F1611", 0.94),
+            handle_corner: 12,
+            handle_padding: 8,
+            handle_gap: 6,
+            handle_btn_height: 40,
+            handle_btn_padding_h: 14,
+            handle_btn_corner: 8,
+            handle_btn_bg: hex_color("#3D2520", 1.0),
+            handle_btn_bg_hover: hex_color("#5A3A32", 1.0),
+            handle_btn_bg_disabled: hex_color("#2A1F1A", 0.6),
+            handle_btn_text_color: hex_color("#FBF6EE", 1.0),
+            handle_btn_text_disabled: hex_color("#9A8B7E", 0.5),
+            handle_btn_text_size: 12.0,
+            handle_confirm_bg: hex_color("#1F1611", 0.94),
+            handle_confirm_text_color: hex_color("#FBF6EE", 1.0),
+            handle_confirm_text_size: 13.0,
         }
     }
 }

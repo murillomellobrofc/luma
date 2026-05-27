@@ -7208,7 +7208,9 @@ pub fn init_winit(
                             // Fatia 2.2: cacheia rects pra hit-test no
                             // pointer e cálculo de slot do reorder.
                             data.state.widget_rects.clear();
-                            for widget in data.state.widgets.iter() {
+                            let selected_id = data.state.selected_widget_id.clone();
+                            let t_edit = crate::theme::current().edit_mode.clone();
+                            for (i, widget) in data.state.widgets.iter().enumerate() {
                                 let buf = widget.render(&ctx);
                                 let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                     smithay::utils::Point::<i32, smithay::utils::Logical>::from(
@@ -7228,6 +7230,32 @@ pub fn init_winit(
                                             smithay::utils::Size::from((w, h)),
                                         ),
                                     );
+                                    // Fatia 2.3: borda de realce no selecionado.
+                                    // Pill ligeiramente maior renderizada ATRÁS
+                                    // do widget (push = fundo).
+                                    let is_selected = data.state.edit_mode
+                                        && selected_id.as_deref()
+                                            == data.state.widget_ids.get(i).map(|s| s.as_str());
+                                    if is_selected {
+                                        let bw = t_edit.highlight_width;
+                                        let hl = crate::gfx::make_rounded_panel(
+                                            w + bw * 2, h + bw * 2,
+                                            t_edit.handle_btn_corner + bw,
+                                            t_edit.highlight_color,
+                                        );
+                                        let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from(
+                                                (widget_x - bw, widget_y - bw),
+                                            )
+                                            .to_physical_precise_round(1.0);
+                                        if let Ok(he) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, hloc.to_f64(), &hl,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            // Push = fundo (atrás do widget).
+                                            custom_elements.push(LumaRenderElement::Memory(he));
+                                        }
+                                    }
                                     widget_x += w + widget_gap;
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }

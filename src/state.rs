@@ -121,6 +121,19 @@ pub struct LumaState {
     /// Drag ativo de reorder de widget de painel (fatia 2.2). Guarda
     /// o índice atual no Vec + offset pro cursor.
     pub panel_widget_drag: Option<PanelWidgetDrag>,
+    /// Fatia 2.3: id do widget selecionado no modo de edição. None =
+    /// nenhum selecionado. Click num widget seleciona, click fora
+    /// desseleciona. Um widget por vez.
+    pub selected_widget_id: Option<String>,
+    /// Rects dos botões da alça (cacheados pelo render). Paralelo à
+    /// lista fixa [Mover, Configurar, Redimensionar, Remover].
+    pub handle_btn_rects: Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Hover index do botão da alça (atualizado pelo motion handler).
+    pub handle_btn_hover: Option<usize>,
+    /// true quando a alça está em modo confirmação ("Remover? Sim/Não").
+    pub handle_confirm_mode: bool,
+    /// Rects dos botões Sim/Não da confirmação.
+    pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -819,6 +832,11 @@ impl LumaState {
             desktop_widget_drag: None,
             widget_rects: Vec::new(),
             panel_widget_drag: None,
+            selected_widget_id: None,
+            handle_btn_rects: Vec::new(),
+            handle_btn_hover: None,
+            handle_confirm_mode: false,
+            handle_confirm_rects: [None; 2],
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
