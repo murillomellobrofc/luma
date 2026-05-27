@@ -498,11 +498,23 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         return;
     }
     if edit_mode_exit_request {
+        // Painel: se card aberto, Esc cancela (reverte), não sai do modo.
+        if state.panel_settings_open {
+            if let Some(snap) = state.panel_config_snapshot.take() {
+                crate::taskbar::set_taskbar_height(snap.height);
+                state.panel_config = snap;
+            }
+            state.panel_settings_open = false;
+            state.panel_selected = false;
+            return;
+        }
         state.edit_mode = false;
         state.selected_widget_id = None;
         state.handle_confirm_mode = false;
         state.config_card_open = false;
         state.config_editing_field = None;
+        state.panel_selected = false;
+        state.panel_settings_open = false;
         tracing::info!("modo de edição: desligado via Esc");
         return;
     }

@@ -743,6 +743,100 @@ pub struct WidgetLoadResult {
     pub all_ids: Vec<String>,
 }
 
+/// Config de um painel, lida de [[panel]] no layout.toml.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct PanelConfig {
+    #[serde(default = "default_panel_id")]
+    pub id: String,
+    #[serde(default = "default_panel_height")]
+    pub height: i32,
+    #[serde(default = "default_panel_alignment")]
+    pub alignment: String,
+    #[serde(default)]
+    pub floating: bool,
+}
+
+fn default_panel_id() -> String { "main".into() }
+fn default_panel_height() -> i32 { 48 }
+fn default_panel_alignment() -> String { "center".into() }
+
+impl Default for PanelConfig {
+    fn default() -> Self {
+        Self {
+            id: default_panel_id(),
+            height: default_panel_height(),
+            alignment: default_panel_alignment(),
+            floating: false,
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize, Default)]
+struct PanelLayoutFile {
+    #[serde(default, rename = "panel")]
+    panels: Vec<PanelConfig>,
+}
+
+/// Lê a config do painel principal do layout.toml. Se não existir,
+/// retorna defaults (comportamento idêntico ao pré-3.1).
+pub fn load_panel_config() -> PanelConfig {
+    let path = match default_layout_path() {
+        Some(p) => p,
+        None => return PanelConfig::default(),
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return PanelConfig::default(),
+    };
+    match toml::from_str::<PanelLayoutFile>(&content) {
+        Ok(f) => f.panels.into_iter()
+            .find(|p| p.id == "main")
+            .unwrap_or_default(),
+        Err(_) => PanelConfig::default(),
+    }
+}
+
+/// Salva a config do painel principal no layout.toml via toml_edit.
+/// Cria a seção [[panel]] se não existir. Mira por id = "main".
+pub fn save_panel_config(cfg: &PanelConfig) -> Result<(), String> {
+    let path = default_layout_path()
+        .ok_or_else(|| "$HOME ausente".to_string())?;
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: toml_edit::DocumentMut = content
+        .parse()
+        .map_err(|e| format!("parse falhou: {e}"))?;
+    // Procura [[panel]] existente com id "main".
+    let idx = doc.get("panel")
+        .and_then(|i| i.as_array_of_tables())
+        .and_then(|arr| arr.iter().position(|t|
+            t.get("id").and_then(|v| v.as_str()) == Some("main")
+        ));
+    if let Some(idx) = idx {
+        let panels = doc.get_mut("panel")
+            .and_then(|i| i.as_array_of_tables_mut()).unwrap();
+        let entry = panels.get_mut(idx).unwrap();
+        entry.insert("height", toml_edit::value(cfg.height as i64));
+        entry.insert("alignment", toml_edit::value(cfg.alignment.as_str()));
+        entry.insert("floating", toml_edit::value(cfg.floating));
+    } else {
+        // Cria [[panel]] nova.
+        let mut entry = toml_edit::Table::new();
+        entry.insert("id", toml_edit::value("main"));
+        entry.insert("height", toml_edit::value(cfg.height as i64));
+        entry.insert("alignment", toml_edit::value(cfg.alignment.as_str()));
+        entry.insert("floating", toml_edit::value(cfg.floating));
+        let panels = doc
+            .entry("panel")
+            .or_insert_with(|| toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new()))
+            .as_array_of_tables_mut()
+            .ok_or_else(|| "panel não é array".to_string())?;
+        panels.push(entry);
+    }
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("write falhou: {e}"))?;
+    Ok(())
+}
+
 /// Preenche ids faltantes. "wN" onde N é o menor inteiro livre.
 fn generate_ids(entries: &mut [LayoutEntry]) {
     let existing: std::collections::HashSet<String> = entries
