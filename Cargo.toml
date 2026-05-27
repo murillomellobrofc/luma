@@ -24,6 +24,10 @@ tiny-skia = { version = "0.11", default-features = false, features = ["std"] }
 usvg = { version = "0.44", default-features = false }
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+# Modo de edição: read-write preservando comentários/formatação no
+# layout.toml. toml_edit é o que o cargo usa por baixo do toml; só
+# entrou no luma-bar (não no luma-theme) porque só aqui precisa.
+toml_edit = "0.22"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 urlencoding = "2"

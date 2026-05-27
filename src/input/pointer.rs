@@ -543,10 +543,19 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     if button_state == ButtonState::Released {
         if let Some(drag) = state.desktop_widget_drag.take() {
             if drag.active {
-                tracing::debug!(
-                    "modo de edição: drag de widget encerrado (layout_index={})",
-                    drag.item.layout_index,
-                );
+                let new_x = drag.current_screen.x.round() as i32 - drag.offset.x;
+                let new_y = drag.current_screen.y.round() as i32 - drag.offset.y;
+                match crate::widgets::save_desktop_widget_position(
+                    drag.item.layout_index, new_x, new_y,
+                ) {
+                    Ok(()) => tracing::info!(
+                        "modo de edição: widget {} → ({}, {}) salvo",
+                        drag.item.layout_index, new_x, new_y,
+                    ),
+                    Err(e) => tracing::warn!(
+                        "modo de edição: falha ao salvar layout.toml: {e}",
+                    ),
+                }
             }
         }
     }
