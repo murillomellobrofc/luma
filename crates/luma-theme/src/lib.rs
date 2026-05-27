@@ -1480,6 +1480,10 @@ pub struct EditModeTokens {
     /// Margens da barra. `margin_h` é a folga horizontal de cada
     /// lado (rótulo encosta do início, botão do fim, com essa folga).
     pub margin_h: i32,
+    /// Inset do desktop no modo de edição. O desktop fica como um
+    /// cartão com margem ao redor, dim forte na margem.
+    pub inset_margin: i32,
+    pub inset_corner: i32,
     // ── Fatia 2.3: seleção + alça de widget ────────────────────
     /// Borda de realce no widget selecionado.
     pub highlight_color: Color32F,
@@ -1508,9 +1512,12 @@ pub struct EditModeTokens {
 impl Default for EditModeTokens {
     fn default() -> Self {
         Self {
-            // Coffee bem escuro, alpha baixo. WCAG: o wash não troca
-            // contraste de texto, só "tinge" a cena.
-            overlay_color: hex_color("#1F1611", 0.18),
+            // Coffee dim forte (estilo KDE). Alpha 0.50 pra sinalizar
+            // visualmente o modo. WCAG: o dim escurece a cena mas o
+            // inset do desktop (commit 2) abre um cartão claro no centro.
+            overlay_color: hex_color("#1F1611", 0.50),
+            inset_margin: 40,
+            inset_corner: 16,
             top_bar_height: 56,
             top_bar_bg: hex_color("#1F1611", 0.92),
             label_color: hex_color("#FBF6EE", 1.0),
