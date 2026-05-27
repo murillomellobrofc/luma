@@ -85,6 +85,11 @@ pub struct LumaState {
     /// no boot a partir do `~/.config/luma/layout.toml` via registry.
     /// Ordem do arquivo = ordem da fileira. Vec vazio = nada desenha.
     pub widgets: Vec<Box<dyn luma_widget::Widget>>,
+    /// Fatia 3 widgets: last_tick paralelo a `widgets`. Cada frame
+    /// a luma-bar verifica `widget.tick_interval()` contra esse
+    /// Instant e chama `tick()` quando vence. Mesma cara dos
+    /// elapsed-checks do OSD e dos toasts.
+    pub widget_last_ticks: Vec<Instant>,
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -761,6 +766,10 @@ impl LumaState {
             // Fatia 2 widgets: lista vinda do layout.toml. Vec vazio
             // se o arquivo não existir ou todas as entradas falharem.
             widget_text: widget_text_for_init,
+            // Fatia 3 widgets: 1 Instant por widget, todos zerados em
+            // Instant::now() — o primeiro tick acontece quando o
+            // intervalo do widget vencer pela primeira vez.
+            widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
