@@ -205,6 +205,14 @@ pub struct LumaState {
     pub panel_settings_float_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     pub panel_settings_save_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     pub panel_settings_cancel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Fatia 3.2: seletor "Adicionar painel" aberto.
+    pub add_panel_open: bool,
+    pub add_panel_selected_pos: Option<String>,
+    pub add_panel_pos_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 4],
+    pub add_panel_create_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub add_panel_cancel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub add_panel_btn_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub add_panel_btn_hover: bool,
     /// Rects dos botões Sim/Não da confirmação.
     pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
@@ -981,6 +989,13 @@ impl LumaState {
             panel_settings_float_rect: None,
             panel_settings_save_rect: None,
             panel_settings_cancel_rect: None,
+            add_panel_open: false,
+            add_panel_selected_pos: None,
+            add_panel_pos_rects: [None; 4],
+            add_panel_create_rect: None,
+            add_panel_cancel_rect: None,
+            add_panel_btn_rect: None,
+            add_panel_btn_hover: false,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

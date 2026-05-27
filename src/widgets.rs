@@ -795,8 +795,18 @@ pub fn load_all_panels() -> Vec<PanelConfig> {
         Err(_) => return vec![PanelConfig::default()],
     };
     match toml::from_str::<PanelLayoutFile>(&content) {
-        Ok(f) if !f.panels.is_empty() => f.panels,
-        _ => vec![PanelConfig::default()],
+        Ok(f) if !f.panels.is_empty() => {
+            tracing::info!("load_all_panels: {} painel(is) carregado(s)", f.panels.len());
+            f.panels
+        }
+        Ok(f) => {
+            tracing::info!("load_all_panels: parse ok mas 0 painéis, usando default");
+            vec![PanelConfig::default()]
+        }
+        Err(e) => {
+            tracing::warn!("load_all_panels: parse falhou: {e}");
+            vec![PanelConfig::default()]
+        }
     }
 }
 

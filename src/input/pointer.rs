@@ -169,6 +169,8 @@ pub fn handle_motion_absolute<I: InputBackend>(
         if state.add_widget_tile_hover != new_tile {
             state.add_widget_tile_hover = new_tile;
         }
+        let h = state.add_panel_btn_rect.map(|r| r.to_f64().contains(pos)).unwrap_or(false);
+        if state.add_panel_btn_hover != h { state.add_panel_btn_hover = h; }
         let new_host = state.add_widget_host_rects.iter()
             .enumerate()
             .find_map(|(i, r)| r.as_ref().filter(|r| r.to_f64().contains(pos)).map(|_| i));
@@ -1189,6 +1191,57 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     pointer.frame(state);
                     return;
                 }
+            }
+            // Fatia 3.2: seletor "Adicionar painel" handlers.
+            if state.add_panel_open {
+                // Posição buttons.
+                let positions = ["top", "bottom", "left", "right"];
+                let occupied: std::collections::HashSet<&str> = state.panels.iter().map(|p| p.position.as_str()).collect();
+                for (i, key) in positions.iter().enumerate() {
+                    let is_disabled = occupied.contains(key) || *key == "left" || *key == "right";
+                    if !is_disabled {
+                        if state.add_panel_pos_rects[i].map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                            state.add_panel_selected_pos = Some(key.to_string());
+                            pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                            pointer.frame(state);
+                            return;
+                        }
+                    }
+                }
+                // Criar.
+                if state.add_panel_create_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    if let Some(pos) = state.add_panel_selected_pos.take() {
+                        let new_id = crate::widgets::generate_panel_id(&state.panels);
+                        let cfg = crate::widgets::PanelConfig {
+                            id: new_id.clone(),
+                            position: pos,
+                            ..Default::default()
+                        };
+                        let _ = crate::widgets::append_panel(&cfg);
+                        state.panels.push(cfg);
+                        tracing::info!("painel '{new_id}' criado");
+                    }
+                    state.add_panel_open = false;
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+                // Cancelar.
+                if state.add_panel_cancel_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    state.add_panel_open = false;
+                    state.add_panel_selected_pos = None;
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // Toggle do botão "Adicionar painel".
+            if state.add_panel_btn_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                state.add_panel_open = !state.add_panel_open;
+                state.add_panel_selected_pos = None;
+                pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                pointer.frame(state);
+                return;
             }
             // Toggle do botão "Adicionar widget".
             let add_hit = state.add_widget_btn_rect
