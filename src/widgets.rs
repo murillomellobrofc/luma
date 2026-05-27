@@ -458,6 +458,58 @@ pub fn save_desktop_widget_position(
     Ok(())
 }
 
+/// Modo de edição fatia 2.2: salva a ordem nova dos widgets de painel
+/// no layout.toml. Entradas de painel (cujo id aparece em `panel_ids`)
+/// são reordenadas pra refletir a tela. Entradas de desktop e falhas
+/// ficam ao final, ordem original preservada.
+///
+/// Chama `ensure_ids_in_doc` antes, então ids faltantes são gravados.
+pub fn save_panel_order(
+    panel_ids: &[String],
+    all_ids: &[String],
+) -> Result<(), String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    let widgets = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+        .ok_or_else(|| "layout.toml sem [[widget]]".to_string())?;
+    // Clone todas as entradas e limpa o array pra reordenar.
+    let entries: Vec<toml_edit::Table> = widgets.iter().cloned().collect();
+    while widgets.len() > 0 {
+        widgets.remove(0);
+    }
+    // Separa: panel (cujo id está em panel_ids) vs resto.
+    let panel_set: std::collections::HashSet<&str> =
+        panel_ids.iter().map(|s| s.as_str()).collect();
+    let mut panel_map: std::collections::HashMap<String, toml_edit::Table> =
+        std::collections::HashMap::new();
+    let mut others: Vec<toml_edit::Table> = Vec::new();
+    for entry in entries {
+        let id = entry
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if panel_set.contains(id.as_str()) {
+            panel_map.insert(id, entry);
+        } else {
+            others.push(entry);
+        }
+    }
+    // Re-insere: painel na ordem de panel_ids, depois o resto.
+    for id in panel_ids {
+        if let Some(entry) = panel_map.remove(id.as_str()) {
+            widgets.push(entry);
+        }
+    }
+    for entry in others {
+        widgets.push(entry);
+    }
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("layout.toml write falhou: {e}"))?;
+    Ok(())
+}
+
 /// Resultado da carga do layout.toml — widgets já distribuídos por host.
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
