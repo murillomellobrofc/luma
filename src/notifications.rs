@@ -481,6 +481,19 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
              — {count} toast(s) fake injetado(s)"
         );
     }
+    // H58.1: seed pra testar a lock screen. Injeta direto no histórico
+    // (sem virar toast ativo), com app_names distintos. Não toca em
+    // D-Bus — funciona em modo aninhado sem derrubar o popup do KDE.
+    if let Ok(val) = std::env::var("LUMA_FAKE_NOTIFICATIONS") {
+        let count: usize = val.parse().unwrap_or(1).max(1);
+        for i in 0..count {
+            inject_fake_history(&slot, i);
+        }
+        tracing::info!(
+            "notifications: LUMA_FAKE_NOTIFICATIONS={count} ativo \
+             — {count} entrada(s) injetada(s) no histórico (lock screen)"
+        );
+    }
     if std::env::var("LUMA_TAKE_NOTIFICATIONS").is_err() {
         tracing::info!(
             "notifications: nao registrado (LUMA_TAKE_NOTIFICATIONS unset)"
@@ -715,6 +728,87 @@ pub fn close_by_reason(state: &mut NotificationsState, id: u32, reason: u32) {
     state.queue.retain(|e| e.id != id);
 }
 
+/// H58.1: snapshot agregado pra lock screen. Uma row por app_name,
+/// com contagem somando visible+history e o ícone mais recente.
+/// Ordem: app mais recente primeiro. Empty Vec = nenhum desenho.
+///
+/// `cap` limita o número máximo de rows (`lock.notif_max_visible`).
+#[derive(Debug, Clone)]
+pub struct LockNotifSummary {
+    pub app_name: String,
+    pub count: u32,
+    pub icon: Option<MemoryRenderBuffer>,
+    pub icon_size: smithay::utils::Size<i32, smithay::utils::Logical>,
+    /// Último resumo recebido (usado em modo full opt-in).
+    pub last_summary: String,
+    /// Último corpo recebido (usado em modo full opt-in).
+    pub last_body: String,
+    /// Instant do evento mais recente desse app (pra ordenação).
+    pub last_at: Instant,
+}
+
+pub fn lock_summary(state: &NotificationsState, cap: usize) -> Vec<LockNotifSummary> {
+    if cap == 0 {
+        return Vec::new();
+    }
+    use std::collections::HashMap;
+    let mut by_app: HashMap<String, LockNotifSummary> = HashMap::new();
+    // Visible (toasts ativos) — não-closing são novos pendentes.
+    for e in state.visible.iter() {
+        if e.closing_since.is_some() {
+            continue;
+        }
+        merge_into(&mut by_app, &e.app_name, e.icon.clone(), e.icon_size,
+                   &e.summary, &e.body, e.received_at);
+    }
+    // History (entradas que viraram passado).
+    for h in state.history.iter() {
+        merge_into(&mut by_app, &h.app_name, h.icon.clone(), h.icon_size,
+                   &h.summary, &h.body, h.received_at);
+    }
+    let mut rows: Vec<LockNotifSummary> = by_app.into_values().collect();
+    rows.sort_by(|a, b| b.last_at.cmp(&a.last_at));
+    rows.truncate(cap);
+    rows
+}
+
+fn merge_into(
+    by_app: &mut std::collections::HashMap<String, LockNotifSummary>,
+    app_name: &str,
+    icon: Option<MemoryRenderBuffer>,
+    icon_size: smithay::utils::Size<i32, smithay::utils::Logical>,
+    summary: &str,
+    body: &str,
+    received_at: Instant,
+) {
+    let key = app_name.to_string();
+    match by_app.get_mut(&key) {
+        Some(s) => {
+            s.count += 1;
+            if received_at > s.last_at {
+                s.last_at = received_at;
+                s.last_summary = summary.to_string();
+                s.last_body = body.to_string();
+                if icon.is_some() {
+                    s.icon = icon;
+                    s.icon_size = icon_size;
+                }
+            }
+        }
+        None => {
+            by_app.insert(key.clone(), LockNotifSummary {
+                app_name: key,
+                count: 1,
+                icon,
+                icon_size,
+                last_summary: summary.to_string(),
+                last_body: body.to_string(),
+                last_at: received_at,
+            });
+        }
+    }
+}
+
 fn run(
     slot: NotificationsSlot,
     conn_handle: NotificationsConn,
@@ -809,6 +903,35 @@ fn inject_fake(slot: &NotificationsSlot, idx: usize) {
     };
     if let Ok(mut g) = slot.lock() {
         apply_notify(&mut g, entry);
+    }
+}
+
+/// H58.1: variante do seed que injeta DIRETO no histórico com
+/// app_names distintos (Mensagens, Spotify, Email, etc). Não passa por
+/// visible/toast — não interfere no caminho de notificação normal.
+fn inject_fake_history(slot: &NotificationsSlot, idx: usize) {
+    let apps = [
+        ("Mensagens",    "applications-internet",  "Maria",   "Oi! Tudo bem?"),
+        ("Spotify",      "applications-multimedia","Música",  "Bossa Nova Mix tocando agora"),
+        ("Email",        "applications-office",    "Trabalho","Reunião amanhã às 14h"),
+        ("Calendário",   "applications-system",    "Evento",  "Café com a Ana — 16h"),
+        ("Atualização",  "applications-graphics",  "Sistema", "3 atualizações pendentes"),
+        ("Loja",         "applications-games",     "Promo",   "Jogo na lista de desejos: 60% off"),
+    ];
+    let (app, icon_name, sender, body) = apps[idx % apps.len()];
+    let (icon_buf, icon_size) = decode_icon(&HashMap::new(), icon_name);
+    let entry = HistoryEntry {
+        id: (1_000_000 + idx) as u32, // ids altos pra não bater com reais
+        app_name: app.to_string(),
+        summary: sender.to_string(),
+        body: body.to_string(),
+        icon: icon_buf,
+        icon_size,
+        received_at: Instant::now(),
+    };
+    if let Ok(mut g) = slot.lock() {
+        upsert_history(&mut g, entry);
+        g.unread_count = g.unread_count.saturating_add(1);
     }
 }
 

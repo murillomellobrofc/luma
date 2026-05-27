@@ -1367,6 +1367,29 @@ pub struct LockTokens {
     pub indicator_color: Color32F,
     pub indicator_warn_color: Color32F,
     pub indicator_size: f32,
+    /// H58.1: pilha de notificações na capa do lock (só estado
+    /// !revealed). Modo padrão é DISCRETO — só ícone + app + count.
+    /// `notif_show_body=true` ativa modo completo (remetente + corpo),
+    /// opt-in via luma.toml.
+    pub notif_max_visible: usize,
+    pub notif_row_width: i32,
+    pub notif_row_height: i32,
+    pub notif_row_corner: i32,
+    pub notif_row_bg: Color32F,
+    pub notif_row_padding_h: i32,
+    pub notif_icon_size: i32,
+    pub notif_icon_text_gap: i32,
+    pub notif_row_gap: i32,
+    /// Distância vertical da data até a primeira row.
+    pub notif_offset_below_date: i32,
+    pub notif_app_color: Color32F,
+    pub notif_app_size: f32,
+    pub notif_count_color: Color32F,
+    pub notif_count_size: f32,
+    /// Opt-in: mostra remetente+corpo na lock. Padrão false (discreto).
+    pub notif_show_body: bool,
+    pub notif_body_color: Color32F,
+    pub notif_body_size: f32,
 }
 
 impl Default for LockTokens {
@@ -1402,6 +1425,27 @@ impl Default for LockTokens {
             indicator_color: hex_color("#9A8B7E", 1.0),
             indicator_warn_color: hex_color("#E89B3D", 1.0),
             indicator_size: 11.0,
+            // H58.1: pilha de notificações na capa.
+            // WCAG AA: #FBF6EE sobre #2A1F1A → contraste >12:1, AAA.
+            // #9A8B7E sobre #2A1F1A → ~5.6:1, AA.
+            // #E89B3D sobre #2A1F1A → ~7.1:1, AAA.
+            notif_max_visible: 4,
+            notif_row_width: 380,
+            notif_row_height: 56,
+            notif_row_corner: 12,
+            notif_row_bg: hex_color("#2A1F1A", 0.85),
+            notif_row_padding_h: 16,
+            notif_icon_size: 28,
+            notif_icon_text_gap: 12,
+            notif_row_gap: 8,
+            notif_offset_below_date: 40,
+            notif_app_color: hex_color("#FBF6EE", 1.0),
+            notif_app_size: 13.5,
+            notif_count_color: hex_color("#E89B3D", 1.0),
+            notif_count_size: 13.5,
+            notif_show_body: false,
+            notif_body_color: hex_color("#C9BDB0", 1.0),
+            notif_body_size: 12.0,
         }
     }
 }

@@ -7291,6 +7291,155 @@ pub fn init_winit(
                                     }
                                 }
                                 if !revealed {
+                                    // H58.1: pilha de notificações na capa.
+                                    // Stack vazio = nada desenha (estado normal,
+                                    // não erro). Render entre data e dica.
+                                    if t_lock.notif_max_visible > 0 {
+                                        let summaries = data.state.notifications.lock()
+                                            .ok()
+                                            .map(|g| crate::notifications::lock_summary(
+                                                &g, t_lock.notif_max_visible,
+                                            ))
+                                            .unwrap_or_default();
+                                        if !summaries.is_empty() {
+                                            let row_w = t_lock.notif_row_width;
+                                            let row_h = t_lock.notif_row_height;
+                                            let gap = t_lock.notif_row_gap;
+                                            let stack_x = center_x - row_w / 2;
+                                            let mut row_y = date_y + dh as i32
+                                                + t_lock.notif_offset_below_date;
+                                            for s in summaries.iter() {
+                                                // 1) Pill de fundo.
+                                                let pill = crate::gfx::make_rounded_panel(
+                                                    row_w, row_h,
+                                                    t_lock.notif_row_corner,
+                                                    t_lock.notif_row_bg,
+                                                );
+                                                let ploc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((stack_x, row_y))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, ploc.to_f64(), &pill,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                                // 2) Ícone do app (esquerda).
+                                                let icon_size_px = t_lock.notif_icon_size;
+                                                let icon_x = stack_x
+                                                    + t_lock.notif_row_padding_h;
+                                                let icon_y = row_y
+                                                    + (row_h - icon_size_px) / 2;
+                                                if let Some(ibuf) = s.icon.as_ref() {
+                                                    let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((icon_x, icon_y))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, iloc.to_f64(), ibuf,
+                                                        None, None,
+                                                        Some(smithay::utils::Size::from((icon_size_px, icon_size_px))),
+                                                        Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                                // 3) Texto: app_name + (count, opt body).
+                                                let text_x = icon_x + icon_size_px
+                                                    + t_lock.notif_icon_text_gap;
+                                                let (apx, aw, ah) = tr.rasterize_colored(
+                                                    &s.app_name,
+                                                    t_lock.notif_app_size,
+                                                    t_lock.notif_app_color,
+                                                );
+                                                let body_visible = t_lock.notif_show_body
+                                                    && !s.last_body.is_empty();
+                                                let app_y = if body_visible {
+                                                    row_y + row_h / 2 - ah as i32 - 1
+                                                } else {
+                                                    row_y + (row_h - ah as i32) / 2
+                                                };
+                                                if aw > 0 && ah > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &apx,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (aw as i32, ah as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((text_x, app_y))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, tloc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                                // 4) Contagem em count_color, à direita do nome.
+                                                if s.count > 1 {
+                                                    let count_label = format!(
+                                                        "  •  {} novas", s.count
+                                                    );
+                                                    let (cpx, cw, ch) = tr.rasterize_colored(
+                                                        &count_label,
+                                                        t_lock.notif_count_size,
+                                                        t_lock.notif_count_color,
+                                                    );
+                                                    if cw > 0 && ch > 0 {
+                                                        let buf = MemoryRenderBuffer::from_slice(
+                                                            &cpx,
+                                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                                            (cw as i32, ch as i32),
+                                                            1, Transform::Normal, None,
+                                                        );
+                                                        let cx = text_x + aw as i32;
+                                                        let cy = app_y + (ah as i32 - ch as i32) / 2;
+                                                        let cloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((cx, cy))
+                                                                .to_physical_precise_round(1.0);
+                                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                            renderer, cloc.to_f64(), &buf,
+                                                            None, None, None, Kind::Unspecified,
+                                                        ) {
+                                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                        }
+                                                    }
+                                                }
+                                                // 5) Corpo (opt-in: notif_show_body).
+                                                if body_visible {
+                                                    let body_text = if s.last_summary.is_empty() {
+                                                        s.last_body.clone()
+                                                    } else {
+                                                        format!("{}: {}", s.last_summary, s.last_body)
+                                                    };
+                                                    let (bpx, bw, bh) = tr.rasterize_colored(
+                                                        &body_text,
+                                                        t_lock.notif_body_size,
+                                                        t_lock.notif_body_color,
+                                                    );
+                                                    if bw > 0 && bh > 0 {
+                                                        let buf = MemoryRenderBuffer::from_slice(
+                                                            &bpx,
+                                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                                            (bw as i32, bh as i32),
+                                                            1, Transform::Normal, None,
+                                                        );
+                                                        let by_text = row_y + row_h / 2 + 2;
+                                                        let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((text_x, by_text))
+                                                                .to_physical_precise_round(1.0);
+                                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                            renderer, bloc.to_f64(), &buf,
+                                                            None, None, None, Kind::Unspecified,
+                                                        ) {
+                                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                        }
+                                                    }
+                                                }
+                                                row_y += row_h + gap;
+                                            }
+                                        }
+                                    }
                                     // Capa: dica após delay.
                                     let show_hint = data.state.locked_at
                                         .map(|t| t.elapsed().as_millis() as u64 >= t_lock.hint_delay_ms)
