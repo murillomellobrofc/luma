@@ -7156,28 +7156,37 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
-                        // Fatia 1 widgets: renderiza o Box<dyn Widget>
-                        // POC num x fixo do painel. Sem layout, sem
-                        // registro — só prova que a fundação roda.
-                        if let Some(widget) = data.state.widget.as_ref() {
+                        // Fatia 2 widgets: itera a Vec do layout.toml,
+                        // renderiza cada um e empilha em fileira
+                        // horizontal acumulando a largura. Origem
+                        // mantida no x=12 da fatia 1 — quem define
+                        // posicionamento de verdade é o modo de edição.
+                        if !data.state.widgets.is_empty() {
                             let widget_h = (taskbar_h as u32).saturating_sub(8).max(24);
                             let ctx = luma_widget::RenderCtx {
                                 panel_height: widget_h,
                                 theme: crate::theme::current(),
                             };
-                            let buf = widget.render(&ctx);
-                            let widget_x = 12;
                             let widget_y = bar_y + 4;
-                            let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>::from(
-                                    (widget_x, widget_y),
-                                )
-                                .to_physical_precise_round(1.0);
-                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer, wloc.to_f64(), &buf,
-                                None, None, None, Kind::Unspecified,
-                            ) {
-                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            let widget_gap = 8;
+                            let mut widget_x = 12i32;
+                            let scale = smithay::utils::Scale::from(1.0);
+                            for widget in data.state.widgets.iter() {
+                                let buf = widget.render(&ctx);
+                                let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from(
+                                        (widget_x, widget_y),
+                                    )
+                                    .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, wloc.to_f64(), &buf,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    use smithay::backend::renderer::element::Element;
+                                    let w = elem.geometry(scale).size.w;
+                                    widget_x += w + widget_gap;
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
                             }
                         }
 

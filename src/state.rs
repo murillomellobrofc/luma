@@ -81,12 +81,13 @@ pub struct LumaState {
     pub cursor_status: CursorImageStatus,
     pub taskbar: crate::taskbar::TaskbarState,
     pub text: Option<crate::text::TextRenderer>,
-    /// Fatia 1 widgets: Box<dyn Widget> fixo pra POC. Sem registro,
-    /// sem layout — futuras fatias trocam isso por um Vec gerenciado.
-    pub widget: Option<Box<dyn luma_widget::Widget>>,
-    /// TextRenderer próprio dos widgets (Arc pra compartilhar entre
-    /// múltiplos widgets futuramente). Carga separada de `text` pra
-    /// evitar refactor amplo no fatia 1 — fatia 2+ consolida.
+    /// Fatia 2 widgets: lista de widgets ativos no painel, construída
+    /// no boot a partir do `~/.config/luma/layout.toml` via registry.
+    /// Ordem do arquivo = ordem da fileira. Vec vazio = nada desenha.
+    pub widgets: Vec<Box<dyn luma_widget::Widget>>,
+    /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
+    /// os builders do registro). Carga separada de `text` pra evitar
+    /// refactor amplo — fatias futuras consolidam.
     pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
@@ -707,11 +708,31 @@ impl LumaState {
             );
         let (notifications_slot, notifications_conn_handle) =
             crate::notifications::spawn();
-        // Fatia 1 widgets: carrega um TextRenderer dedicado pros widgets
-        // ANTES da construção do struct pra dar pra clonar a Arc em
-        // dois campos (widget_text + dentro do LabelWidget).
+        // Fatia 2 widgets: TextRenderer dedicado + monta a fileira a
+        // partir do layout.toml via WidgetRegistry. Entrada inválida
+        // pula com warn — boot nunca derruba por widget mal config'd.
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
+        let widgets_for_init: Vec<Box<dyn luma_widget::Widget>> =
+            if let Some(tr) = widget_text_for_init.as_ref() {
+                let registry = crate::widgets::build_default_registry(tr.clone());
+                let entries = crate::widgets::default_layout_path()
+                    .map(|p| crate::widgets::load_layout(&p))
+                    .unwrap_or_default();
+                tracing::info!("widgets: {} entrada(s) no layout.toml", entries.len());
+                let mut out = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    match registry.build(&entry.type_name, &entry.config) {
+                        Ok(w) => out.push(w),
+                        Err(e) => tracing::warn!(
+                            "widget pulado (type={}): {e}", entry.type_name,
+                        ),
+                    }
+                }
+                out
+            } else {
+                Vec::new()
+            };
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -737,14 +758,10 @@ impl LumaState {
             cursor_status: CursorImageStatus::default_named(),
             taskbar: crate::taskbar::TaskbarState::new(),
             text: crate::text::TextRenderer::load(),
-            // Fatia 1 widgets: TextRenderer separado pros widgets +
-            // LabelWidget "Luma" cravado. Quando o registro/layout
-            // chegarem na fatia 2 isso vira um Vec dinâmico.
-            widget_text: widget_text_for_init.clone(),
-            widget: widget_text_for_init.as_ref().map(|tr| {
-                Box::new(crate::widgets::LabelWidget::new("Luma", tr.clone()))
-                    as Box<dyn luma_widget::Widget>
-            }),
+            // Fatia 2 widgets: lista vinda do layout.toml. Vec vazio
+            // se o arquivo não existir ou todas as entradas falharem.
+            widget_text: widget_text_for_init,
+            widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
             menu_new: crate::menu::state::FullscreenMenuState::new(),
