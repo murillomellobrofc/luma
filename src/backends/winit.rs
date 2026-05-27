@@ -7146,18 +7146,19 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
-                        // H58 fatia 2: lock screen placeholder. Quando
-                        // state.locked = true, cobre tudo com overlay
-                        // coffee profundo + texto "Bloqueado" + dica.
-                        // Substituído pelo lock screen Golden Hour
-                        // completo nas próximas fatias.
+                        // H58 fatia 3: render capa do lock screen.
+                        // Coffee profundo Golden Hour + relógio grande
+                        // (HH:MM) + data por extenso + dica após delay.
+                        // Auth panel vem na fatia 4.
                         if data.state.locked {
-                            let lock_theme = crate::theme::current();
+                            use chrono::{Datelike, Local, Timelike};
+                            let t_lock = crate::theme::current().lock.clone();
+                            // Bg full screen.
                             let overlay = crate::gfx::make_rounded_panel(
                                 output_size_logical.w,
                                 output_size_logical.h,
                                 0,
-                                lock_theme.colors.taskbar_bg_top,
+                                t_lock.bg_color,
                             );
                             let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
@@ -7168,19 +7169,85 @@ pub fn init_winit(
                             ) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
-                            // Texto centralizado.
                             if let Some(tr) = data.state.text.as_ref() {
-                                let lines = [
-                                    ("Luma — bloqueado", 28.0),
-                                    ("Esc pra desbloquear", 14.0),
+                                let now = Local::now();
+                                let hour_str = format!("{:02}:{:02}", now.hour(), now.minute());
+                                // Data PT-BR por extenso.
+                                let dias_extenso = [
+                                    "Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado",
                                 ];
+                                let meses_lower = [
+                                    "janeiro","fevereiro","março","abril","maio","junho",
+                                    "julho","agosto","setembro","outubro","novembro","dezembro",
+                                ];
+                                let dow_idx = now.weekday().num_days_from_sunday() as usize;
+                                let mes_idx = (now.month() as usize).saturating_sub(1);
+                                let date_str = format!(
+                                    "{}, {} de {}",
+                                    dias_extenso.get(dow_idx).copied().unwrap_or(""),
+                                    now.day(),
+                                    meses_lower.get(mes_idx).copied().unwrap_or(""),
+                                );
                                 let center_x = output_size_logical.w / 2;
                                 let center_y = output_size_logical.h / 2;
-                                let mut cur_y = center_y - 30;
-                                for (text, size) in lines.iter() {
+                                // Hora grande centralizada (vertical
+                                // ligeiramente acima do meio pra dar
+                                // espaço pra data).
+                                let (px, hw, hh) = tr.rasterize_colored(
+                                    &hour_str, t_lock.hour_size, t_lock.hour_color,
+                                );
+                                let hour_h = hh as i32;
+                                let hour_y = center_y - hour_h / 2 - 20;
+                                if hw > 0 && hh > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (hw as i32, hh as i32),
+                                        1, Transform::Normal, None,
+                                    );
+                                    let lx = center_x - (hw as i32) / 2;
+                                    let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, hour_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, tloc.to_f64(), &buf,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Data por extenso menor abaixo.
+                                let (px, dw, dh) = tr.rasterize_colored(
+                                    &date_str, t_lock.date_size, t_lock.date_color,
+                                );
+                                let date_y = hour_y + hour_h + 18;
+                                if dw > 0 && dh > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(
+                                        &px,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (dw as i32, dh as i32),
+                                        1, Transform::Normal, None,
+                                    );
+                                    let lx = center_x - (dw as i32) / 2;
+                                    let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, date_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, tloc.to_f64(), &buf,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Dica após delay parado.
+                                let show_hint = data.state.locked_at
+                                    .map(|t| t.elapsed().as_millis() as u64 >= t_lock.hint_delay_ms)
+                                    .unwrap_or(false);
+                                if show_hint {
                                     let (px, w, h) = tr.rasterize_colored(
-                                        text, *size,
-                                        lock_theme.colors.text_primary,
+                                        &t_lock.hint_text,
+                                        t_lock.hint_size,
+                                        t_lock.hint_color,
                                     );
                                     if w > 0 && h > 0 {
                                         let buf = MemoryRenderBuffer::from_slice(
@@ -7190,7 +7257,7 @@ pub fn init_winit(
                                             1, Transform::Normal, None,
                                         );
                                         let lx = center_x - (w as i32) / 2;
-                                        let ly = cur_y;
+                                        let ly = output_size_logical.h - 80 - h as i32;
                                         let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                             smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
                                                 .to_physical_precise_round(1.0);
@@ -7200,7 +7267,6 @@ pub fn init_winit(
                                         ) {
                                             custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                         }
-                                        cur_y += h as i32 + 16;
                                     }
                                 }
                             }

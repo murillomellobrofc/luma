@@ -261,6 +261,9 @@ pub struct LumaState {
     /// H58: true quando há lock ativo. Render path branca em vez do
     /// desktop normal, input gates pra whitelist de keybindings.
     pub locked: bool,
+    /// H58: Instant em que o lock foi ativado. Usado pro delay
+    /// da dica "tecle pra desbloquear" + animações futuras.
+    pub locked_at: Option<std::time::Instant>,
     /// H58: lock surfaces criadas pelos clientes (uma por output).
     pub lock_surfaces: Vec<smithay::wayland::session_lock::LockSurface>,
     /// Rects clicáveis do slider de modo de energia (popup de
@@ -780,6 +783,7 @@ impl LumaState {
             power_profiles: None,
             session_lock_state: session_lock_state_init,
             locked: false,
+            locked_at: None,
             lock_surfaces: Vec::new(),
             battery_mode_zones: Vec::new(),
             wifi_state: crate::wifi::WifiState::default(),
