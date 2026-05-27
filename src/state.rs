@@ -103,6 +103,10 @@ pub struct LumaState {
     /// Hover state do botão "Pronto" — atualizado pelo motion
     /// handler e usado pelo render pra escolher bg_hover.
     pub edit_mode_done_hover: bool,
+    /// Drag ativo de um widget de desktop (fatia 2.1 do modo de
+    /// edição). Só existe enquanto o usuário tem o botão pressionado
+    /// sobre um widget DENTRO do modo de edição. None = sem drag.
+    pub desktop_widget_drag: Option<crate::space_item::DesktopWidgetDrag>,
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -734,7 +738,7 @@ impl LumaState {
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
         let (widgets_for_init, desktop_widgets_pending): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
-            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)>,
+            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, usize)>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
             let result = crate::widgets::load_all(tr.clone());
             (result.panel, result.desktop)
@@ -776,6 +780,7 @@ impl LumaState {
             edit_mode: false,
             edit_mode_done_rect: None,
             edit_mode_done_hover: false,
+            desktop_widget_drag: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
@@ -904,9 +909,11 @@ impl LumaState {
         // Fatia 4 widgets: mapeia os widgets com placement=desktop no
         // state.space como SpaceItem::DesktopWidget. Z=5 (mesma camada
         // dos ícones, atrás das janelas). x/y vêm do layout.toml.
-        for (widget, x, y) in desktop_widgets_pending {
+        // layout_index acompanha pra o modo de edição saber onde
+        // gravar o novo x/y na hora de salvar.
+        for (widget, x, y, layout_index) in desktop_widgets_pending {
             let item = std::sync::Arc::new(
-                crate::space_item::DesktopWidgetItem::new(widget, x, y),
+                crate::space_item::DesktopWidgetItem::new(widget, layout_index),
             );
             state.space.map_element(
                 crate::space_item::SpaceItem::DesktopWidget(item),

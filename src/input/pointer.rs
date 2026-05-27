@@ -201,6 +201,38 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // Modo de edição fatia 2.1: drag de widget de desktop. Threshold
+    // pequeno (5px) antes de ativar — click curto sem mover é no-op.
+    // Quando ativo, cada motion remapeia o widget no Space no novo
+    // x/y (cursor - offset). Posição livre, sem encaixe em grade.
+    if let Some(drag) = state.desktop_widget_drag.as_mut() {
+        drag.current_screen = pos;
+        if !drag.active {
+            let dx = pos.x - drag.start_screen.x;
+            let dy = pos.y - drag.start_screen.y;
+            if (dx * dx + dy * dy).sqrt()
+                >= crate::desktop_icons::DRAG_THRESHOLD_PX
+            {
+                drag.active = true;
+            }
+        }
+        if drag.active {
+            let new_x = pos.x.round() as i32 - drag.offset.x;
+            let new_y = pos.y.round() as i32 - drag.offset.y;
+            let item = drag.item.clone();
+            // Disjoint borrows: state.desktop_widget_drag (via drag)
+            // e state.space são campos diferentes, então o borrow
+            // checker libera o mut em ambos simultaneamente.
+            state.space.map_element(
+                crate::space_item::SpaceItem::DesktopWidget(item),
+                smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                    new_x, new_y,
+                )),
+                false,
+            );
+        }
+    }
+
     // H50.2c.rb.2: rubber-band — atualiza current enquanto o user
     // arrasta o mouse.
     if let Some(rb) = state.desktop_rubber_band.as_mut() {
@@ -505,6 +537,20 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
+    // Modo de edição fatia 2.1: mouseup encerra o drag de widget de
+    // desktop. Persiste no layout.toml na próxima sub-fatia (2.1.2);
+    // por ora só limpa o pending. Drag sem active (click curto) = no-op.
+    if button_state == ButtonState::Released {
+        if let Some(drag) = state.desktop_widget_drag.take() {
+            if drag.active {
+                tracing::debug!(
+                    "modo de edição: drag de widget encerrado (layout_index={})",
+                    drag.item.layout_index,
+                );
+            }
+        }
+    }
+
     // H50.2b.drag.3: mouseup com drag ativo → snap pra célula mais
     // próxima + persiste. Drag sem active = só foi um click normal
     // (já tratado no Pressed), só limpa o pending.
@@ -589,6 +635,61 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 state.edit_mode_done_rect = None;
                 state.edit_mode_done_hover = false;
                 tracing::info!("modo de edição: desligado via botão Pronto");
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Modo de edição fatia 2.1: hit-test em widget de desktop.
+            // Se o press cair em cima de algum, começa drag (pending
+            // de threshold). Itera o Space em ordem reversa (do topo
+            // pro fundo) pra resolver z-order entre widgets.
+            let widget_hit: Option<(
+                std::sync::Arc<crate::space_item::DesktopWidgetItem>,
+                smithay::utils::Point<i32, smithay::utils::Logical>,
+            )> = {
+                let items: Vec<_> = state
+                    .space
+                    .elements()
+                    .filter_map(|item| {
+                        if let crate::space_item::SpaceItem::DesktopWidget(dw)
+                            = item
+                        {
+                            state
+                                .space
+                                .element_location(item)
+                                .map(|loc| (dw.clone(), loc))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                items
+                    .into_iter()
+                    .rev()
+                    .find(|(_, loc)| {
+                        let bbox = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                            *loc,
+                            smithay::utils::Size::from((220, 50)),
+                        );
+                        bbox.to_f64().contains(pointer_pos)
+                    })
+            };
+            if let Some((item, loc)) = widget_hit {
+                let offset = smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                    pointer_pos.x.round() as i32 - loc.x,
+                    pointer_pos.y.round() as i32 - loc.y,
+                ));
+                state.desktop_widget_drag = Some(crate::space_item::DesktopWidgetDrag {
+                    item,
+                    offset,
+                    start_screen: pointer_pos,
+                    current_screen: pointer_pos,
+                    active: false,
+                });
+                // Consome o click — não cai em handler de janela
+                // nem do desktop.
                 pointer.button(state, &ButtonEvent {
                     button, state: button_state, serial, time: event.time_msec(),
                 });
