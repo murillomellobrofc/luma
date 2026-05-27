@@ -427,7 +427,13 @@ pub fn handle_motion_absolute<I: InputBackend>(
 
     // Menu fullscreen aberto → não envia motion pra surface atrás
     // (senão cliente atrás pode mudar cursor pra I-beam, etc).
-    let under = if state.menu_open { None } else { state.surface_under(pos) };
+    // H58 fatia 6: lock ativo também suprime motion pra clientes —
+    // só o lock UI recebe input enquanto travado.
+    let under = if state.menu_open || state.locked {
+        None
+    } else {
+        state.surface_under(pos)
+    };
 
     pointer.motion(
         state,

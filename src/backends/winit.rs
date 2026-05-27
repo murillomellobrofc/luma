@@ -5557,6 +5557,15 @@ pub fn init_winit(
                             } // fecha else (Volume kind)
                         }
 
+                        // H58 fatia 6: OSD (volume/brilho/mídia) vai pra
+                        // um Vec separado, despejado em cima do lock_bg
+                        // no fim do frame. Sem isso, o lock_bg cobriria
+                        // o OSD durante a tela de bloqueio.
+                        let mut osd_overlay:
+                            Vec<LumaRenderElement<GlesRenderer>> = Vec::new();
+                        {
+                        let custom_elements = &mut osd_overlay;
+
                         // H45.osd: overlay centralizado (volume/brilho). Render
                         // PURO — sem hit-test, sem keyboard focus. Aparece por
                         // cima de TUDO (Smithay renderiza fim→começo, então
@@ -5998,6 +6007,7 @@ pub fn init_winit(
                                 }
                             }
                         }
+                        } // H58 fatia 6: fecha shadow scope osd_overlay
 
                         // H54 P3: stack de toasts (até MAX_VISIBLE_TOASTS=4)
                         // no canto sup-direito. Tick processa expiração,
@@ -7179,6 +7189,13 @@ pub fn init_winit(
                         // - capa: relógio grande centro + dica
                         // - auth: relógio pequeno no topo + painel
                         //   central (avatar + saudação + senha)
+                        //
+                        // Fatia 6: hardening — surfaces de cliente são
+                        // suprimidas no render_output via space slice
+                        // vazio (abaixo). UI normal (taskbar/menus/
+                        // popups) fica atrás do lock_bg opaco e some
+                        // visualmente. OSD precisa ficar EM CIMA — o
+                        // render dele roda DEPOIS desse bloco.
                         if data.state.locked {
                             use chrono::{Datelike, Local, Timelike};
                             let t_lock = crate::theme::current().lock.clone();
@@ -7513,22 +7530,54 @@ pub fn init_winit(
                             }
                         }
 
-                        let render_result = smithay::desktop::space::render_output::<
-                            _,
-                            LumaRenderElement<GlesRenderer>,
-                            _,
-                            _,
-                        >(
-                            &output,
-                            renderer,
-                            &mut framebuffer,
-                            1.0,
-                            0,
-                            [&data.state.space],
-                            &custom_elements,
-                            &mut damage_tracker,
-                            crate::theme::current().clear,
-                        );
+                        // H58 fatia 6: enfia o OSD em cima do lock_bg
+                        // (ou em cima de tudo, quando não locked).
+                        // .rev() preserva a ordem interna: o que foi
+                        // inserido por último no overlay (último insert(0))
+                        // vira o item mais à frente no final.
+                        for elem in osd_overlay.into_iter().rev() {
+                            custom_elements.insert(0, elem);
+                        }
+
+                        // H58 fatia 6: locked → suprime surfaces de
+                        // cliente também (não só o que está em
+                        // custom_elements). Slice vazio = render_output
+                        // não desenha NENHUMA window do space.
+                        let render_result = if data.state.locked {
+                            smithay::desktop::space::render_output::<
+                                _,
+                                LumaRenderElement<GlesRenderer>,
+                                _,
+                                _,
+                            >(
+                                &output,
+                                renderer,
+                                &mut framebuffer,
+                                1.0,
+                                0,
+                                [] as [&smithay::desktop::Space<crate::space_item::SpaceItem>; 0],
+                                &custom_elements,
+                                &mut damage_tracker,
+                                crate::theme::current().clear,
+                            )
+                        } else {
+                            smithay::desktop::space::render_output::<
+                                _,
+                                LumaRenderElement<GlesRenderer>,
+                                _,
+                                _,
+                            >(
+                                &output,
+                                renderer,
+                                &mut framebuffer,
+                                1.0,
+                                0,
+                                [&data.state.space],
+                                &custom_elements,
+                                &mut damage_tracker,
+                                crate::theme::current().clear,
+                            )
+                        };
                         if let Err(err) = render_result {
                             warn!("render_output falhou: {err}");
                         }
