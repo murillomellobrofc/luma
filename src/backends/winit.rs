@@ -7340,11 +7340,11 @@ pub fn init_winit(
                                         // fontdue inclui ascender acima
                                         // da capital, então centrar por
                                         // bbox deixa visualmente baixo.
-                                        // ih/4 alinha M opticamente no
-                                        // centro do círculo.
+                                        // ih/8 balanceia (ih/4 estava
+                                        // alto demais, ih/6 baixo).
                                         let iy = avatar_y
                                             + (t_lock.avatar_size - ih as i32) / 2
-                                            - (ih as i32) / 4;
+                                            - (ih as i32) / 8;
                                         let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                             smithay::utils::Point::<i32, smithay::utils::Logical>::from((ix, iy))
                                                 .to_physical_precise_round(1.0);
