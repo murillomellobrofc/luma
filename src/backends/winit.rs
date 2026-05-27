@@ -7134,7 +7134,7 @@ pub fn init_winit(
                         // todos os solid elements da taskbar (blocos, launcher,
                         // show-desktop) — Smithay renderiza fim→começo do Vec.
                         let taskbar_h = crate::taskbar::taskbar_height();
-                        let is_floating = data.state.panel_config.floating;
+                        let is_floating = data.state.main_panel().floating;
                         let float_margin = if is_floating { 12 } else { 0 };
                         let bar_y = output_size_logical.h - taskbar_h - float_margin;
                         let bar_x = float_margin;
@@ -7735,7 +7735,7 @@ pub fn init_winit(
                                 }
                                 // Fatia 3.1: Panel Settings card.
                                 if data.state.panel_settings_open {
-                                    let pc = &data.state.panel_config;
+                                    let pc = &&data.state.main_panel();
                                     let card_w = 360i32;
                                     let card_pad = 16i32;
                                     let header_h = 36i32;

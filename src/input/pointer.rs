@@ -893,7 +893,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             if state.panel_settings_open {
                 // Salvar.
                 if state.panel_settings_save_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
-                    let _ = crate::widgets::save_panel_config(&state.panel_config);
+                    if let Some(pc) = state.selected_panel_mut() {
+                        let _ = crate::widgets::save_panel_config(pc);
+                    }
                     state.panel_settings_open = false;
                     state.panel_config_snapshot = None;
                     tracing::info!("painel: config salva");
@@ -905,7 +907,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 if state.panel_settings_cancel_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
                     if let Some(snap) = state.panel_config_snapshot.take() {
                         crate::taskbar::set_taskbar_height(snap.height);
-                        state.panel_config = snap;
+                        if let Some(pc) = state.selected_panel_mut() {
+                            *pc = snap;
+                        }
                     }
                     state.panel_settings_open = false;
                     pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
@@ -914,15 +918,19 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 }
                 // Altura +/-.
                 if state.panel_settings_height_plus.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
-                    state.panel_config.height = (state.panel_config.height + 2).min(120);
-                    crate::taskbar::set_taskbar_height(state.panel_config.height);
+                    if let Some(pc) = state.selected_panel_mut() {
+                        pc.height = (pc.height + 2).min(120);
+                        crate::taskbar::set_taskbar_height(pc.height);
+                    }
                     pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
                     pointer.frame(state);
                     return;
                 }
                 if state.panel_settings_height_minus.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
-                    state.panel_config.height = (state.panel_config.height - 2).max(24);
-                    crate::taskbar::set_taskbar_height(state.panel_config.height);
+                    if let Some(pc) = state.selected_panel_mut() {
+                        pc.height = (pc.height - 2).max(24);
+                        crate::taskbar::set_taskbar_height(pc.height);
+                    }
                     pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
                     pointer.frame(state);
                     return;
@@ -930,7 +938,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 // Alinhamento.
                 for (i, label) in ["left", "center", "right"].iter().enumerate() {
                     if state.panel_settings_align_rects[i].map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
-                        state.panel_config.alignment = label.to_string();
+                        if let Some(pc) = state.selected_panel_mut() {
+                            pc.alignment = label.to_string();
+                        }
                         pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
                         pointer.frame(state);
                         return;
@@ -938,7 +948,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 }
                 // Float toggle.
                 if state.panel_settings_float_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
-                    state.panel_config.floating = !state.panel_config.floating;
+                    if let Some(pc) = state.selected_panel_mut() {
+                        pc.floating = !pc.floating;
+                    }
                     pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
                     pointer.frame(state);
                     return;
@@ -947,7 +959,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             // Fatia 3.1: click em área vazia do painel seleciona.
             {
                 let taskbar_h = crate::taskbar::taskbar_height();
-                let float_m = if state.panel_config.floating { 12 } else { 0 };
+                let float_m = if state.main_panel().floating { 12 } else { 0 };
                 let out_size = state.space.output_geometry(state.primary_output())
                     .map(|g| g.size)
                     .unwrap_or_default();
@@ -967,7 +979,10 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     if !state.panel_selected {
                         state.panel_selected = true;
                         state.panel_settings_open = true;
-                        state.panel_config_snapshot = Some(state.panel_config.clone());
+                        state.panel_selected_id = Some("main".to_string());
+                        if let Some(pc) = state.selected_panel_mut() {
+                            state.panel_config_snapshot = Some(pc.clone());
+                        }
                     }
                     pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
                     pointer.frame(state);
@@ -1108,7 +1123,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 if let Some(host_idx) = host_hit {
                     if let Some(type_id) = state.add_widget_selected_type.take() {
                         let placement = if host_idx == 0 {
-                            crate::widgets::Placement::Panel
+                            let pid = state.panel_selected_id.clone()
+                                .unwrap_or_else(|| "main".to_string());
+                            crate::widgets::Placement::Panel { panel_id: pid }
                         } else {
                             crate::widgets::Placement::Desktop { x: 100, y: 100, width: None, height: None }
                         };
@@ -1125,7 +1142,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                         Ok(new_id) => {
                                             state.widget_all_ids.push(new_id.clone());
                                             match &placement {
-                                                crate::widgets::Placement::Panel => {
+                                                crate::widgets::Placement::Panel { .. } => {
                                                     state.widgets.push(w);
                                                     state.widget_ids.push(new_id);
                                                     state.widget_last_ticks.push(std::time::Instant::now());
@@ -1286,7 +1303,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             if state.panel_selected {
                 if let Some(snap) = state.panel_config_snapshot.take() {
                     crate::taskbar::set_taskbar_height(snap.height);
-                    state.panel_config = snap;
+                    if let Some(pc) = state.selected_panel_mut() {
+                        *pc = snap;
+                    }
                 }
                 state.panel_selected = false;
                 state.panel_settings_open = false;

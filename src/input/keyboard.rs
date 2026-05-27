@@ -502,10 +502,13 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         if state.panel_settings_open {
             if let Some(snap) = state.panel_config_snapshot.take() {
                 crate::taskbar::set_taskbar_height(snap.height);
-                state.panel_config = snap;
+                if let Some(pc) = state.selected_panel_mut() {
+                    *pc = snap;
+                }
             }
             state.panel_settings_open = false;
             state.panel_selected = false;
+            state.panel_selected_id = None;
             return;
         }
         state.edit_mode = false;
