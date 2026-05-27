@@ -1,5 +1,6 @@
 mod apps;
 mod audio;
+mod auth;
 mod brightness;
 mod places;
 mod backends;

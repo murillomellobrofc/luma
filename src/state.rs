@@ -274,6 +274,17 @@ pub struct LumaState {
     /// H58: estado atual do Caps Lock (atualizado pelo keyboard
     /// handler quando o modificador muda).
     pub lock_caps_on: bool,
+    /// H58 fatia 5: auth PAM em andamento (Submit foi disparado mas
+    /// outcome ainda não chegou). UI mostra "Verificando…" e bloqueia
+    /// nova submissão.
+    pub lock_auth_in_flight: bool,
+    /// H58 fatia 5: mensagem de erro do último Submit que falhou.
+    /// Limpada quando user começa a digitar de novo.
+    pub lock_auth_error: Option<String>,
+    /// Outbox compartilhado com a thread PAM. Observer no main loop
+    /// consume o outcome e atualiza state.
+    pub lock_auth_outbox:
+        std::sync::Arc<std::sync::Mutex<Option<crate::auth::AuthResult>>>,
     /// H58: lock surfaces criadas pelos clientes (uma por output).
     pub lock_surfaces: Vec<smithay::wayland::session_lock::LockSurface>,
     /// Rects clicáveis do slider de modo de energia (popup de
@@ -797,6 +808,9 @@ impl LumaState {
             lock_revealed: false,
             lock_password: String::new(),
             lock_caps_on: false,
+            lock_auth_in_flight: false,
+            lock_auth_error: None,
+            lock_auth_outbox: std::sync::Arc::new(std::sync::Mutex::new(None)),
             lock_surfaces: Vec::new(),
             battery_mode_zones: Vec::new(),
             wifi_state: crate::wifi::WifiState::default(),

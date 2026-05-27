@@ -28,6 +28,10 @@ xcursor = "0.3"
 # dev headers no build; se a .so não estiver presente, sound engine
 # cai em silent fail (per spec).
 libloading = "0.8"
+# H58: PAM via dlopen runtime (libpam.so.0). Sem dev headers
+# necessários. libc usada pra malloc/strdup pras respostas
+# de conversation (PAM espera ponteiros que ele mesmo libera).
+libc = "0.2"
 # H47b.sni: cliente D-Bus. blocking::Connection + thread dedicada
 # pra signals do StatusNotifierWatcher. Defaults incluem async-io
 # (~30 deps) + blocking-api — usamos só o blocking wrapper.
