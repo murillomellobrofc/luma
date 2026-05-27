@@ -186,13 +186,16 @@ pub struct LumaState {
         Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     pub resize_card_h_minus_rect:
         Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Fatia 3.1: config do painel principal. Lida de [[panel]] no
-    /// layout.toml no boot. Editada live pelo Panel Settings card.
-    pub panel_config: crate::widgets::PanelConfig,
+    /// Fatia 3.1+3.2: configs de todos os painéis. Lidas de [[panel]]
+    /// no layout.toml no boot. Editadas live pelo Panel Settings card.
+    pub panels: Vec<crate::widgets::PanelConfig>,
     /// Snapshot da config quando o card abriu (pra Cancelar reverter).
     pub panel_config_snapshot: Option<crate::widgets::PanelConfig>,
-    /// Painel selecionado no modo de edição (true = selecionado).
+    /// Painel selecionado no modo de edição (id ou None).
     pub panel_selected: bool,
+    pub panel_selected_id: Option<String>,
+    /// Cada widget do painel pertence a qual painel (paralelo a widgets).
+    pub widget_panel_ids: Vec<String>,
     /// Card "Configurações do painel" aberto.
     pub panel_settings_open: bool,
     /// Rects dos controles do card (cacheados pelo render).
@@ -481,6 +484,18 @@ pub struct LumaState {
         smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
         smithay::utils::Point<i32, smithay::utils::Logical>,
     )>,
+}
+
+impl LumaState {
+    pub fn main_panel(&self) -> crate::widgets::PanelConfig {
+        self.panels.iter().find(|p| p.id == "main")
+            .cloned()
+            .unwrap_or_default()
+    }
+    pub fn selected_panel_mut(&mut self) -> Option<&mut crate::widgets::PanelConfig> {
+        let id = self.panel_selected_id.as_deref()?;
+        self.panels.iter_mut().find(|p| p.id == id)
+    }
 }
 
 /// Drag de reorder de um widget de painel (fatia 2.2).
@@ -851,19 +866,28 @@ impl LumaState {
         let (
             widgets_for_init,
             widget_ids_for_init,
+            widget_panel_ids_for_init,
             desktop_widgets_pending,
             widget_all_ids_for_init,
         ): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
             Vec<String>,
+            Vec<String>,
             Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String, Option<(u32, u32)>)>,
             Vec<String>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
             let (result, _reg) = crate::widgets::load_all(tr.clone());
-            let (ws, ids): (Vec<_>, Vec<_>) = result.panel.into_iter().unzip();
-            (ws, ids, result.desktop, result.all_ids)
+            let mut ws = Vec::new();
+            let mut ids = Vec::new();
+            let mut pids = Vec::new();
+            for (w, id, pid) in result.panel {
+                ws.push(w);
+                ids.push(id);
+                pids.push(pid);
+            }
+            (ws, ids, pids, result.desktop, result.all_ids)
         } else {
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
         let widget_registry_for_init = widget_text_for_init.as_ref()
             .map(|tr| crate::widgets::build_default_registry(tr.clone()));
@@ -939,13 +963,17 @@ impl LumaState {
             resize_card_w_minus_rect: None,
             resize_card_h_plus_rect: None,
             resize_card_h_minus_rect: None,
-            panel_config: {
-                let pc = crate::widgets::load_panel_config();
-                crate::taskbar::set_taskbar_height(pc.height);
-                pc
+            panels: {
+                let pcs = crate::widgets::load_all_panels();
+                if let Some(main) = pcs.iter().find(|p| p.id == "main") {
+                    crate::taskbar::set_taskbar_height(main.height);
+                }
+                pcs
             },
             panel_config_snapshot: None,
             panel_selected: false,
+            panel_selected_id: None,
+            widget_panel_ids: widget_panel_ids_for_init,
             panel_settings_open: false,
             panel_settings_height_plus: None,
             panel_settings_height_minus: None,

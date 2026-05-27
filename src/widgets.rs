@@ -357,11 +357,13 @@ impl WidgetRegistry {
 /// Onde o widget mora — versão TOML de luma_widget::WidgetHost.
 /// `{ host = "panel" }` (default) ou `{ host = "desktop", x = N, y = M }`.
 /// Internally-tagged via serde: o campo `host` discrimina a variante.
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "host", rename_all = "lowercase")]
 pub enum Placement {
-    #[default]
-    Panel,
+    Panel {
+        #[serde(default = "default_panel_id")]
+        panel_id: String,
+    },
     Desktop {
         x: i32,
         y: i32,
@@ -377,6 +379,12 @@ pub enum Placement {
 /// (painel ou desktop); o `config` é entregue cru pro builder.
 /// `id` é o identificador estável — se ausente no arquivo, gerado
 /// na carga e escrito no próximo save.
+impl Default for Placement {
+    fn default() -> Self {
+        Self::Panel { panel_id: default_panel_id() }
+    }
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct LayoutEntry {
     /// Identificador estável. Curto, editável na mão ("w1", "w2").
@@ -631,7 +639,7 @@ pub fn append_widget(
     // Placement como inline table.
     let mut pl = toml_edit::InlineTable::new();
     match placement {
-        Placement::Panel => {
+        Placement::Panel { .. } => {
             pl.insert("host", toml_edit::Value::from("panel"));
         }
         Placement::Desktop { x, y, .. } => {
@@ -733,8 +741,8 @@ fn toml_value_to_edit(v: &toml::Value) -> Option<toml_edit::Value> {
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
 pub struct WidgetLoadResult {
-    /// (widget, id)
-    pub panel: Vec<(Box<dyn Widget + Send>, String)>,
+    /// (widget, id, panel_id)
+    pub panel: Vec<(Box<dyn Widget + Send>, String, String)>,
     /// (widget, x, y, id, user_size)
     pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, String, Option<(u32, u32)>)>,
     /// IDs de TODAS as entradas [[widget]] do arquivo, na ordem do
@@ -748,6 +756,8 @@ pub struct WidgetLoadResult {
 pub struct PanelConfig {
     #[serde(default = "default_panel_id")]
     pub id: String,
+    #[serde(default = "default_panel_position")]
+    pub position: String,
     #[serde(default = "default_panel_height")]
     pub height: i32,
     #[serde(default = "default_panel_alignment")]
@@ -757,6 +767,7 @@ pub struct PanelConfig {
 }
 
 fn default_panel_id() -> String { "main".into() }
+fn default_panel_position() -> String { "bottom".into() }
 fn default_panel_height() -> i32 { 48 }
 fn default_panel_alignment() -> String { "center".into() }
 
@@ -764,11 +775,68 @@ impl Default for PanelConfig {
     fn default() -> Self {
         Self {
             id: default_panel_id(),
+            position: default_panel_position(),
             height: default_panel_height(),
             alignment: default_panel_alignment(),
             floating: false,
         }
     }
+}
+
+/// Carrega TODOS os painéis do layout.toml. Se nenhum existir,
+/// retorna vec com o main default.
+pub fn load_all_panels() -> Vec<PanelConfig> {
+    let path = match default_layout_path() {
+        Some(p) => p,
+        None => return vec![PanelConfig::default()],
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return vec![PanelConfig::default()],
+    };
+    match toml::from_str::<PanelLayoutFile>(&content) {
+        Ok(f) if !f.panels.is_empty() => f.panels,
+        _ => vec![PanelConfig::default()],
+    }
+}
+
+/// Gera id novo pro painel ("panel-N", menor inteiro livre).
+pub fn generate_panel_id(existing: &[PanelConfig]) -> String {
+    let used: std::collections::HashSet<&str> = existing.iter()
+        .map(|p| p.id.as_str()).collect();
+    let mut n = 2u32;
+    loop {
+        let candidate = format!("panel-{n}");
+        if !used.contains(candidate.as_str()) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// Appenda uma seção [[panel]] nova no layout.toml via toml_edit.
+pub fn append_panel(cfg: &PanelConfig) -> Result<(), String> {
+    let path = default_layout_path()
+        .ok_or_else(|| "$HOME ausente".to_string())?;
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: toml_edit::DocumentMut = content
+        .parse()
+        .map_err(|e| format!("parse falhou: {e}"))?;
+    let mut entry = toml_edit::Table::new();
+    entry.insert("id", toml_edit::value(cfg.id.as_str()));
+    entry.insert("position", toml_edit::value(cfg.position.as_str()));
+    entry.insert("height", toml_edit::value(cfg.height as i64));
+    entry.insert("alignment", toml_edit::value(cfg.alignment.as_str()));
+    entry.insert("floating", toml_edit::value(cfg.floating));
+    let panels = doc
+        .entry("panel")
+        .or_insert_with(|| toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new()))
+        .as_array_of_tables_mut()
+        .ok_or_else(|| "panel não é array".to_string())?;
+    panels.push(entry);
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("write falhou: {e}"))?;
+    Ok(())
 }
 
 #[derive(Debug, serde::Deserialize, Default)]
@@ -878,7 +946,7 @@ pub fn load_all(text_renderer: Arc<TextRenderer>) -> (WidgetLoadResult, WidgetRe
         let id = entry.id.clone().unwrap_or_default();
         match registry.build(&entry.type_name, &entry.config) {
             Ok(w) => match entry.placement {
-                Placement::Panel => panel.push((w, id)),
+                Placement::Panel { panel_id } => panel.push((w, id, panel_id)),
                 Placement::Desktop { x, y, width, height } => {
                     let us = match (width, height) {
                         (Some(w_), Some(h_)) => Some((w_ as u32, h_ as u32)),
