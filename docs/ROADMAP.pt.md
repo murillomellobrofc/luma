@@ -51,8 +51,11 @@
 
 ### Em andamento
 
-(nada no momento — curto prazo zerado, próxima leva sai de
-"Médio prazo")
+- 🔨 **H58 — Tela de bloqueio (lock screen)**
+  Protocolo Wayland `ext-session-lock` · tela Golden Hour com campo
+  de senha e info do usuário · peso de segurança (bloqueio furável =
+  bug sério) · fecha o botão "bloquear" do menu · cria a linguagem
+  visual que o tema do SDDM e o splash reusam.
 
 ---
 
@@ -114,7 +117,9 @@ Próxima leva sai de "Médio prazo")
   3. + edição de painel (altura, alinhamento, criar painel)
 
 - **Menu de contexto da taskbar** (depende dos widgets)
-- **Tela de configurações nativa do Luma**
+- **Tela de configurações nativa do Luma** (inclui as páginas de tema
+  das Telas do sistema: splash, login/SDDM, boot — um painel só, igual
+  o de Cores e Temas do KDE)
 - **Configuração de tela** (resolução, monitores)
 - **Slider de brilho dentro do applet de bateria** — não é applet
   próprio, vai junto da bateria, igual o KDE faz. Backend já existe,
@@ -218,6 +223,26 @@ Próxima leva sai de "Médio prazo")
 
 ### Rumo ao v1.0
 
+**Telas do sistema** (o "chrome" em volta da sessão):
+
+> Igual o KDE, o Luma trata estas como componentes temáveis, todas
+> configuráveis num painel só da Tela de configurações nativa. NÃO se
+> constrói display manager — tema-se o SDDM.
+
+- **Arquivo de sessão** (`.desktop`) — faz o Luma aparecer na lista do
+  SDDM / GDM / qualquer display manager. Trivial, mas SEM isso ninguém
+  loga no Luma. OBRIGATÓRIO pro v1.0.
+- **Tema do SDDM (Golden Hour)** — a tela de login. Um tema QML pro
+  SDDM, exatamente como o KDE faz. DECISÃO: nada de greeter próprio
+  escrito do zero; tema-se o SDDM, que já existe. Polish.
+- **Splash screen** — a tela rápida depois do login enquanto o DE
+  carrega (o KSplash do KDE). Luma-rendered, leve, momento de marca.
+  Polish, baixa prioridade.
+- **Tema de boot (Plymouth) Golden Hour** — só gráfico + config
+  pequeno, não constrói nada. Polish barato, alto retorno.
+
+**Encerramento:**
+
 - Polish geral, QA completo
 - Os 4 presets visuais: Classic, Mint, Dock, PCD Max
 - Documentação final
@@ -232,6 +257,9 @@ Próxima leva sai de "Médio prazo")
 - Menu de contexto: 1 item dim restante (resolvido o resto no H56):
   - Modo de edição → espera sistema de widgets + modo de edição geral
 - Menu da taskbar (espera sistema de widgets)
+- Botão "bloquear" do menu de sessão → espera a tela de bloqueio
+  (`ext-session-lock`). Enquanto ela não existir, o botão não tem
+  o que fazer.
 
 ---
 
