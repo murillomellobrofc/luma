@@ -7336,7 +7336,14 @@ pub fn init_winit(
                                             1, Transform::Normal, None,
                                         );
                                         let ix = center_x - (iw as i32) / 2;
-                                        let iy = avatar_y + (t_lock.avatar_size - ih as i32) / 2;
+                                        // Correção óptica: o bbox da
+                                        // fontdue inclui ascender acima
+                                        // da capital, então centrar por
+                                        // bbox deixa visualmente baixo.
+                                        // Sobe ~ih/6 pra alinhar ao olho.
+                                        let iy = avatar_y
+                                            + (t_lock.avatar_size - ih as i32) / 2
+                                            - (ih as i32) / 6;
                                         let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                             smithay::utils::Point::<i32, smithay::utils::Logical>::from((ix, iy))
                                                 .to_physical_precise_round(1.0);
