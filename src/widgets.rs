@@ -603,7 +603,7 @@ fn generate_ids(entries: &mut [LayoutEntry]) {
 /// por placement. Caller (LumaState::new) consome o resultado.
 /// Entradas inválidas (tipo desconhecido, config errada) são puladas
 /// com warn — boot nunca derruba.
-pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
+pub fn load_all(text_renderer: Arc<TextRenderer>) -> (WidgetLoadResult, WidgetRegistry) {
     let registry = build_default_registry(text_renderer);
     let mut entries = default_layout_path()
         .map(|p| load_layout(&p))
@@ -627,7 +627,7 @@ pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
             ),
         }
     }
-    WidgetLoadResult { panel, desktop, all_ids }
+    (WidgetLoadResult { panel, desktop, all_ids }, registry)
 }
 
 pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistry {

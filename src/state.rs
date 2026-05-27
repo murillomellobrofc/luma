@@ -132,12 +132,31 @@ pub struct LumaState {
     pub handle_btn_hover: Option<usize>,
     /// true quando a alça está em modo confirmação ("Remover? Sim/Não").
     pub handle_confirm_mode: bool,
+    /// Fatia 2.4: seletor "Adicionar widget" aberto.
+    pub add_widget_open: bool,
+    /// Rect do botão "Adicionar widget" na barra pra hit-test.
+    pub add_widget_btn_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub add_widget_btn_hover: bool,
+    /// Tipo selecionado no seletor (type_id da tile destacada).
+    pub add_widget_selected_type: Option<String>,
+    /// Rects das tiles do seletor (paralelo a registry.type_list()).
+    pub add_widget_tile_rects:
+        Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Hover da tile no seletor.
+    pub add_widget_tile_hover: Option<usize>,
+    /// Rects dos botões Painel/Desktop no seletor (quando type selecionado).
+    pub add_widget_host_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
+    pub add_widget_host_hover: Option<usize>,
     /// Rects dos botões Sim/Não da confirmação.
     pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
     pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
+    /// Registro de tipos de widget. Construído no boot, usado pelo
+    /// seletor "Adicionar widget" pra listar tipos e construir novos.
+    pub widget_registry: Option<crate::widgets::WidgetRegistry>,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
     /// 0.94 + linha âmbar 2px no topo. Substituirá o `menu` legacy.
@@ -786,12 +805,14 @@ impl LumaState {
             Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String)>,
             Vec<String>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
-            let result = crate::widgets::load_all(tr.clone());
+            let (result, _reg) = crate::widgets::load_all(tr.clone());
             let (ws, ids): (Vec<_>, Vec<_>) = result.panel.into_iter().unzip();
             (ws, ids, result.desktop, result.all_ids)
         } else {
             (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
+        let widget_registry_for_init = widget_text_for_init.as_ref()
+            .map(|tr| crate::widgets::build_default_registry(tr.clone()));
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -820,6 +841,7 @@ impl LumaState {
             // Fatia 2 widgets: lista vinda do layout.toml. Vec vazio
             // se o arquivo não existir ou todas as entradas falharem.
             widget_text: widget_text_for_init,
+            widget_registry: widget_registry_for_init,
             // Fatia 3 widgets: 1 Instant por widget, todos zerados em
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
@@ -837,6 +859,14 @@ impl LumaState {
             handle_btn_hover: None,
             handle_confirm_mode: false,
             handle_confirm_rects: [None; 2],
+            add_widget_open: false,
+            add_widget_btn_rect: None,
+            add_widget_btn_hover: false,
+            add_widget_selected_type: None,
+            add_widget_tile_rects: Vec::new(),
+            add_widget_tile_hover: None,
+            add_widget_host_rects: [None; 2],
+            add_widget_host_hover: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

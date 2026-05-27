@@ -7378,6 +7378,61 @@ pub fn init_winit(
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
+                                // 5) Botão "Adicionar widget" à esquerda do Pronto.
+                                {
+                                    let add_text = "Adicionar widget";
+                                    let (apx, atw, ath) = tr.rasterize_colored(
+                                        add_text,
+                                        t_edit.done_button_text_size,
+                                        t_edit.done_button_text_color,
+                                    );
+                                    let abw = t_edit.done_button_padding_h * 2 + atw as i32;
+                                    let abh = t_edit.done_button_height;
+                                    let abx = btn_x - 10 - abw; // 10px gap do Pronto
+                                    let aby = (bar_h - abh) / 2;
+                                    data.state.add_widget_btn_rect = Some(
+                                        smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                            smithay::utils::Point::from((abx, aby)),
+                                            smithay::utils::Size::from((abw, abh)),
+                                        ),
+                                    );
+                                    let abg = if data.state.add_widget_btn_hover {
+                                        t_edit.done_button_bg_hover
+                                    } else {
+                                        t_edit.done_button_bg
+                                    };
+                                    let apill = crate::gfx::make_rounded_panel(
+                                        abw, abh, t_edit.done_button_corner, abg,
+                                    );
+                                    let aloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((abx, aby))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, aloc.to_f64(), &apill,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    if atw > 0 && ath > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &apx,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (atw as i32, ath as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let atx = abx + (abw - atw as i32) / 2;
+                                        let aty = aby + (abh - ath as i32) / 2;
+                                        let atloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((atx, aty))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, atloc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                }
                                 // Fatia 2.3: alça flutuante. Aparece sobre
                                 // o widget selecionado com 4 botões grandes.
                                 if let Some(sel_id) = data.state.selected_widget_id.clone() {
