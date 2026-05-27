@@ -42,6 +42,22 @@ impl LabelWidget {
             text_renderer,
         }
     }
+
+    /// Fatia 2: constrói a partir do bloco config do layout.toml.
+    /// Espera `text = "..."`. Campo ausente ou tipo errado = erro.
+    /// `text_renderer` vem do boot via captura no builder do registro.
+    pub fn from_config(
+        config: &toml::Table,
+        text_renderer: Arc<TextRenderer>,
+    ) -> Result<Self, ConfigError> {
+        let text = config
+            .get("text")
+            .ok_or_else(|| ConfigError("label: campo `text` ausente".into()))?
+            .as_str()
+            .ok_or_else(|| ConfigError("label: `text` precisa ser string".into()))?
+            .to_string();
+        Ok(Self { text, text_renderer })
+    }
 }
 
 impl Widget for LabelWidget {
@@ -277,4 +293,17 @@ pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
             Vec::new()
         }
     }
+}
+
+/// Fatia 2: registry com todos os widgets nativos do Luma. Conhece
+/// "label" por enquanto; cresce com cada novo tipo. O `text_renderer`
+/// fica capturado nas closures dos builders que precisam dele —
+/// caller passa um único Arc e o registro segura as cópias.
+pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistry {
+    let mut registry = WidgetRegistry::new();
+    let tr = text_renderer.clone();
+    registry.register("label", move |cfg| {
+        LabelWidget::from_config(cfg, tr.clone()).map(|w| Box::new(w) as Box<dyn Widget>)
+    });
+    registry
 }
