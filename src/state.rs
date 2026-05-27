@@ -90,138 +90,10 @@ pub struct LumaState {
     /// Instant e chama `tick()` quando vence. Mesma cara dos
     /// elapsed-checks do OSD e dos toasts.
     pub widget_last_ticks: Vec<Instant>,
-    /// Fatia 2.2: id estável de cada widget do painel, paralelo a
-    /// `widgets`. Usado pelo modo de edição pra salvar reorder.
-    pub widget_ids: Vec<String>,
-    /// IDs de TODAS as entradas [[widget]] do arquivo (incluindo as
-    /// que falharam no build), na ordem original do doc. Usado pra
-    /// ensure_ids_in_doc na hora de salvar.
-    pub widget_all_ids: Vec<String>,
-    /// Modo de edição geral do Luma (fatia 1+). Liga via item do
-    /// menu de contexto "Modo de edição", Super+E ou Ctrl+Alt+E.
-    /// Desliga via Esc ou botão "Pronto" da barra de cima.
-    /// Enquanto ligado: overlay wash + barra no topo, e o arrastar
-    /// de ícone do desktop deixa de estar travado.
-    pub edit_mode: bool,
-    /// Cache do rect do botão "Pronto" pra hit-test no pointer
-    /// (preenchido a cada frame que a barra é renderizada).
-    pub edit_mode_done_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Hover state do botão "Pronto" — atualizado pelo motion
-    /// handler e usado pelo render pra escolher bg_hover.
-    pub edit_mode_done_hover: bool,
-    /// Drag ativo de um widget de desktop (fatia 2.1 do modo de
-    /// edição). Só existe enquanto o usuário tem o botão pressionado
-    /// sobre um widget DENTRO do modo de edição. None = sem drag.
-    pub desktop_widget_drag: Option<crate::space_item::DesktopWidgetDrag>,
-    /// Rects dos widgets do painel (cacheados pelo render, usado pra
-    /// hit-test no pointer handler). Paralelo a `widgets`.
-    pub widget_rects:
-        Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Drag ativo de reorder de widget de painel (fatia 2.2). Guarda
-    /// o índice atual no Vec + offset pro cursor.
-    pub panel_widget_drag: Option<PanelWidgetDrag>,
-    /// Fatia 2.3: id do widget selecionado no modo de edição. None =
-    /// nenhum selecionado. Click num widget seleciona, click fora
-    /// desseleciona. Um widget por vez.
-    pub selected_widget_id: Option<String>,
-    /// Rects dos botões da alça (cacheados pelo render). Paralelo à
-    /// lista fixa [Mover, Configurar, Redimensionar, Remover].
-    pub handle_btn_rects: Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Hover index do botão da alça (atualizado pelo motion handler).
-    pub handle_btn_hover: Option<usize>,
-    /// true quando a alça está em modo confirmação ("Remover? Sim/Não").
-    pub handle_confirm_mode: bool,
-    /// Fatia 2.4: seletor "Adicionar widget" aberto.
-    pub add_widget_open: bool,
-    /// Rect do botão "Adicionar widget" na barra pra hit-test.
-    pub add_widget_btn_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub add_widget_btn_hover: bool,
-    /// Tipo selecionado no seletor (type_id da tile destacada).
-    pub add_widget_selected_type: Option<String>,
-    /// Rects das tiles do seletor (paralelo a registry.type_list()).
-    pub add_widget_tile_rects:
-        Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Hover da tile no seletor.
-    pub add_widget_tile_hover: Option<usize>,
-    /// Rects dos botões Painel/Desktop no seletor (quando type selecionado).
-    pub add_widget_host_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
-    pub add_widget_host_hover: Option<usize>,
-    /// Fatia 2.5: cartão "Configurar" aberto pro widget selecionado.
-    pub config_card_open: bool,
-    /// Valores editados no formulário (mapa chave → valor editado).
-    /// Aplicados só no Salvar — enquanto edita, o widget vivo não muda.
-    pub config_form_values: toml::Table,
-    /// Rects dos botões Salvar/Cancelar do card.
-    pub config_card_save_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub config_card_cancel_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Rects dos botões +/- dos campos int.
-    pub config_card_int_rects:
-        Vec<(String, smithay::utils::Rectangle<i32, smithay::utils::Logical>,
-             smithay::utils::Rectangle<i32, smithay::utils::Logical>)>,
-    /// Rects dos campos string (hit-test pra edição inline).
-    pub config_card_str_rects:
-        Vec<(String, smithay::utils::Rectangle<i32, smithay::utils::Logical>)>,
-    /// Campo string sendo editado no formulário (key). None = nenhum.
-    pub config_editing_field: Option<String>,
-    /// Hover dos botões do config card.
-    pub config_card_save_hover: bool,
-    pub config_card_cancel_hover: bool,
-    /// Fatia 2.6: cartão "Redimensionar" aberto.
-    pub resize_card_open: bool,
-    pub resize_width: i32,
-    pub resize_height: i32,
-    pub resize_card_save_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub resize_card_cancel_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub resize_card_w_plus_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub resize_card_w_minus_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub resize_card_h_plus_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub resize_card_h_minus_rect:
-        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Fatia 3.1+3.2: configs de todos os painéis. Lidas de [[panel]]
-    /// no layout.toml no boot. Editadas live pelo Panel Settings card.
-    pub panels: Vec<crate::widgets::PanelConfig>,
-    /// Snapshot da config quando o card abriu (pra Cancelar reverter).
-    pub panel_config_snapshot: Option<crate::widgets::PanelConfig>,
-    /// Painel selecionado no modo de edição (id ou None).
-    pub panel_selected: bool,
-    pub panel_selected_id: Option<String>,
-    /// Cada widget do painel pertence a qual painel (paralelo a widgets).
-    pub widget_panel_ids: Vec<String>,
-    /// Card "Configurações do painel" aberto.
-    pub panel_settings_open: bool,
-    /// Rects dos controles do card (cacheados pelo render).
-    pub panel_settings_height_plus: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub panel_settings_height_minus: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub panel_settings_align_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 3],
-    pub panel_settings_float_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub panel_settings_save_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub panel_settings_cancel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    /// Fatia 3.2: seletor "Adicionar painel" aberto.
-    pub add_panel_open: bool,
-    pub add_panel_selected_pos: Option<String>,
-    pub add_panel_pos_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 4],
-    pub add_panel_create_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub add_panel_cancel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub add_panel_btn_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
-    pub add_panel_btn_hover: bool,
-    /// Rects dos botões Sim/Não da confirmação.
-    pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
     pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
-    /// Registro de tipos de widget. Construído no boot, usado pelo
-    /// seletor "Adicionar widget" pra listar tipos e construir novos.
-    pub widget_registry: Option<crate::widgets::WidgetRegistry>,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
     /// 0.94 + linha âmbar 2px no topo. Substituirá o `menu` legacy.
@@ -492,30 +364,6 @@ pub struct LumaState {
         smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
         smithay::utils::Point<i32, smithay::utils::Logical>,
     )>,
-}
-
-impl LumaState {
-    pub fn main_panel(&self) -> crate::widgets::PanelConfig {
-        self.panels.iter().find(|p| p.id == "main")
-            .cloned()
-            .unwrap_or_default()
-    }
-    pub fn selected_panel_mut(&mut self) -> Option<&mut crate::widgets::PanelConfig> {
-        let id = self.panel_selected_id.as_deref()?;
-        self.panels.iter_mut().find(|p| p.id == id)
-    }
-}
-
-/// Drag de reorder de um widget de painel (fatia 2.2).
-/// Snap instantâneo: quando o slot-alvo muda, o widget se move no
-/// Vec de imediato — o render do frame seguinte reflete.
-pub struct PanelWidgetDrag {
-    /// Índice atual do widget no Vec (muda conforme swaps).
-    pub current_index: usize,
-    /// Posição do cursor no início do press.
-    pub start_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
-    /// true quando o drag passou do threshold.
-    pub active: bool,
 }
 
 pub struct CalloopData {
@@ -869,36 +717,24 @@ impl LumaState {
         // por host. Panel vai pra fileira do painel; desktop é mapeado
         // como SpaceItem::DesktopWidget logo depois do struct ser
         // construído (precisa do state.space inicializado).
+        // Widgets desativados por enquanto — código fica, nada carrega.
+        // Pra reativar: descomentar o bloco abaixo.
+        let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> = None;
+        let widgets_for_init: Vec<Box<dyn luma_widget::Widget + Send>> = Vec::new();
+        let desktop_widgets_pending: Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)> = Vec::new();
+        /*
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
-        let (
-            widgets_for_init,
-            widget_ids_for_init,
-            widget_panel_ids_for_init,
-            desktop_widgets_pending,
-            widget_all_ids_for_init,
-        ): (
+        let (widgets_for_init, desktop_widgets_pending): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
-            Vec<String>,
-            Vec<String>,
-            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String, Option<(u32, u32)>)>,
-            Vec<String>,
+            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
-            let (result, _reg) = crate::widgets::load_all(tr.clone());
-            let mut ws = Vec::new();
-            let mut ids = Vec::new();
-            let mut pids = Vec::new();
-            for (w, id, pid) in result.panel {
-                ws.push(w);
-                ids.push(id);
-                pids.push(pid);
-            }
-            (ws, ids, pids, result.desktop, result.all_ids)
+            let result = crate::widgets::load_all(tr.clone());
+            (result.panel, result.desktop)
         } else {
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            (Vec::new(), Vec::new())
         };
-        let widget_registry_for_init = widget_text_for_init.as_ref()
-            .map(|tr| crate::widgets::build_default_registry(tr.clone()));
+        */
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -922,80 +758,19 @@ impl LumaState {
             cursor_buffers,
             cursor_kind: "default",
             cursor_status: CursorImageStatus::default_named(),
-            taskbar: crate::taskbar::TaskbarState::new(),
+            taskbar: {
+                let pc = crate::widgets::load_panel_config();
+                crate::taskbar::set_taskbar_height(pc.height);
+                crate::taskbar::TaskbarState::new()
+            },
             text: crate::text::TextRenderer::load(),
             // Fatia 2 widgets: lista vinda do layout.toml. Vec vazio
             // se o arquivo não existir ou todas as entradas falharem.
             widget_text: widget_text_for_init,
-            widget_registry: widget_registry_for_init,
             // Fatia 3 widgets: 1 Instant por widget, todos zerados em
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
             widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
-            widget_ids: widget_ids_for_init,
-            widget_all_ids: widget_all_ids_for_init,
-            edit_mode: false,
-            edit_mode_done_rect: None,
-            edit_mode_done_hover: false,
-            desktop_widget_drag: None,
-            widget_rects: Vec::new(),
-            panel_widget_drag: None,
-            selected_widget_id: None,
-            handle_btn_rects: Vec::new(),
-            handle_btn_hover: None,
-            handle_confirm_mode: false,
-            handle_confirm_rects: [None; 2],
-            add_widget_open: false,
-            add_widget_btn_rect: None,
-            add_widget_btn_hover: false,
-            add_widget_selected_type: None,
-            add_widget_tile_rects: Vec::new(),
-            add_widget_tile_hover: None,
-            add_widget_host_rects: [None; 2],
-            add_widget_host_hover: None,
-            config_card_open: false,
-            config_form_values: toml::Table::new(),
-            config_card_save_rect: None,
-            config_card_cancel_rect: None,
-            config_card_int_rects: Vec::new(),
-            config_card_str_rects: Vec::new(),
-            config_editing_field: None,
-            config_card_save_hover: false,
-            config_card_cancel_hover: false,
-            resize_card_open: false,
-            resize_width: 200,
-            resize_height: 50,
-            resize_card_save_rect: None,
-            resize_card_cancel_rect: None,
-            resize_card_w_plus_rect: None,
-            resize_card_w_minus_rect: None,
-            resize_card_h_plus_rect: None,
-            resize_card_h_minus_rect: None,
-            panels: {
-                let pcs = crate::widgets::load_all_panels();
-                if let Some(main) = pcs.iter().find(|p| p.id == "main") {
-                    crate::taskbar::set_taskbar_height(main.height);
-                }
-                pcs
-            },
-            panel_config_snapshot: None,
-            panel_selected: false,
-            panel_selected_id: None,
-            widget_panel_ids: widget_panel_ids_for_init,
-            panel_settings_open: false,
-            panel_settings_height_plus: None,
-            panel_settings_height_minus: None,
-            panel_settings_align_rects: [None; 3],
-            panel_settings_float_rect: None,
-            panel_settings_save_rect: None,
-            panel_settings_cancel_rect: None,
-            add_panel_open: false,
-            add_panel_selected_pos: None,
-            add_panel_pos_rects: [None; 4],
-            add_panel_create_rect: None,
-            add_panel_cancel_rect: None,
-            add_panel_btn_rect: None,
-            add_panel_btn_hover: false,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
@@ -1124,11 +899,9 @@ impl LumaState {
         // Fatia 4 widgets: mapeia os widgets com placement=desktop no
         // state.space como SpaceItem::DesktopWidget. Z=5 (mesma camada
         // dos ícones, atrás das janelas). x/y vêm do layout.toml.
-        // layout_index acompanha pra o modo de edição saber onde
-        // gravar o novo x/y na hora de salvar.
-        for (widget, x, y, id, user_size) in desktop_widgets_pending {
+        for (widget, x, y) in desktop_widgets_pending {
             let item = std::sync::Arc::new(
-                crate::space_item::DesktopWidgetItem::new_with_size(widget, id, user_size),
+                crate::space_item::DesktopWidgetItem::new(widget, x, y),
             );
             state.space.map_element(
                 crate::space_item::SpaceItem::DesktopWidget(item),

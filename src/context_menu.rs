@@ -58,8 +58,6 @@ pub enum ContextAction {
     /// Placeholder pros items que dependem de features ainda não
     /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
-    /// Modo de edição geral do Luma. Liga state.edit_mode.
-    EnterEditMode,
 }
 
 /// Critério de ordenação para "Organizar ícones" do menu de
@@ -816,8 +814,8 @@ fn default_items() -> Vec<ContextItem> {
         ContextItem {
             label: "Modo de edição".into(),
             icon: Some("ctx-edit"),
-            kind: ItemKind::Action(ContextAction::EnterEditMode),
-            enabled: true,
+            kind: ItemKind::Action(ContextAction::Disabled),
+            enabled: false,
             shortcut: None,
         },
         ContextItem {
