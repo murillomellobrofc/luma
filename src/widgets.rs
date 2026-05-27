@@ -292,12 +292,26 @@ impl WidgetRegistry {
     }
 }
 
+/// Onde o widget mora — versão TOML de luma_widget::WidgetHost.
+/// `{ host = "panel" }` (default) ou `{ host = "desktop", x = N, y = M }`.
+/// Internally-tagged via serde: o campo `host` discrimina a variante.
+#[derive(Debug, serde::Deserialize, Default)]
+#[serde(tag = "host", rename_all = "lowercase")]
+pub enum Placement {
+    #[default]
+    Panel,
+    Desktop { x: i32, y: i32 },
+}
+
 /// Entrada do layout.toml — antes do construtor rodar. O `type`
-/// resolve o builder; o `config` é entregue cru pra ele.
+/// resolve o builder; o `placement` decide onde o widget vai
+/// (painel ou desktop); o `config` é entregue cru pro builder.
 #[derive(Debug, serde::Deserialize)]
 pub struct LayoutEntry {
     #[serde(rename = "type")]
     pub type_name: String,
+    #[serde(default)]
+    pub placement: Placement,
     #[serde(default)]
     pub config: toml::Table,
 }
