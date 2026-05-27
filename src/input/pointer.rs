@@ -2038,11 +2038,15 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         pointer_pos.x.round() as i32 - cell_x,
                         pointer_pos.y.round() as i32 - cell_y,
                     ));
-                    // Modo de edição fatia 1: arrastar-pra-mover só
-                    // libera com edit_mode ligado. Selecionar e abrir
-                    // (double-click) seguem funcionando normalmente
-                    // fora do modo — o gate é só sobre mover.
-                    if state.edit_mode {
+                    // Modo de edição fatia 1: arrastar-pra-mover está
+                    // bloqueado DENTRO do modo de edição. Foco do
+                    // modo é widget/painel — mexer em ícone enquanto
+                    // organiza widgets só atrapalha. Fora do modo,
+                    // ícones movem livre (uso normal do desktop).
+                    // Selecionar e abrir (double-click) seguem
+                    // funcionando dos dois lados — o gate é só sobre
+                    // o reposicionar.
+                    if !state.edit_mode {
                         state.desktop_drag = Some(crate::desktop_icons::DesktopDrag {
                             path: entry.path.clone(),
                             start_screen: pointer_pos,
