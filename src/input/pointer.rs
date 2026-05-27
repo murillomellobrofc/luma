@@ -2038,13 +2038,19 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         pointer_pos.x.round() as i32 - cell_x,
                         pointer_pos.y.round() as i32 - cell_y,
                     ));
-                    state.desktop_drag = Some(crate::desktop_icons::DesktopDrag {
-                        path: entry.path.clone(),
-                        start_screen: pointer_pos,
-                        offset,
-                        current_screen: pointer_pos,
-                        active: false,
-                    });
+                    // Modo de edição fatia 1: arrastar-pra-mover só
+                    // libera com edit_mode ligado. Selecionar e abrir
+                    // (double-click) seguem funcionando normalmente
+                    // fora do modo — o gate é só sobre mover.
+                    if state.edit_mode {
+                        state.desktop_drag = Some(crate::desktop_icons::DesktopDrag {
+                            path: entry.path.clone(),
+                            start_screen: pointer_pos,
+                            offset,
+                            current_screen: pointer_pos,
+                            active: false,
+                        });
+                    }
                     // H50.2a.sel.4: detecta double-click (<=500ms,
                     // mesmo ícone) → abre via xdg-open. NÃO Ctrl+click.
                     let now = std::time::Instant::now();
