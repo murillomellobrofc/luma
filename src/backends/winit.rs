@@ -7146,6 +7146,66 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
+                        // H58 fatia 2: lock screen placeholder. Quando
+                        // state.locked = true, cobre tudo com overlay
+                        // coffee profundo + texto "Bloqueado" + dica.
+                        // Substituído pelo lock screen Golden Hour
+                        // completo nas próximas fatias.
+                        if data.state.locked {
+                            let lock_theme = crate::theme::current();
+                            let overlay = crate::gfx::make_rounded_panel(
+                                output_size_logical.w,
+                                output_size_logical.h,
+                                0,
+                                lock_theme.colors.taskbar_bg_top,
+                            );
+                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, loc.to_f64(), &overlay,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            // Texto centralizado.
+                            if let Some(tr) = data.state.text.as_ref() {
+                                let lines = [
+                                    ("Luma — bloqueado", 28.0),
+                                    ("Esc pra desbloquear", 14.0),
+                                ];
+                                let center_x = output_size_logical.w / 2;
+                                let center_y = output_size_logical.h / 2;
+                                let mut cur_y = center_y - 30;
+                                for (text, size) in lines.iter() {
+                                    let (px, w, h) = tr.rasterize_colored(
+                                        text, *size,
+                                        lock_theme.colors.text_primary,
+                                    );
+                                    if w > 0 && h > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let lx = center_x - (w as i32) / 2;
+                                        let ly = cur_y;
+                                        let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, tloc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        cur_y += h as i32 + 16;
+                                    }
+                                }
+                            }
+                        }
+
                         let render_result = smithay::desktop::space::render_output::<
                             _,
                             LumaRenderElement<GlesRenderer>,
