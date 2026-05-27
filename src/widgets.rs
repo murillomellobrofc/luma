@@ -255,13 +255,34 @@ impl std::error::Error for ConfigError {}
 pub type WidgetBuilder =
     Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError>>;
 
+/// Tipo de dado de um campo de config do widget. Determina qual
+/// input o formulário do Configurar mostra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigFieldType {
+    String,
+    Int,
+    Bool,
+}
+
+/// Schema de um campo de config. O formulário "Configurar" do modo
+/// de edição renderiza um input por campo, tipo determinado por
+/// `field_type`. O valor atual é lido do config block do widget vivo.
+#[derive(Debug, Clone)]
+pub struct ConfigFieldSchema {
+    pub key: String,
+    pub field_type: ConfigFieldType,
+    pub label: String,
+    pub default: toml::Value,
+}
+
 /// Metadata de um tipo de widget no registro. Usado pelo seletor
-/// "Adicionar widget" pra mostrar nome, descrição e config default.
+/// "Adicionar widget" e pelo cartão "Configurar".
 pub struct WidgetTypeMeta {
     pub type_id: String,
     pub display_name: String,
     pub description: String,
     pub default_config: toml::Table,
+    pub schema: Vec<ConfigFieldSchema>,
     builder: WidgetBuilder,
 }
 
@@ -285,6 +306,7 @@ impl WidgetRegistry {
         display_name: impl Into<String>,
         description: impl Into<String>,
         default_config: toml::Table,
+        schema: Vec<ConfigFieldSchema>,
         builder: F,
     ) where
         F: Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError> + 'static,
@@ -296,6 +318,7 @@ impl WidgetRegistry {
             display_name: display_name.into(),
             description: description.into(),
             default_config,
+            schema,
             builder: Box::new(builder),
         });
         self.index.insert(id, idx);
@@ -627,6 +650,33 @@ pub fn append_widget(
     Ok(new_id)
 }
 
+/// Modo de edição fatia 2.5: substitui o bloco config de uma entrada
+/// [[widget]] no layout.toml por um Table novo. Mira por id.
+pub fn save_widget_config(
+    id: &str,
+    new_config: &toml::Table,
+    all_ids: &[String],
+) -> Result<(), String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    let idx = find_entry_by_id(&doc, id)
+        .ok_or_else(|| format!("id '{id}' não encontrado"))?;
+    let widgets = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+        .ok_or_else(|| "sem [[widget]]".to_string())?;
+    let entry = widgets.get_mut(idx).unwrap();
+    let mut cfg_inline = toml_edit::InlineTable::new();
+    for (k, v) in new_config {
+        if let Some(tv) = toml_value_to_edit(v) {
+            cfg_inline.insert(k, tv);
+        }
+    }
+    entry.insert("config", toml_edit::Item::Value(toml_edit::Value::InlineTable(cfg_inline)));
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("write falhou: {e}"))?;
+    Ok(())
+}
+
 fn toml_value_to_edit(v: &toml::Value) -> Option<toml_edit::Value> {
     match v {
         toml::Value::String(s) => Some(toml_edit::Value::from(s.as_str())),
@@ -714,6 +764,12 @@ pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistr
             "Rótulo",
             "Texto fixo numa pill Golden Hour",
             def,
+            vec![ConfigFieldSchema {
+                key: "text".into(),
+                field_type: ConfigFieldType::String,
+                label: "Texto".into(),
+                default: toml::Value::String("Novo rótulo".into()),
+            }],
             move |cfg| {
                 LabelWidget::from_config(cfg, tr.clone())
                     .map(|w| Box::new(w) as Box<dyn Widget + Send>)
@@ -729,6 +785,12 @@ pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistr
             "Contador",
             "Número subindo 1/s — POC de widget com estado",
             def,
+            vec![ConfigFieldSchema {
+                key: "start".into(),
+                field_type: ConfigFieldType::Int,
+                label: "Começar em".into(),
+                default: toml::Value::Integer(0),
+            }],
             move |cfg| {
                 CounterWidget::from_config(cfg, tr.clone())
                     .map(|w| Box::new(w) as Box<dyn Widget + Send>)

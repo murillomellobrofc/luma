@@ -730,8 +730,104 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
         // Modo de edição fatia 1+2.3: Pronto + botões da alça.
         if state.edit_mode {
-            // Fatia 2.3: hit-test nos botões da alça (ANTES do Pronto
-            // pra prioridade correta). Alça normal: [0]=Mover, [1]=Configurar,
+            // Fatia 2.5: config card — Salvar, Cancelar, +/- int.
+            if state.config_card_open {
+                let save_hit = state.config_card_save_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                let cancel_hit = state.config_card_cancel_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                if save_hit {
+                    // Salvar: write config + rebuild widget.
+                    if let Some(sel_id) = state.selected_widget_id.clone() {
+                        let new_cfg = state.config_form_values.clone();
+                        let _ = crate::widgets::save_widget_config(
+                            &sel_id, &new_cfg, &state.widget_all_ids,
+                        );
+                        // Rebuild widget vivo.
+                        if let Some(reg) = state.widget_registry.as_ref() {
+                            // Painel.
+                            if let Some(idx) = state.widget_ids.iter().position(|id| *id == sel_id) {
+                                // Precisa saber o type pra rebuild.
+                                if let Some(path) = crate::widgets::default_layout_path() {
+                                    if let Ok(c) = std::fs::read_to_string(&path) {
+                                        if let Ok(f) = toml::from_str::<toml::Value>(&c) {
+                                            if let Some(ws) = f.get("widget").and_then(|v| v.as_array()) {
+                                                for w in ws {
+                                                    if w.get("id").and_then(|v| v.as_str()) == Some(&sel_id) {
+                                                        if let Some(t) = w.get("type").and_then(|v| v.as_str()) {
+                                                            if let Ok(new_w) = reg.build(t, &new_cfg) {
+                                                                state.widgets[idx] = new_w;
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        tracing::info!("modo de edição: config salva pra '{sel_id}'");
+                    }
+                    state.config_card_open = false;
+                    state.config_editing_field = None;
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+                if cancel_hit {
+                    state.config_card_open = false;
+                    state.config_editing_field = None;
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+                // +/- dos campos int.
+                for (key, plus_r, minus_r) in state.config_card_int_rects.iter() {
+                    if plus_r.to_f64().contains(pointer_pos) {
+                        let val = state.config_form_values
+                            .get(key).and_then(|v| v.as_integer()).unwrap_or(0);
+                        state.config_form_values.insert(
+                            key.clone(), toml::Value::Integer(val + 1),
+                        );
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial, time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
+                    if minus_r.to_f64().contains(pointer_pos) {
+                        let val = state.config_form_values
+                            .get(key).and_then(|v| v.as_integer()).unwrap_or(0);
+                        state.config_form_values.insert(
+                            key.clone(), toml::Value::Integer(val - 1),
+                        );
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial, time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
+                }
+                // Click num campo string → ativa edição inline.
+                for (key, rect) in state.config_card_str_rects.iter() {
+                    if rect.to_f64().contains(pointer_pos) {
+                        state.config_editing_field = Some(key.clone());
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial, time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
+                }
+            }
+            // Fatia 2.3: hit-test nos botões da alça (ANTES do Pronto).
+            // Alça normal: [0]=Mover, [1]=Configurar,
             // [2]=Redimensionar, [3]=Remover. Confirm mode: [0]=label,
             // [1]=Sim, [2]=Não.
             let handle_hit: Option<usize> = state.handle_btn_rects.iter()
@@ -788,8 +884,38 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             // Remover: entra em confirm mode.
                             state.handle_confirm_mode = true;
                         }
+                        1 => {
+                            // Configurar: abre o config card.
+                            if !state.config_card_open {
+                                state.config_card_open = true;
+                                state.config_form_values.clear();
+                                state.config_editing_field = None;
+                                // Preenche form com config atual do widget.
+                                if let Some(sel_id) = state.selected_widget_id.as_ref() {
+                                    // Lê config atual do layout.toml.
+                                    if let Some(path) = crate::widgets::default_layout_path() {
+                                        if let Ok(content) = std::fs::read_to_string(&path) {
+                                            if let Ok(file) = toml::from_str::<toml::Value>(&content) {
+                                                if let Some(widgets) = file.get("widget").and_then(|v| v.as_array()) {
+                                                    for w in widgets {
+                                                        if w.get("id").and_then(|v| v.as_str()) == Some(sel_id) {
+                                                            if let Some(cfg) = w.get("config").and_then(|v| v.as_table()) {
+                                                                state.config_form_values = cfg.clone();
+                                                            }
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                state.config_card_open = false;
+                            }
+                        }
                         // Mover (0): no-op (nudge por seta é o mover acessível)
-                        // Configurar (1), Redimensionar (2): disabled
+                        // Redimensionar (2): disabled
                         _ => {}
                     }
                 }
