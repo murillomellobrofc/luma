@@ -577,17 +577,23 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
-    // Fatia 2.2: mouseup encerra drag de reorder de painel. A ordem
-    // nova já está no Vec (swaps em motion). Persistência via
-    // toml_edit fica no commit 3 — por ora ao reiniciar volta à
-    // ordem do arquivo. Click curto sem threshold = no-op.
+    // Fatia 2.2: mouseup encerra drag de reorder de painel e salva
+    // a ordem nova no layout.toml via toml_edit.
     if button_state == ButtonState::Released {
         if let Some(drag) = state.panel_widget_drag.take() {
             if drag.active {
-                tracing::info!(
-                    "modo de edição: reorder de painel encerrado (pos final={})",
-                    drag.current_index,
-                );
+                match crate::widgets::save_panel_order(
+                    &state.widget_ids,
+                    &state.widget_all_ids,
+                ) {
+                    Ok(()) => tracing::info!(
+                        "modo de edição: reorder salvo (nova ordem: {:?})",
+                        state.widget_ids,
+                    ),
+                    Err(e) => tracing::warn!(
+                        "modo de edição: falha ao salvar reorder: {e}",
+                    ),
+                }
             }
         }
     }
