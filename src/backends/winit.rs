@@ -7156,12 +7156,7 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
-                        // Fatia 3 widgets: tick loop. Pra cada widget,
-                        // verifica se last_tick.elapsed() >= interval
-                        // e chama tick() quando vence. Mesma forma dos
-                        // elapsed-checks do OSD/toasts. Sem catch-up de
-                        // ticks perdidos — o widget só vê "passou tempo
-                        // suficiente, atualiza agora".
+                        // Fatia 3 widgets: tick loop dos widgets do painel.
                         for (widget, last_tick) in data
                             .state
                             .widgets
@@ -7172,6 +7167,25 @@ pub fn init_winit(
                                 if last_tick.elapsed() >= interval {
                                     widget.tick();
                                     *last_tick = std::time::Instant::now();
+                                }
+                            }
+                        }
+                        // Fatia 4 widgets: tick loop estendido pros
+                        // widgets de desktop. Mesma lógica do painel,
+                        // só que o widget vive dentro de um SpaceItem
+                        // e a mutação passa pelos Mutexes do
+                        // DesktopWidgetItem.
+                        for item in data.state.space.elements() {
+                            if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                let mut last = dw.last_tick.lock()
+                                    .expect("last_tick poisoned");
+                                let mut widget = dw.widget.lock()
+                                    .expect("widget poisoned");
+                                if let Some(interval) = widget.tick_interval() {
+                                    if last.elapsed() >= interval {
+                                        widget.tick();
+                                        *last = std::time::Instant::now();
+                                    }
                                 }
                             }
                         }

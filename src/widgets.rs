@@ -366,6 +366,41 @@ pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
 /// "label" por enquanto; cresce com cada novo tipo. O `text_renderer`
 /// fica capturado nas closures dos builders que precisam dele —
 /// caller passa um único Arc e o registro segura as cópias.
+/// Resultado da carga do layout.toml — widgets já distribuídos por host.
+/// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
+/// como SpaceItem::DesktopWidget no x,y de cada entrada.
+pub struct WidgetLoadResult {
+    pub panel: Vec<Box<dyn Widget + Send>>,
+    /// (widget, x, y) — coordenadas lógicas do desktop.
+    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32)>,
+}
+
+/// Pipeline completo de carga: registro default + parsing + dispatch
+/// por placement. Caller (LumaState::new) consome o resultado.
+/// Entradas inválidas (tipo desconhecido, config errada) são puladas
+/// com warn — boot nunca derruba.
+pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
+    let registry = build_default_registry(text_renderer);
+    let entries = default_layout_path()
+        .map(|p| load_layout(&p))
+        .unwrap_or_default();
+    tracing::info!("widgets: {} entrada(s) no layout.toml", entries.len());
+    let mut panel = Vec::new();
+    let mut desktop = Vec::new();
+    for entry in entries {
+        match registry.build(&entry.type_name, &entry.config) {
+            Ok(w) => match entry.placement {
+                Placement::Panel => panel.push(w),
+                Placement::Desktop { x, y } => desktop.push((w, x, y)),
+            },
+            Err(e) => tracing::warn!(
+                "widget pulado (type={}): {e}", entry.type_name,
+            ),
+        }
+    }
+    WidgetLoadResult { panel, desktop }
+}
+
 pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
     {
