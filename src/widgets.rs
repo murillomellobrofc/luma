@@ -253,7 +253,7 @@ impl std::error::Error for ConfigError {}
 /// recursos do boot (TextRenderer compartilhado, etc) — o registro
 /// segura essas captures quando o builder é registrado.
 pub type WidgetBuilder =
-    Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget>, ConfigError>>;
+    Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError>>;
 
 /// Mapa de "tipo no toml" pra builder. Construído uma vez no boot,
 /// imutável depois. Quando widgets de terceiros entrarem (pós-v1),
@@ -270,7 +270,7 @@ impl WidgetRegistry {
 
     pub fn register<F>(&mut self, name: impl Into<String>, builder: F)
     where
-        F: Fn(&toml::Table) -> Result<Box<dyn Widget>, ConfigError> + 'static,
+        F: Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError> + 'static,
     {
         self.builders.insert(name.into(), Box::new(builder));
     }
@@ -282,7 +282,7 @@ impl WidgetRegistry {
         &self,
         type_name: &str,
         config: &toml::Table,
-    ) -> Result<Box<dyn Widget>, ConfigError> {
+    ) -> Result<Box<dyn Widget + Send>, ConfigError> {
         match self.builders.get(type_name) {
             Some(b) => b(config),
             None => Err(ConfigError(format!(
@@ -372,14 +372,14 @@ pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistr
         let tr = text_renderer.clone();
         registry.register("label", move |cfg| {
             LabelWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget>)
+                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
         });
     }
     {
         let tr = text_renderer.clone();
         registry.register("counter", move |cfg| {
             CounterWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget>)
+                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
         });
     }
     registry

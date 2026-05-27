@@ -1,13 +1,46 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use smithay::{
-    backend::renderer::{element::AsRenderElements, ImportAll, ImportMem, Renderer, Texture},
+    backend::renderer::{
+        element::{
+            memory::MemoryRenderBufferRenderElement, AsRenderElements, Kind,
+        },
+        ImportAll, ImportMem, Renderer, Texture,
+    },
     desktop::space::SpaceElement,
     output::Output,
-    utils::{IsAlive, Logical, Physical, Point, Rectangle, Scale},
+    utils::{IsAlive, Logical, Physical, Point, Rectangle, Scale, Size},
 };
 
 use crate::{render::LumaRenderElement, wallpaper::Wallpaper, window::LumaWindow};
+
+/// Item de widget mapeado no desktop. Z-index 5 (mesma camada dos
+/// ícones, acima do wallpaper, atrás das janelas).
+///
+/// O widget é mutado pelo loop de tick do redraw handler — daí o
+/// Mutex. last_tick segue paralelo ao Vec<Instant> do painel, só que
+/// per-widget porque cada DesktopWidget vive sozinho.
+///
+/// x/y são lógicos, origem no canto superior-esquerdo do output
+/// principal. Multi-monitor fica pra depois (spec fatia 4).
+pub struct DesktopWidgetItem {
+    pub widget: Mutex<Box<dyn luma_widget::Widget + Send>>,
+    pub last_tick: Mutex<Instant>,
+    pub x: i32,
+    pub y: i32,
+}
+
+impl DesktopWidgetItem {
+    pub fn new(widget: Box<dyn luma_widget::Widget + Send>, x: i32, y: i32) -> Self {
+        Self {
+            widget: Mutex::new(widget),
+            last_tick: Mutex::new(Instant::now()),
+            x,
+            y,
+        }
+    }
+}
 
 /// Item do `Space` do Luma. Wallpaper e janelas convivem no mesmo Space
 /// porque `Space<E>` exige um único tipo E — este enum faz dispatch
@@ -21,6 +54,10 @@ pub enum SpaceItem {
     /// Camada de ícones do desktop (z_index=5, entre wallpaper e
     /// janelas). H50.
     DesktopIcons(Arc<crate::desktop_icons::DesktopIconsLayer>),
+    /// Widget de desktop (fatia 4 widgets). Mesmo z=5 dos ícones —
+    /// atrás das janelas, plasmoid-style. Position é por-item; o
+    /// Space mapeia em (x, y).
+    DesktopWidget(Arc<DesktopWidgetItem>),
 }
 
 impl SpaceItem {
@@ -47,6 +84,7 @@ impl std::fmt::Debug for SpaceItem {
             Self::Window(_) => f.debug_struct("SpaceItem::Window").finish(),
             Self::Wallpaper(_) => f.debug_struct("SpaceItem::Wallpaper").finish(),
             Self::DesktopIcons(_) => f.debug_struct("SpaceItem::DesktopIcons").finish(),
+            Self::DesktopWidget(_) => f.debug_struct("SpaceItem::DesktopWidget").finish(),
         }
     }
 }
@@ -57,6 +95,7 @@ impl Clone for SpaceItem {
             Self::Window(w) => Self::Window(w.clone()),
             Self::Wallpaper(w) => Self::Wallpaper(Arc::clone(w)),
             Self::DesktopIcons(l) => Self::DesktopIcons(Arc::clone(l)),
+            Self::DesktopWidget(w) => Self::DesktopWidget(Arc::clone(w)),
         }
     }
 }
@@ -67,6 +106,7 @@ impl PartialEq for SpaceItem {
             (Self::Window(a), Self::Window(b)) => a == b,
             (Self::Wallpaper(a), Self::Wallpaper(b)) => Arc::ptr_eq(a, b),
             (Self::DesktopIcons(a), Self::DesktopIcons(b)) => Arc::ptr_eq(a, b),
+            (Self::DesktopWidget(a), Self::DesktopWidget(b)) => Arc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -78,6 +118,7 @@ impl IsAlive for SpaceItem {
             Self::Window(w) => IsAlive::alive(w),
             Self::Wallpaper(_) => true,
             Self::DesktopIcons(l) => IsAlive::alive(l.as_ref()),
+            Self::DesktopWidget(_) => true,
         }
     }
 }
@@ -88,6 +129,10 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::bbox(w),
             Self::Wallpaper(w) => SpaceElement::bbox(w.as_ref()),
             Self::DesktopIcons(l) => SpaceElement::bbox(l.as_ref()),
+            // bbox de tamanho fixo razoável — o widget renderiza
+            // num buffer próprio cujo tamanho varia, mas pra fins
+            // de damage/z-order esse rect é suficiente. POC.
+            Self::DesktopWidget(_) => Rectangle::from_size(Size::from((220, 50))),
         }
     }
 
@@ -96,6 +141,7 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::geometry(w),
             Self::Wallpaper(w) => SpaceElement::geometry(w.as_ref()),
             Self::DesktopIcons(l) => SpaceElement::geometry(l.as_ref()),
+            Self::DesktopWidget(_) => Rectangle::from_size(Size::from((220, 50))),
         }
     }
 
@@ -104,6 +150,9 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::is_in_input_region(w, point),
             Self::Wallpaper(w) => SpaceElement::is_in_input_region(w.as_ref(), point),
             Self::DesktopIcons(l) => SpaceElement::is_in_input_region(l.as_ref(), point),
+            // H58.4 fatia 4: widget de desktop é read-only por enquanto.
+            // Fora de input region → não captura clique.
+            Self::DesktopWidget(_) => false,
         }
     }
 
@@ -112,6 +161,7 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::set_activate(w, activated),
             Self::Wallpaper(w) => SpaceElement::set_activate(w.as_ref(), activated),
             Self::DesktopIcons(l) => SpaceElement::set_activate(l.as_ref(), activated),
+            Self::DesktopWidget(_) => {}
         }
     }
 
@@ -120,6 +170,7 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::output_enter(w, output, overlap),
             Self::Wallpaper(w) => SpaceElement::output_enter(w.as_ref(), output, overlap),
             Self::DesktopIcons(l) => SpaceElement::output_enter(l.as_ref(), output, overlap),
+            Self::DesktopWidget(_) => {}
         }
     }
 
@@ -128,6 +179,7 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::output_leave(w, output),
             Self::Wallpaper(w) => SpaceElement::output_leave(w.as_ref(), output),
             Self::DesktopIcons(l) => SpaceElement::output_leave(l.as_ref(), output),
+            Self::DesktopWidget(_) => {}
         }
     }
 
@@ -136,6 +188,7 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::refresh(w),
             Self::Wallpaper(w) => SpaceElement::refresh(w.as_ref()),
             Self::DesktopIcons(l) => SpaceElement::refresh(l.as_ref()),
+            Self::DesktopWidget(_) => {}
         }
     }
 
@@ -144,6 +197,10 @@ impl SpaceElement for SpaceItem {
             Self::Window(w) => SpaceElement::z_index(w),
             Self::Wallpaper(w) => SpaceElement::z_index(w.as_ref()),
             Self::DesktopIcons(l) => SpaceElement::z_index(l.as_ref()),
+            // Mesma camada dos ícones: acima do wallpaper, atrás das
+            // janelas. Empate com ícones desempatado por ordem de
+            // inserção (spec aceita).
+            Self::DesktopWidget(_) => 5,
         }
     }
 }
@@ -180,6 +237,31 @@ where
                 scale,
                 alpha,
             ),
+            Self::DesktopWidget(dw) => {
+                // Render do widget é stateless do nosso lado — lock,
+                // render(ctx), wrap no MemoryRenderBufferRenderElement
+                // no location que o Space nos passou (já contém o
+                // x/y mapeado, em coords Physical).
+                let _ = alpha;
+                let ctx = luma_widget::RenderCtx {
+                    host: luma_widget::WidgetHost::Desktop,
+                    theme: crate::theme::current(),
+                };
+                let buffer = {
+                    let w = dw.widget.lock().expect("widget poisoned");
+                    w.render(&ctx)
+                };
+                match MemoryRenderBufferRenderElement::from_buffer(
+                    renderer,
+                    location.to_f64(),
+                    &buffer,
+                    None, None, None,
+                    Kind::Unspecified,
+                ) {
+                    Ok(elem) => vec![LumaRenderElement::Memory(elem).into()],
+                    Err(_) => Vec::new(),
+                }
+            }
         }
     }
 }
