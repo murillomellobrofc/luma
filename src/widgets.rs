@@ -6,7 +6,14 @@
 //! As implementações ficam aqui no crate principal porque dependem
 //! de helpers locais (gfx, text). O TRAIT mora em luma-widget pra
 //! permitir widgets de terceiros sem ciclo de deps.
+//!
+//! Fatia 2: registro + parsing do layout.toml moram aqui também
+//! (ver `WidgetRegistry`, `load_layout`). O construtor cravado
+//! `LabelWidget::new` continua existindo pra compat, e a fatia 2.3
+//! adiciona `from_config` pra montar via toml.
 
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use luma_widget::{RenderCtx, Widget};
@@ -154,4 +161,120 @@ fn is_inside_rounded(x: i32, y: i32, w: i32, h: i32, radius: i32, r_sq: i32) -> 
     let dx = x - cx;
     let dy = y - cy;
     dx * dx + dy * dy <= r_sq
+}
+
+// ─── Fatia 2: registro + parsing do layout.toml ──────────────────────
+
+/// Erro de configuração de widget. String-based pra POC. Os builders
+/// devolvem isso quando o bloco config tem campo faltando, tipo
+/// errado, valor fora de range, etc.
+#[derive(Debug)]
+pub struct ConfigError(pub String);
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for ConfigError {}
+
+/// Função construtora de um widget a partir do bloco config dele.
+/// Closures (não fn ptr puro) porque alguns widgets dependem de
+/// recursos do boot (TextRenderer compartilhado, etc) — o registro
+/// segura essas captures quando o builder é registrado.
+pub type WidgetBuilder =
+    Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget>, ConfigError>>;
+
+/// Mapa de "tipo no toml" pra builder. Construído uma vez no boot,
+/// imutável depois. Quando widgets de terceiros entrarem (pós-v1),
+/// o registro vira o ponto de plug-in.
+#[derive(Default)]
+pub struct WidgetRegistry {
+    builders: HashMap<String, WidgetBuilder>,
+}
+
+impl WidgetRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register<F>(&mut self, name: impl Into<String>, builder: F)
+    where
+        F: Fn(&toml::Table) -> Result<Box<dyn Widget>, ConfigError> + 'static,
+    {
+        self.builders.insert(name.into(), Box::new(builder));
+    }
+
+    /// Constrói um widget pelo nome do tipo. Erro = tipo desconhecido
+    /// OU builder devolveu config inválida. Caller (a luma-bar) pula
+    /// a entrada + loga warn, em vez de derrubar o painel.
+    pub fn build(
+        &self,
+        type_name: &str,
+        config: &toml::Table,
+    ) -> Result<Box<dyn Widget>, ConfigError> {
+        match self.builders.get(type_name) {
+            Some(b) => b(config),
+            None => Err(ConfigError(format!(
+                "tipo de widget desconhecido: {type_name}"
+            ))),
+        }
+    }
+}
+
+/// Entrada do layout.toml — antes do construtor rodar. O `type`
+/// resolve o builder; o `config` é entregue cru pra ele.
+#[derive(Debug, serde::Deserialize)]
+pub struct LayoutEntry {
+    #[serde(rename = "type")]
+    pub type_name: String,
+    #[serde(default)]
+    pub config: toml::Table,
+}
+
+#[derive(Debug, serde::Deserialize, Default)]
+struct LayoutFile {
+    #[serde(default, rename = "widget")]
+    widgets: Vec<LayoutEntry>,
+}
+
+/// Path canônico do layout.toml: `~/.config/luma/layout.toml`.
+/// Retorna None se `$HOME` não existir (não deveria, mas seguro).
+pub fn default_layout_path() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    let mut p = PathBuf::from(home);
+    p.push(".config");
+    p.push("luma");
+    p.push("layout.toml");
+    Some(p)
+}
+
+/// Lê + parseia o layout.toml. Comportamentos resilientes:
+/// - Arquivo ausente: Vec vazio, log info (estado normal pra novo user)
+/// - I/O error: Vec vazio, log warn
+/// - TOML mal formado: Vec vazio, log warn (NÃO derruba o boot)
+///
+/// Entradas com tipo desconhecido NÃO são filtradas aqui — esse
+/// load só faz parse estrutural. O registro decide o que é válido
+/// quando `build()` rodar.
+pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::info!("layout.toml ausente em {:?} — sem widgets", path);
+            return Vec::new();
+        }
+        Err(e) => {
+            tracing::warn!("layout.toml em {:?} ilegível: {e}", path);
+            return Vec::new();
+        }
+    };
+    match toml::from_str::<LayoutFile>(&content) {
+        Ok(f) => f.widgets,
+        Err(e) => {
+            tracing::warn!("layout.toml em {:?} mal formado: {e}", path);
+            Vec::new()
+        }
+    }
 }
