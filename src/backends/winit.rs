@@ -7435,8 +7435,11 @@ pub fn init_winit(
                                         let handle_w = t_edit.handle_padding * 2 + total_btns_w;
                                         let handle_h = t_edit.handle_padding * 2 + btn_h;
                                         // Posiciona centrado sobre o widget, acima.
-                                        let handle_x = wr.loc.x + (wr.size.w - handle_w) / 2;
-                                        let handle_y = wr.loc.y - handle_h - 6;
+                                        // Clamp pra não sair da tela (esquerda/direita/cima).
+                                        let raw_x = wr.loc.x + (wr.size.w - handle_w) / 2;
+                                        let handle_x = raw_x.max(4).min(output_w - handle_w - 4);
+                                        let raw_y = wr.loc.y - handle_h - 6;
+                                        let handle_y = raw_y.max(4);
                                         // Bg da alça.
                                         let hbg = crate::gfx::make_rounded_panel(
                                             handle_w, handle_h, t_edit.handle_corner, t_edit.handle_bg,

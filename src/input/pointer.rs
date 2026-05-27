@@ -707,11 +707,78 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             pointer.frame(state);
             return;
         }
-        // Modo de edição fatia 1: botão "Pronto" na barra de cima.
-        // Hit-test acontece logo depois do lock pra ter prioridade
-        // sobre interações de janela / desktop / popup. Click consome
-        // o evento (não propaga pra surface debaixo).
+        // Modo de edição fatia 1+2.3: Pronto + botões da alça.
         if state.edit_mode {
+            // Fatia 2.3: hit-test nos botões da alça (ANTES do Pronto
+            // pra prioridade correta). Alça normal: [0]=Mover, [1]=Configurar,
+            // [2]=Redimensionar, [3]=Remover. Confirm mode: [0]=label,
+            // [1]=Sim, [2]=Não.
+            let handle_hit: Option<usize> = state.handle_btn_rects.iter()
+                .position(|r| r.to_f64().contains(pointer_pos));
+            if let Some(btn_idx) = handle_hit {
+                if state.handle_confirm_mode {
+                    match btn_idx {
+                        1 => {
+                            // Sim: remove widget.
+                            if let Some(sel_id) = state.selected_widget_id.take() {
+                                // Remove do painel se for painel.
+                                if let Some(idx) = state.widget_ids.iter().position(|id| *id == sel_id) {
+                                    state.widgets.remove(idx);
+                                    state.widget_ids.remove(idx);
+                                    state.widget_last_ticks.remove(idx);
+                                    state.widget_rects.clear();
+                                }
+                                // Remove do space se for desktop.
+                                let dw_item: Option<crate::space_item::SpaceItem> = state.space.elements()
+                                    .find(|item| {
+                                        if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                            dw.id == sel_id
+                                        } else { false }
+                                    })
+                                    .cloned();
+                                if let Some(item) = dw_item {
+                                    state.space.unmap_elem(&item);
+                                }
+                                // Remove do toml.
+                                match crate::widgets::remove_widget_by_id(
+                                    &sel_id, &state.widget_all_ids,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "modo de edição: widget '{sel_id}' removido",
+                                    ),
+                                    Err(e) => tracing::warn!(
+                                        "modo de edição: falha ao remover: {e}",
+                                    ),
+                                }
+                                // Limpa also all_ids pra não achar fantasma.
+                                state.widget_all_ids.retain(|id| *id != sel_id);
+                            }
+                            state.handle_confirm_mode = false;
+                        }
+                        2 => {
+                            // Não: cancela confirmação.
+                            state.handle_confirm_mode = false;
+                        }
+                        _ => {} // label do "Remover este widget?" — no-op
+                    }
+                } else {
+                    match btn_idx {
+                        3 => {
+                            // Remover: entra em confirm mode.
+                            state.handle_confirm_mode = true;
+                        }
+                        // Mover (0): no-op (nudge por seta é o mover acessível)
+                        // Configurar (1), Redimensionar (2): disabled
+                        _ => {}
+                    }
+                }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Pronto.
             let hit = state
                 .edit_mode_done_rect
                 .map(|r| r.to_f64().contains(pointer_pos))
