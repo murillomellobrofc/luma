@@ -75,4 +75,39 @@ impl WaylandDndGrabHandler for LumaState {
 
 impl OutputHandler for LumaState {}
 
+impl smithay::wayland::session_lock::SessionLockHandler for LumaState {
+    fn lock_state(&mut self)
+        -> &mut smithay::wayland::session_lock::SessionLockManagerState
+    {
+        &mut self.session_lock_state
+    }
+
+    fn lock(
+        &mut self,
+        confirmation: smithay::wayland::session_lock::SessionLocker,
+    ) {
+        // H58 Fatia 1: confirma o lock imediatamente. Sem render
+        // próprio ainda — render path nas próximas fatias suprime as
+        // surfaces normais. Por ora, marca o flag.
+        tracing::info!("session lock: client requested lock");
+        self.locked = true;
+        confirmation.lock();
+    }
+
+    fn unlock(&mut self) {
+        tracing::info!("session lock: unlock");
+        self.locked = false;
+        self.lock_surfaces.clear();
+    }
+
+    fn new_surface(
+        &mut self,
+        surface: smithay::wayland::session_lock::LockSurface,
+        _output: smithay::reexports::wayland_server::protocol::wl_output::WlOutput,
+    ) {
+        tracing::info!("session lock: new lock surface");
+        self.lock_surfaces.push(surface);
+    }
+}
+
 smithay::delegate_dispatch2!(LumaState);

@@ -255,6 +255,14 @@ pub struct LumaState {
     /// quando o daemon não está rodando — o slider some do popup.
     /// H57.
     pub power_profiles: Option<crate::power::PowerProfilesState>,
+    /// H58: state manager do ext-session-lock-v1. Global criado em
+    /// LumaState::new. Smithay já entrega tudo via delegate_dispatch2.
+    pub session_lock_state: smithay::wayland::session_lock::SessionLockManagerState,
+    /// H58: true quando há lock ativo. Render path branca em vez do
+    /// desktop normal, input gates pra whitelist de keybindings.
+    pub locked: bool,
+    /// H58: lock surfaces criadas pelos clientes (uma por output).
+    pub lock_surfaces: Vec<smithay::wayland::session_lock::LockSurface>,
     /// Rects clicáveis do slider de modo de energia (popup de
     /// bateria). 3 zonas, cada uma um stop. Cacheadas pelo render
     /// pra hit-test do click/drag. H57.
@@ -661,6 +669,11 @@ impl LumaState {
 
         // H54.P4: spawn de notif retorna (slot, conn_handle). Conn é
         // populada pela thread server quando RequestName tem sucesso.
+        // H58: state manager do ext-session-lock-v1 (cria o global).
+        let session_lock_state_init =
+            smithay::wayland::session_lock::SessionLockManagerState::new::<LumaState, _>(
+                &dh, |_| true,
+            );
         let (notifications_slot, notifications_conn_handle) =
             crate::notifications::spawn();
         let mut state = Self {
@@ -765,6 +778,9 @@ impl LumaState {
             calendar_hoje_rect: None,
             luma_clipboard: None,
             power_profiles: None,
+            session_lock_state: session_lock_state_init,
+            locked: false,
+            lock_surfaces: Vec::new(),
             battery_mode_zones: Vec::new(),
             wifi_state: crate::wifi::WifiState::default(),
             wifi_last_refresh: None,
