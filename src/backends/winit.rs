@@ -7378,6 +7378,133 @@ pub fn init_winit(
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
+                                // Fatia 2.3: alça flutuante. Aparece sobre
+                                // o widget selecionado com 4 botões grandes.
+                                if let Some(sel_id) = data.state.selected_widget_id.clone() {
+                                    // Achar o rect do widget selecionado.
+                                    let sel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>> = {
+                                        // Painel: busca em widget_ids/widget_rects.
+                                        let panel_idx = data.state.widget_ids.iter()
+                                            .position(|id| *id == sel_id);
+                                        if let Some(idx) = panel_idx {
+                                            data.state.widget_rects.get(idx).copied()
+                                        } else {
+                                            // Desktop: busca no Space.
+                                            let found = data.state.space.elements()
+                                                .filter_map(|item| {
+                                                    if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                                        if dw.id == sel_id {
+                                                            data.state.space.element_location(item)
+                                                                .map(|loc| smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                                                    loc,
+                                                                    smithay::utils::Size::from((220, 50)),
+                                                                ))
+                                                        } else { None }
+                                                    } else { None }
+                                                })
+                                                .next();
+                                            found
+                                        }
+                                    };
+                                    if let Some(wr) = sel_rect {
+                                        let labels = if data.state.handle_confirm_mode {
+                                            vec![
+                                                ("Remover este widget?", false, true),
+                                                ("Sim", true, true),
+                                                ("Não", true, true),
+                                            ]
+                                        } else {
+                                            vec![
+                                                ("Mover", false, true),
+                                                ("Configurar", false, false),
+                                                ("Redimensionar", false, false),
+                                                ("Remover", false, true),
+                                            ]
+                                        };
+                                        // Pré-rasteriza pra medir.
+                                        let rasters: Vec<_> = labels.iter().map(|(lbl, _, enabled)| {
+                                            let color = if *enabled { t_edit.handle_btn_text_color } else { t_edit.handle_btn_text_disabled };
+                                            let (px, w, h) = tr.rasterize_colored(lbl, t_edit.handle_btn_text_size, color);
+                                            (px, w, h, *enabled)
+                                        }).collect();
+                                        let btn_h = t_edit.handle_btn_height;
+                                        let pad = t_edit.handle_btn_padding_h;
+                                        let gap = t_edit.handle_gap;
+                                        let btn_widths: Vec<i32> = rasters.iter().map(|(_, w, _, _)| pad * 2 + *w as i32).collect();
+                                        let total_btns_w: i32 = btn_widths.iter().sum::<i32>() + gap * (btn_widths.len() as i32 - 1).max(0);
+                                        let handle_w = t_edit.handle_padding * 2 + total_btns_w;
+                                        let handle_h = t_edit.handle_padding * 2 + btn_h;
+                                        // Posiciona centrado sobre o widget, acima.
+                                        let handle_x = wr.loc.x + (wr.size.w - handle_w) / 2;
+                                        let handle_y = wr.loc.y - handle_h - 6;
+                                        // Bg da alça.
+                                        let hbg = crate::gfx::make_rounded_panel(
+                                            handle_w, handle_h, t_edit.handle_corner, t_edit.handle_bg,
+                                        );
+                                        let hbloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((handle_x, handle_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, hbloc.to_f64(), &hbg,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        // Botões.
+                                        data.state.handle_btn_rects.clear();
+                                        let mut bx = handle_x + t_edit.handle_padding;
+                                        let by = handle_y + t_edit.handle_padding;
+                                        for (i, ((px, tw, th, enabled), &bw)) in rasters.iter().zip(btn_widths.iter()).enumerate() {
+                                            let bg = if !enabled {
+                                                t_edit.handle_btn_bg_disabled
+                                            } else if data.state.handle_btn_hover == Some(i) {
+                                                t_edit.handle_btn_bg_hover
+                                            } else {
+                                                t_edit.handle_btn_bg
+                                            };
+                                            let pill = crate::gfx::make_rounded_panel(
+                                                bw, btn_h, t_edit.handle_btn_corner, bg,
+                                            );
+                                            let ploc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((bx, by))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, ploc.to_f64(), &pill,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                            // Texto centralizado na pill.
+                                            if *tw > 0 && *th > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    px,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (*tw as i32, *th as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let tx = bx + (bw - *tw as i32) / 2;
+                                                let ty = by + (btn_h - *th as i32) / 2;
+                                                let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, tloc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                            // Cache rect pra hit-test.
+                                            data.state.handle_btn_rects.push(
+                                                smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                                    smithay::utils::Point::from((bx, by)),
+                                                    smithay::utils::Size::from((bw, btn_h)),
+                                                ),
+                                            );
+                                            bx += bw + gap;
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             // Edit mode desligado: limpa o rect cacheado

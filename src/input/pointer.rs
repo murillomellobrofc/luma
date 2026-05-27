@@ -147,6 +147,15 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // Fatia 2.3: hover dos botões da alça de widget.
+    {
+        let new_hover = state.handle_btn_rects.iter()
+            .position(|r| r.to_f64().contains(pos));
+        if state.handle_btn_hover != new_hover {
+            state.handle_btn_hover = new_hover;
+        }
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
