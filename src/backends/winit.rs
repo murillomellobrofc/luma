@@ -7366,19 +7366,62 @@ pub fn init_winit(
                             let t_edit = crate::theme::current().edit_mode.clone();
                             let output_w = output_size_logical.w;
                             let output_h = output_size_logical.h;
-                            // 1) Wash full screen.
-                            let overlay = crate::gfx::make_rounded_panel(
-                                output_w, output_h, 0, t_edit.overlay_color,
-                            );
-                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
+                            // 1) Inset: dim forte ao redor + cartão claro no centro.
+                            let im = t_edit.inset_margin;
+                            let ic = t_edit.inset_corner;
+                            let bar_h_top = t_edit.top_bar_height;
+                            // Área inset: abaixo da barra do topo, com margem dos lados e fundo.
+                            let inset_x = im;
+                            let inset_y = bar_h_top;
+                            let inset_w = output_w - im * 2;
+                            let inset_h = output_h - bar_h_top - im;
+                            // 4 faixas de dim ao redor do inset.
+                            let dim = t_edit.overlay_color;
+                            // Topo (barra ocupa, não precisa — já tem top_bar_bg).
+                            // Esquerda (do bar_h_top até o fundo).
+                            let left = crate::gfx::make_rounded_panel(im, output_h - bar_h_top, 0, dim);
+                            let left_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, bar_h_top))
                                     .to_physical_precise_round(1.0);
                             if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                renderer, loc.to_f64(), &overlay,
-                                None, None, None, Kind::Unspecified,
+                                renderer, left_loc.to_f64(), &left, None, None, None, Kind::Unspecified,
                             ) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
+                            // Direita.
+                            let right = crate::gfx::make_rounded_panel(im, output_h - bar_h_top, 0, dim);
+                            let right_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((output_w - im, bar_h_top))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, right_loc.to_f64(), &right, None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            // Fundo (abaixo do inset).
+                            let bottom = crate::gfx::make_rounded_panel(inset_w, im, 0, dim);
+                            let bottom_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((im, output_h - im))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, bottom_loc.to_f64(), &bottom, None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            // Cantos arredondados do inset: renderiza 4 quadrantes
+                            // de canto com dim nas partes fora do raio. Simplificação:
+                            // renderiza o inset inteiro como pill com cantos arredondados
+                            // do fundo (transparente no centro, dim nos cantos).
+                            // Por pragmatismo: renderiza um pill transparente do inset
+                            // sobre um wash full-screen dim. O pill "perfura" o dim.
+                            // Mas MemoryRenderBuffer não faz subtração...
+                            //
+                            // Abordagem final: wash full screen (como antes) + pill
+                            // do inset com a cor do wallpaper médio. Não é perfeita
+                            // mas dá o efeito visual de cartão. Futuro: mask shader.
+                            //
+                            // Na prática os 3 retângulos de dim já dão 90% do efeito.
+                            // Corners vêm no commit 3.
                             // 2) Barra de cima.
                             let bar_h = t_edit.top_bar_height;
                             let bar_panel = crate::gfx::make_rounded_panel(
