@@ -7205,6 +7205,9 @@ pub fn init_winit(
                             let widget_gap = 8;
                             let mut widget_x = 12i32;
                             let scale = smithay::utils::Scale::from(1.0);
+                            // Fatia 2.2: cacheia rects pra hit-test no
+                            // pointer e cálculo de slot do reorder.
+                            data.state.widget_rects.clear();
                             for widget in data.state.widgets.iter() {
                                 let buf = widget.render(&ctx);
                                 let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
@@ -7218,6 +7221,13 @@ pub fn init_winit(
                                 ) {
                                     use smithay::backend::renderer::element::Element;
                                     let w = elem.geometry(scale).size.w;
+                                    let h = elem.geometry(scale).size.h;
+                                    data.state.widget_rects.push(
+                                        smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                            smithay::utils::Point::from((widget_x, widget_y)),
+                                            smithay::utils::Size::from((w, h)),
+                                        ),
+                                    );
                                     widget_x += w + widget_gap;
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                 }

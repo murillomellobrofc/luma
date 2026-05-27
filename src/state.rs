@@ -114,6 +114,13 @@ pub struct LumaState {
     /// edição). Só existe enquanto o usuário tem o botão pressionado
     /// sobre um widget DENTRO do modo de edição. None = sem drag.
     pub desktop_widget_drag: Option<crate::space_item::DesktopWidgetDrag>,
+    /// Rects dos widgets do painel (cacheados pelo render, usado pra
+    /// hit-test no pointer handler). Paralelo a `widgets`.
+    pub widget_rects:
+        Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Drag ativo de reorder de widget de painel (fatia 2.2). Guarda
+    /// o índice atual no Vec + offset pro cursor.
+    pub panel_widget_drag: Option<PanelWidgetDrag>,
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -388,6 +395,18 @@ pub struct LumaState {
         smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
         smithay::utils::Point<i32, smithay::utils::Logical>,
     )>,
+}
+
+/// Drag de reorder de um widget de painel (fatia 2.2).
+/// Snap instantâneo: quando o slot-alvo muda, o widget se move no
+/// Vec de imediato — o render do frame seguinte reflete.
+pub struct PanelWidgetDrag {
+    /// Índice atual do widget no Vec (muda conforme swaps).
+    pub current_index: usize,
+    /// Posição do cursor no início do press.
+    pub start_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
+    /// true quando o drag passou do threshold.
+    pub active: bool,
 }
 
 pub struct CalloopData {
@@ -798,6 +817,8 @@ impl LumaState {
             edit_mode_done_rect: None,
             edit_mode_done_hover: false,
             desktop_widget_drag: None,
+            widget_rects: Vec::new(),
+            panel_widget_drag: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

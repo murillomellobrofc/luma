@@ -233,6 +233,46 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // Fatia 2.2: motion do drag de reorder de widget de painel.
+    // Threshold → compute target slot via midpoints → swap no Vec.
+    if let Some(drag) = state.panel_widget_drag.as_mut() {
+        if !drag.active {
+            let dx = pos.x - drag.start_screen.x;
+            let dy = pos.y - drag.start_screen.y;
+            if (dx * dx + dy * dy).sqrt()
+                >= crate::desktop_icons::DRAG_THRESHOLD_PX
+            {
+                drag.active = true;
+            }
+        }
+        if drag.active {
+            let cur = drag.current_index;
+            let n = state.widget_rects.len();
+            if n > 1 {
+                let midpoints: Vec<f64> = state
+                    .widget_rects
+                    .iter()
+                    .map(|r| r.loc.x as f64 + r.size.w as f64 / 2.0)
+                    .collect();
+                let mut target = n - 1;
+                for (i, mid) in midpoints.iter().enumerate() {
+                    if pos.x < *mid {
+                        target = i;
+                        break;
+                    }
+                }
+                if target != cur {
+                    state.widgets.swap(cur, target);
+                    state.widget_ids.swap(cur, target);
+                    state.widget_last_ticks.swap(cur, target);
+                    // Os rects ficam stale até o próximo frame — OK,
+                    // o render recalcula no tick seguinte.
+                    drag.current_index = target;
+                }
+            }
+        }
+    }
+
     // H50.2c.rb.2: rubber-band — atualiza current enquanto o user
     // arrasta o mouse.
     if let Some(rb) = state.desktop_rubber_band.as_mut() {
@@ -537,9 +577,23 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
+    // Fatia 2.2: mouseup encerra drag de reorder de painel. A ordem
+    // nova já está no Vec (swaps em motion). Persistência via
+    // toml_edit fica no commit 3 — por ora ao reiniciar volta à
+    // ordem do arquivo. Click curto sem threshold = no-op.
+    if button_state == ButtonState::Released {
+        if let Some(drag) = state.panel_widget_drag.take() {
+            if drag.active {
+                tracing::info!(
+                    "modo de edição: reorder de painel encerrado (pos final={})",
+                    drag.current_index,
+                );
+            }
+        }
+    }
+
     // Modo de edição fatia 2.1: mouseup encerra o drag de widget de
-    // desktop. Persiste no layout.toml na próxima sub-fatia (2.1.2);
-    // por ora só limpa o pending. Drag sem active (click curto) = no-op.
+    // desktop e grava o novo x/y no layout.toml via toml_edit.
     if button_state == ButtonState::Released {
         if let Some(drag) = state.desktop_widget_drag.take() {
             if drag.active {
@@ -700,6 +754,25 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 });
                 // Consome o click — não cai em handler de janela
                 // nem do desktop.
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Fatia 2.2: hit-test em widget de painel pra reorder.
+            // Usa os rects cacheados pelo render. Se o press cair em
+            // cima de um, começa drag horizontal (pending de threshold).
+            let panel_hit: Option<usize> = state
+                .widget_rects
+                .iter()
+                .position(|r| r.to_f64().contains(pointer_pos));
+            if let Some(idx) = panel_hit {
+                state.panel_widget_drag = Some(crate::state::PanelWidgetDrag {
+                    current_index: idx,
+                    start_screen: pointer_pos,
+                    active: false,
+                });
                 pointer.button(state, &ButtonEvent {
                     button, state: button_state, serial, time: event.time_msec(),
                 });
