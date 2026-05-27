@@ -26,25 +26,25 @@ use crate::{render::LumaRenderElement, wallpaper::Wallpaper, window::LumaWindow}
 /// principal) NÃO é guardada aqui — fica no Space, lida via
 /// `space.element_location(item)`. Multi-monitor fica pra depois.
 ///
-/// `layout_index` é a posição (0-based) da entrada [[widget]] no
-/// layout.toml de onde este widget foi carregado. O modo de edição
-/// usa esse índice pra salvar o novo x/y no lugar certo do arquivo,
-/// sem tocar nas outras entradas.
+/// `id` é o identificador estável da entrada [[widget]] no
+/// layout.toml. O modo de edição usa esse id pra achar a entrada
+/// certa na hora de salvar x/y ou reordenar, sem depender de
+/// posição (que muda quando o arquivo é reescrito).
 pub struct DesktopWidgetItem {
     pub widget: Mutex<Box<dyn luma_widget::Widget + Send>>,
     pub last_tick: Mutex<Instant>,
-    pub layout_index: usize,
+    pub id: String,
 }
 
 impl DesktopWidgetItem {
     pub fn new(
         widget: Box<dyn luma_widget::Widget + Send>,
-        layout_index: usize,
+        id: String,
     ) -> Self {
         Self {
             widget: Mutex::new(widget),
             last_tick: Mutex::new(Instant::now()),
-            layout_index,
+            id,
         }
     }
 }

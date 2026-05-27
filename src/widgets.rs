@@ -306,8 +306,14 @@ pub enum Placement {
 /// Entrada do layout.toml — antes do construtor rodar. O `type`
 /// resolve o builder; o `placement` decide onde o widget vai
 /// (painel ou desktop); o `config` é entregue cru pro builder.
+/// `id` é o identificador estável — se ausente no arquivo, gerado
+/// na carga e escrito no próximo save.
 #[derive(Debug, serde::Deserialize)]
 pub struct LayoutEntry {
+    /// Identificador estável. Curto, editável na mão ("w1", "w2").
+    /// Se ausente no toml, gerado pelo load e escrito no próximo save.
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(rename = "type")]
     pub type_name: String,
     #[serde(default)]
@@ -366,23 +372,33 @@ pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
 /// "label" por enquanto; cresce com cada novo tipo. O `text_renderer`
 /// fica capturado nas closures dos builders que precisam dele —
 /// caller passa um único Arc e o registro segura as cópias.
-/// Modo de edição fatia 2.1: atualiza placement.x e placement.y de
-/// uma entrada [[widget]] do layout.toml in-place, preservando comentários,
-/// formatação e as outras entradas. `layout_index` é a posição 0-based
-/// da entrada no arquivo.
-///
-/// Tolera ambos os formatos: inline (`placement = { ..., x = N, y = M }`)
-/// e sub-tabela (`[widget.placement]\nx = N\ny = M`). Cria os campos
-/// x/y se a entrada só tinha `host = "desktop"` sem coords.
-///
-/// Falhas (I/O, parse, índice fora de range, placement ausente, etc)
-/// viram warn no log e retorno Err — o drag visual já aconteceu, o
-/// save falhar é degradação aceitável, não fatal.
-pub fn save_desktop_widget_position(
-    layout_index: usize,
-    x: i32,
-    y: i32,
-) -> Result<(), String> {
+/// Garante que toda entrada [[widget]] no doc toml_edit tenha um campo
+/// `id`. Usa a lista de ids gerados no load (all_ids, indexada por
+/// posição no doc) pra preencher os faltantes.
+fn ensure_ids_in_doc(
+    doc: &mut toml_edit::DocumentMut,
+    all_ids: &[String],
+) {
+    if let Some(widgets) = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+    {
+        for (i, table) in widgets.iter_mut().enumerate() {
+            if !table.contains_key("id") {
+                if let Some(id) = all_ids.get(i) {
+                    table.insert("id", toml_edit::value(id.as_str()));
+                    table.sort_values();
+                }
+            }
+        }
+    }
+}
+
+/// Abre o layout.toml via toml_edit, escreve ids faltantes, e
+/// retorna o doc mutável + path. Shared entre todas as funções de save.
+fn open_layout_for_write(
+    all_ids: &[String],
+) -> Result<(toml_edit::DocumentMut, std::path::PathBuf), String> {
     let path = default_layout_path()
         .ok_or_else(|| "layout.toml: $HOME ausente".to_string())?;
     let content = std::fs::read_to_string(&path)
@@ -390,15 +406,41 @@ pub fn save_desktop_widget_position(
     let mut doc: toml_edit::DocumentMut = content
         .parse()
         .map_err(|e| format!("layout.toml mal formado: {e}"))?;
+    ensure_ids_in_doc(&mut doc, all_ids);
+    Ok((doc, path))
+}
+
+/// Encontra a entrada [[widget]] pelo id no doc toml_edit. Retorna
+/// o índice no ArrayOfTables (pra get_mut depois).
+fn find_entry_by_id(
+    doc: &toml_edit::DocumentMut,
+    id: &str,
+) -> Option<usize> {
+    let widgets = doc
+        .get("widget")?
+        .as_array_of_tables()?;
+    widgets
+        .iter()
+        .position(|t| t.get("id").and_then(|v| v.as_str()) == Some(id))
+}
+
+/// Modo de edição: atualiza placement.x e placement.y de um widget
+/// no layout.toml, mirando pela `id` (fatia 2.2+). Preserva
+/// comentários, formatação e outras entradas.
+pub fn save_desktop_widget_position(
+    id: &str,
+    x: i32,
+    y: i32,
+    all_ids: &[String],
+) -> Result<(), String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    let idx = find_entry_by_id(&doc, id)
+        .ok_or_else(|| format!("id '{id}' não encontrado no layout.toml"))?;
     let widgets = doc
         .get_mut("widget")
         .and_then(|i| i.as_array_of_tables_mut())
         .ok_or_else(|| "layout.toml sem [[widget]]".to_string())?;
-    let entry = widgets
-        .get_mut(layout_index)
-        .ok_or_else(|| format!(
-            "layout_index {layout_index} fora de range",
-        ))?;
+    let entry = widgets.get_mut(idx).unwrap();
     let placement = entry
         .get_mut("placement")
         .ok_or_else(|| "entrada sem `placement`".to_string())?;
@@ -420,11 +462,35 @@ pub fn save_desktop_widget_position(
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
 pub struct WidgetLoadResult {
-    pub panel: Vec<Box<dyn Widget + Send>>,
-    /// (widget, x, y, layout_index). O `layout_index` é a posição
-    /// 0-based da entrada [[widget]] no arquivo — preservado pra o
-    /// modo de edição saber onde gravar o novo x/y.
-    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, usize)>,
+    /// (widget, id)
+    pub panel: Vec<(Box<dyn Widget + Send>, String)>,
+    /// (widget, x, y, id)
+    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, String)>,
+    /// IDs de TODAS as entradas [[widget]] do arquivo, na ordem do
+    /// doc (inclusive as que falharam no build). Necessário pro
+    /// ensure_ids_in_doc do save, que grava ids faltantes.
+    pub all_ids: Vec<String>,
+}
+
+/// Preenche ids faltantes. "wN" onde N é o menor inteiro livre.
+fn generate_ids(entries: &mut [LayoutEntry]) {
+    let existing: std::collections::HashSet<String> = entries
+        .iter()
+        .filter_map(|e| e.id.clone())
+        .collect();
+    let mut next = 1u32;
+    for entry in entries.iter_mut() {
+        if entry.id.is_none() {
+            let id = loop {
+                let candidate = format!("w{next}");
+                next += 1;
+                if !existing.contains(&candidate) {
+                    break candidate;
+                }
+            };
+            entry.id = Some(id);
+        }
+    }
 }
 
 /// Pipeline completo de carga: registro default + parsing + dispatch
@@ -433,24 +499,29 @@ pub struct WidgetLoadResult {
 /// com warn — boot nunca derruba.
 pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
     let registry = build_default_registry(text_renderer);
-    let entries = default_layout_path()
+    let mut entries = default_layout_path()
         .map(|p| load_layout(&p))
         .unwrap_or_default();
+    generate_ids(&mut entries);
     tracing::info!("widgets: {} entrada(s) no layout.toml", entries.len());
+    let all_ids: Vec<String> = entries.iter()
+        .map(|e| e.id.clone().unwrap_or_default())
+        .collect();
     let mut panel = Vec::new();
     let mut desktop = Vec::new();
-    for (idx, entry) in entries.into_iter().enumerate() {
+    for entry in entries {
+        let id = entry.id.clone().unwrap_or_default();
         match registry.build(&entry.type_name, &entry.config) {
             Ok(w) => match entry.placement {
-                Placement::Panel => panel.push(w),
-                Placement::Desktop { x, y } => desktop.push((w, x, y, idx)),
+                Placement::Panel => panel.push((w, id)),
+                Placement::Desktop { x, y } => desktop.push((w, x, y, id)),
             },
             Err(e) => tracing::warn!(
                 "widget pulado (type={}): {e}", entry.type_name,
             ),
         }
     }
-    WidgetLoadResult { panel, desktop }
+    WidgetLoadResult { panel, desktop, all_ids }
 }
 
 pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistry {
