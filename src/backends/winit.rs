@@ -7184,7 +7184,7 @@ pub fn init_winit(
                         if !data.state.widgets.is_empty() {
                             let widget_h = (taskbar_h as u32).saturating_sub(8).max(24);
                             let ctx = luma_widget::RenderCtx {
-                                panel_height: widget_h,
+                                host: luma_widget::WidgetHost::Panel { height: widget_h },
                                 theme: crate::theme::current(),
                             };
                             let widget_y = bar_y + 4;
