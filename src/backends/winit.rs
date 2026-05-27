@@ -7335,13 +7335,15 @@ pub fn init_winit(
                                             (iw as i32, ih as i32),
                                             1, Transform::Normal, None,
                                         );
-                                        let ix = center_x - (iw as i32) / 2;
-                                        // Correção óptica: bbox da
-                                        // fontdue inclui ascender acima
-                                        // da capital, então centrar por
-                                        // bbox deixa visualmente baixo.
-                                        // ih/8 balanceia (ih/4 estava
-                                        // alto demais, ih/6 baixo).
+                                        // Correção óptica horizontal:
+                                        // bbox da fontdue inclui side
+                                        // bearing direita; subtrai ~3px
+                                        // pra alinhar visualmente.
+                                        let ix = center_x - (iw as i32) / 2 - 3;
+                                        // Correção óptica vertical:
+                                        // ih/8 sobe pra alinhar o M no
+                                        // centro do círculo (ascender
+                                        // do bbox).
                                         let iy = avatar_y
                                             + (t_lock.avatar_size - ih as i32) / 2
                                             - (ih as i32) / 8;
