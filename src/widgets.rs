@@ -366,6 +366,56 @@ pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
 /// "label" por enquanto; cresce com cada novo tipo. O `text_renderer`
 /// fica capturado nas closures dos builders que precisam dele —
 /// caller passa um único Arc e o registro segura as cópias.
+/// Modo de edição fatia 2.1: atualiza placement.x e placement.y de
+/// uma entrada [[widget]] do layout.toml in-place, preservando comentários,
+/// formatação e as outras entradas. `layout_index` é a posição 0-based
+/// da entrada no arquivo.
+///
+/// Tolera ambos os formatos: inline (`placement = { ..., x = N, y = M }`)
+/// e sub-tabela (`[widget.placement]\nx = N\ny = M`). Cria os campos
+/// x/y se a entrada só tinha `host = "desktop"` sem coords.
+///
+/// Falhas (I/O, parse, índice fora de range, placement ausente, etc)
+/// viram warn no log e retorno Err — o drag visual já aconteceu, o
+/// save falhar é degradação aceitável, não fatal.
+pub fn save_desktop_widget_position(
+    layout_index: usize,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
+    let path = default_layout_path()
+        .ok_or_else(|| "layout.toml: $HOME ausente".to_string())?;
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("layout.toml ilegível: {e}"))?;
+    let mut doc: toml_edit::DocumentMut = content
+        .parse()
+        .map_err(|e| format!("layout.toml mal formado: {e}"))?;
+    let widgets = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+        .ok_or_else(|| "layout.toml sem [[widget]]".to_string())?;
+    let entry = widgets
+        .get_mut(layout_index)
+        .ok_or_else(|| format!(
+            "layout_index {layout_index} fora de range",
+        ))?;
+    let placement = entry
+        .get_mut("placement")
+        .ok_or_else(|| "entrada sem `placement`".to_string())?;
+    if let Some(inline) = placement.as_inline_table_mut() {
+        inline.insert("x", toml_edit::Value::from(x as i64));
+        inline.insert("y", toml_edit::Value::from(y as i64));
+    } else if let Some(table) = placement.as_table_mut() {
+        table["x"] = toml_edit::value(x as i64);
+        table["y"] = toml_edit::value(y as i64);
+    } else {
+        return Err("`placement` não é tabela".to_string());
+    }
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("layout.toml write falhou: {e}"))?;
+    Ok(())
+}
+
 /// Resultado da carga do layout.toml — widgets já distribuídos por host.
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
