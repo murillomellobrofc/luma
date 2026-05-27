@@ -1,0 +1,16 @@
+[package]
+name = "luma-theme"
+version = "0.1.0"
+edition = "2024"
+description = "Tema Golden Hour do Luma — Color tokens, defaults, carregamento de luma.toml"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+tracing = "0.1"
+
+[dependencies.smithay]
+git = "https://github.com/Smithay/smithay.git"
+default-features = false
+features = ["renderer_gl"]
