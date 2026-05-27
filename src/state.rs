@@ -81,6 +81,13 @@ pub struct LumaState {
     pub cursor_status: CursorImageStatus,
     pub taskbar: crate::taskbar::TaskbarState,
     pub text: Option<crate::text::TextRenderer>,
+    /// Fatia 1 widgets: Box<dyn Widget> fixo pra POC. Sem registro,
+    /// sem layout — futuras fatias trocam isso por um Vec gerenciado.
+    pub widget: Option<Box<dyn luma_widget::Widget>>,
+    /// TextRenderer próprio dos widgets (Arc pra compartilhar entre
+    /// múltiplos widgets futuramente). Carga separada de `text` pra
+    /// evitar refactor amplo no fatia 1 — fatia 2+ consolida.
+    pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
     /// 0.94 + linha âmbar 2px no topo. Substituirá o `menu` legacy.
@@ -700,6 +707,11 @@ impl LumaState {
             );
         let (notifications_slot, notifications_conn_handle) =
             crate::notifications::spawn();
+        // Fatia 1 widgets: carrega um TextRenderer dedicado pros widgets
+        // ANTES da construção do struct pra dar pra clonar a Arc em
+        // dois campos (widget_text + dentro do LabelWidget).
+        let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
+            crate::text::TextRenderer::load().map(std::sync::Arc::new);
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -725,6 +737,14 @@ impl LumaState {
             cursor_status: CursorImageStatus::default_named(),
             taskbar: crate::taskbar::TaskbarState::new(),
             text: crate::text::TextRenderer::load(),
+            // Fatia 1 widgets: TextRenderer separado pros widgets +
+            // LabelWidget "Luma" cravado. Quando o registro/layout
+            // chegarem na fatia 2 isso vira um Vec dinâmico.
+            widget_text: widget_text_for_init.clone(),
+            widget: widget_text_for_init.as_ref().map(|tr| {
+                Box::new(crate::widgets::LabelWidget::new("Luma", tr.clone()))
+                    as Box<dyn luma_widget::Widget>
+            }),
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
             menu_new: crate::menu::state::FullscreenMenuState::new(),
