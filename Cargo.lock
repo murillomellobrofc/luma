@@ -1248,6 +1248,7 @@ dependencies = [
  "fontdue",
  "fuzzy-matcher",
  "image",
+ "libc",
  "libloading",
  "meval",
  "resvg",

@@ -7146,6 +7146,34 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
+                        // H58 fatia 5: observer do outbox PAM. Quando
+                        // a thread termina, atualiza state e (em
+                        // sucesso) destrava.
+                        let pam_outcome = data
+                            .state
+                            .lock_auth_outbox
+                            .lock()
+                            .ok()
+                            .and_then(|mut g| g.take());
+                        if let Some(res) = pam_outcome {
+                            data.state.lock_auth_in_flight = false;
+                            match res {
+                                crate::auth::AuthResult::Success => {
+                                    tracing::info!("luma unlock: PAM success");
+                                    data.state.locked = false;
+                                    data.state.locked_at = None;
+                                    data.state.lock_revealed = false;
+                                    data.state.lock_password.clear();
+                                    data.state.lock_auth_error = None;
+                                    data.state.lock_surfaces.clear();
+                                }
+                                crate::auth::AuthResult::Failure { reason } => {
+                                    tracing::info!("luma lock: PAM fail {reason}");
+                                    data.state.lock_auth_error = Some(reason);
+                                    data.state.lock_password.clear();
+                                }
+                            }
+                        }
                         // H58 fatia 3+4: render lock screen.
                         // 2 estados sobre o mesmo fundo:
                         // - capa: relógio grande centro + dica
@@ -7411,9 +7439,12 @@ pub fn init_winit(
                                     ) {
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
-                                    // Texto do campo (bullets ou placeholder).
+                                    // Texto do campo (bullets, placeholder, ou "Verificando").
                                     let pw = data.state.lock_password.clone();
-                                    let (display, color) = if pw.is_empty() {
+                                    let in_flight = data.state.lock_auth_in_flight;
+                                    let (display, color) = if in_flight {
+                                        ("Verificando…".to_string(), t_lock.field_placeholder_color)
+                                    } else if pw.is_empty() {
                                         (t_lock.field_placeholder.clone(), t_lock.field_placeholder_color)
                                     } else {
                                         let masked: String = "•".repeat(pw.chars().count());
@@ -7441,17 +7472,18 @@ pub fn init_winit(
                                             custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                         }
                                     }
-                                    // Indicadores: Caps Lock (warn) + layout.
+                                    // Indicadores: erro de auth (se houver) +
+                                    // Caps Lock + layout.
                                     let mut parts: Vec<(String, smithay::backend::renderer::Color32F)> =
                                         Vec::new();
-                                    if data.state.lock_caps_on {
+                                    if let Some(err) = data.state.lock_auth_error.clone() {
+                                        parts.push((err, t_lock.indicator_warn_color));
+                                    } else if data.state.lock_caps_on {
                                         parts.push((
                                             "Caps Lock ativado".to_string(),
                                             t_lock.indicator_warn_color,
                                         ));
                                     }
-                                    // Layout placeholder — em PT-BR fixo
-                                    // até XKB lookup real (fatia 6+).
                                     parts.push(("PT-BR".to_string(), t_lock.indicator_color));
                                     let ind_y = field_y + t_lock.field_height + 12;
                                     let mut ind_x = field_x;

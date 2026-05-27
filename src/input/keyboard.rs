@@ -370,21 +370,25 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             }
             LockKey::Char(ch) => {
                 state.lock_password.push(ch);
+                state.lock_auth_error = None;
             }
             LockKey::Backspace => {
                 state.lock_password.pop();
+                state.lock_auth_error = None;
             }
             LockKey::Submit => {
-                // Fatia 5 (PAM) substitui isso. Por ora: aceita
-                // qualquer senha não-vazia como desbloqueio
-                // placeholder pra testar o ciclo de UI.
-                if !state.lock_password.is_empty() {
-                    state.locked = false;
-                    state.locked_at = None;
-                    state.lock_revealed = false;
-                    state.lock_password.clear();
-                    state.lock_surfaces.clear();
-                    tracing::info!("luma unlock (placeholder até PAM)");
+                // H58 fatia 5: dispara PAM real numa thread.
+                // Ignora se já tem auth em andamento ou campo vazio.
+                if !state.lock_password.is_empty() && !state.lock_auth_in_flight {
+                    let user = std::env::var("USER")
+                        .unwrap_or_else(|_| "root".to_string());
+                    let pw = state.lock_password.clone();
+                    state.lock_auth_in_flight = true;
+                    state.lock_auth_error = None;
+                    crate::auth::authenticate_async(
+                        state.lock_auth_outbox.clone(),
+                        user, pw,
+                    );
                 }
             }
             LockKey::Cancel => {
