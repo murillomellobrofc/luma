@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use luma_widget::{RenderCtx, Widget};
+use luma_widget::{RenderCtx, Widget, WidgetHost};
 use smithay::{
     backend::{
         allocator::Fourcc,
@@ -131,9 +131,13 @@ fn render_pill_text(
     let (text_px, text_w, text_h) =
         text_renderer.rasterize_colored(text, font_size, text_color);
 
-    let panel_h = ctx.panel_height as i32;
+    // Altura: painel dita; desktop escolhe (40px é uma altura
+    // razoável que combina com a font size atual de 13.5).
+    let pill_h = match ctx.host {
+        WidgetHost::Panel { height } => height as i32,
+        WidgetHost::Desktop => 40,
+    };
     let pill_w = padding_h + text_w as i32 + padding_h;
-    let pill_h = panel_h;
 
     // 2) Pill arredondada (mesmo helper que o resto do compositor usa —
     //    alpha=0 fora dos cantos). Reconstruímos os pixels manualmente

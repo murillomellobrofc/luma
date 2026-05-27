@@ -13,13 +13,26 @@ use std::time::Duration;
 use luma_theme::Theme;
 use smithay::backend::renderer::element::memory::MemoryRenderBuffer;
 
+/// Onde o widget está hospedado. Cada host impõe restrições
+/// diferentes — o painel dita a altura, o desktop deixa o widget
+/// escolher o próprio tamanho.
+///
+/// Fatia 4: host-aware substitui `panel_height` solto, pra preparar
+/// pra widgets no desktop sem mexer na trait.
+pub enum WidgetHost {
+    /// Widget na fileira do painel. Recebe a altura disponível.
+    Panel { height: u32 },
+    /// Widget solto no desktop. Escolhe o próprio tamanho.
+    Desktop,
+}
+
 /// Tudo que um widget recebe pra se desenhar. Struct (não tuple) de
 /// propósito: dá pra adicionar campo depois sem mexer na assinatura
 /// da trait, mantendo compat com widgets já existentes.
 pub struct RenderCtx<'a> {
-    /// Altura disponível em pixels lógicos. O widget desenha um
-    /// buffer dessa altura — a largura é decisão do widget.
-    pub panel_height: u32,
+    /// Onde o widget está sendo renderizado (painel x desktop, etc).
+    /// O widget casa com isso pra escolher dimensões.
+    pub host: WidgetHost,
     /// Tema atual (cores Golden Hour, tamanhos de fonte, etc).
     pub theme: &'a Theme,
 }
