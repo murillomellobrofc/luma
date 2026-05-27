@@ -1460,6 +1460,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             if let Some(action) = state.menu_new.pending_action {
                                 if action == crate::menu::state::SessionButton::Lock {
                                     state.locked = true;
+                                    state.locked_at = Some(std::time::Instant::now());
                                     tracing::info!("luma lock: requested via confirm modal");
                                 } else {
                                     crate::menu::session_bar::execute_action(action);
@@ -1493,6 +1494,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         // Luma — NÃO `loginctl lock-session` que pegaria
                         // a sessão host (KDE) quando rodando aninhado.
                         state.locked = true;
+                        state.locked_at = Some(std::time::Instant::now());
                         state.menu_open = false;
                         state.menu_new.reset();
                         tracing::info!("luma lock: requested via session menu");

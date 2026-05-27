@@ -322,6 +322,7 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
 
     if unlock_request {
         state.locked = false;
+        state.locked_at = None;
         state.lock_surfaces.clear();
         tracing::info!("luma unlock via Esc (placeholder até PAM)");
         return;

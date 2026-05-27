@@ -136,6 +136,9 @@ pub struct Theme {
     /// Popup do applet de Wi-Fi (header com toggle + lista de
     /// redes + senha inline). H57.2.
     pub wifi_popup: WifiPopupTokens,
+    /// Tela de bloqueio (lock screen). Fundo Golden Hour + relógio
+    /// + (na fatia 4+) avatar/saudação/campo de senha. H58.
+    pub lock: LockTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1054,6 +1057,7 @@ impl Default for Theme {
             calendario: CalendarTokens::default(),
             battery_popup: BatteryPopupTokens::default(),
             wifi_popup: WifiPopupTokens::default(),
+            lock: LockTokens::default(),
         }
     }
 }
@@ -1316,6 +1320,42 @@ pub struct WifiPopupTokens {
     pub pw_btn_label_size: f32,
     pub pw_error_color: Color32F,
     pub divider_color: Color32F,
+}
+
+/// Tela de bloqueio. H58.
+#[derive(Debug, Clone)]
+pub struct LockTokens {
+    /// Cor de fundo da capa (cobertura full screen). Coffee profundo
+    /// Golden Hour. NUNCA mostra o wallpaper do desktop.
+    pub bg_color: Color32F,
+    /// Relógio HH:MM grande centralizado.
+    pub hour_size: f32,
+    pub hour_color: Color32F,
+    /// Data por extenso pequena abaixo da hora.
+    pub date_size: f32,
+    pub date_color: Color32F,
+    /// Dica "tecle pra desbloquear" — aparece depois de
+    /// `hint_delay_ms` parado.
+    pub hint_text: String,
+    pub hint_size: f32,
+    pub hint_color: Color32F,
+    pub hint_delay_ms: u64,
+}
+
+impl Default for LockTokens {
+    fn default() -> Self {
+        Self {
+            bg_color: hex_color("#1F1611", 1.0),
+            hour_size: 96.0,
+            hour_color: hex_color("#FBF6EE", 1.0),
+            date_size: 18.0,
+            date_color: hex_color("#C9BDB0", 1.0),
+            hint_text: "tecle pra desbloquear".to_string(),
+            hint_size: 13.0,
+            hint_color: hex_color("#9A8B7E", 1.0),
+            hint_delay_ms: 3000,
+        }
+    }
 }
 
 impl Default for WifiPopupTokens {
@@ -3242,6 +3282,7 @@ impl ThemeFile {
             calendario: default.calendario.clone(),
             battery_popup: default.battery_popup.clone(),
             wifi_popup: default.wifi_popup.clone(),
+            lock: default.lock.clone(),
         }
     }
 }
