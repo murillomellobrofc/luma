@@ -139,6 +139,9 @@ pub struct Theme {
     /// Tela de bloqueio (lock screen). Fundo Golden Hour + relógio
     /// + (na fatia 4+) avatar/saudação/campo de senha. H58.
     pub lock: LockTokens,
+    /// Modo de edição geral do Luma (fatia 1+). Wash sutil + barra
+    /// de cima. Sinaliza o modo sem atrapalhar de enxergar o que se edita.
+    pub edit_mode: EditModeTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1058,6 +1061,7 @@ impl Default for Theme {
             battery_popup: BatteryPopupTokens::default(),
             wifi_popup: WifiPopupTokens::default(),
             lock: LockTokens::default(),
+            edit_mode: EditModeTokens::default(),
         }
     }
 }
@@ -1446,6 +1450,57 @@ impl Default for LockTokens {
             notif_show_body: false,
             notif_body_color: hex_color("#C9BDB0", 1.0),
             notif_body_size: 12.0,
+        }
+    }
+}
+
+/// Tokens do modo de edição geral do Luma. Fatia 1: wash + barra de cima.
+/// Próximas fatias adicionam alça de widget, realce de painel, etc.
+#[derive(Debug, Clone)]
+pub struct EditModeTokens {
+    /// Wash translúcido full screen sinalizando o modo. Sutil — só
+    /// pra falar "vc tá no modo de edição", não pra dominar a tela.
+    pub overlay_color: Color32F,
+    /// Altura da barra de cima.
+    pub top_bar_height: i32,
+    /// Background da barra de cima.
+    pub top_bar_bg: Color32F,
+    /// Cor do rótulo "Modo de edição" na barra.
+    pub label_color: Color32F,
+    pub label_size: f32,
+    /// Botão "Pronto" no canto direito da barra. Estilo pill.
+    pub done_button_bg: Color32F,
+    pub done_button_bg_hover: Color32F,
+    pub done_button_text_color: Color32F,
+    pub done_button_text_size: f32,
+    pub done_button_height: i32,
+    pub done_button_padding_h: i32,
+    pub done_button_corner: i32,
+    pub done_button_text: String,
+    /// Margens da barra. `margin_h` é a folga horizontal de cada
+    /// lado (rótulo encosta do início, botão do fim, com essa folga).
+    pub margin_h: i32,
+}
+
+impl Default for EditModeTokens {
+    fn default() -> Self {
+        Self {
+            // Coffee bem escuro, alpha baixo. WCAG: o wash não troca
+            // contraste de texto, só "tinge" a cena.
+            overlay_color: hex_color("#1F1611", 0.18),
+            top_bar_height: 56,
+            top_bar_bg: hex_color("#1F1611", 0.92),
+            label_color: hex_color("#FBF6EE", 1.0),
+            label_size: 15.0,
+            done_button_bg: hex_color("#E89B3D", 1.0),
+            done_button_bg_hover: hex_color("#F2B05F", 1.0),
+            done_button_text_color: hex_color("#1F1611", 1.0),
+            done_button_text_size: 14.0,
+            done_button_height: 40,
+            done_button_padding_h: 20,
+            done_button_corner: 12,
+            done_button_text: "Pronto".to_string(),
+            margin_h: 20,
         }
     }
 }
@@ -3375,6 +3430,7 @@ impl ThemeFile {
             battery_popup: default.battery_popup.clone(),
             wifi_popup: default.wifi_popup.clone(),
             lock: default.lock.clone(),
+            edit_mode: default.edit_mode.clone(),
         }
     }
 }

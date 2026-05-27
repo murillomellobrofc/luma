@@ -2615,6 +2615,10 @@ fn dispatch_context_action(
             }
         }
         ContextAction::Disabled => {}
+        ContextAction::EnterEditMode => {
+            state.edit_mode = true;
+            tracing::info!("modo de edição: ligado via menu de contexto");
+        }
     }
 }
 

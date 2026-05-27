@@ -7224,6 +7224,30 @@ pub fn init_winit(
                             }
                         }
 
+                        // Modo de edição fatia 1: overlay wash full
+                        // screen quando edit_mode está ligado. Sinaliza
+                        // o modo sem dominar a tela (alpha baixo).
+                        // Roda ANTES do lock pra ficar abaixo dele:
+                        // lock cobre o wash naturalmente.
+                        if data.state.edit_mode {
+                            let t_edit = crate::theme::current().edit_mode.clone();
+                            let overlay = crate::gfx::make_rounded_panel(
+                                output_size_logical.w,
+                                output_size_logical.h,
+                                0,
+                                t_edit.overlay_color,
+                            );
+                            let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, loc.to_f64(), &overlay,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                        }
+
                         // H58 fatia 5: observer do outbox PAM. Quando
                         // a thread termina, atualiza state e (em
                         // sucesso) destrava.
