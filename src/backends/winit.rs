@@ -7225,17 +7225,15 @@ pub fn init_winit(
                         }
 
                         // Modo de edição fatia 1: overlay wash full
-                        // screen quando edit_mode está ligado. Sinaliza
-                        // o modo sem dominar a tela (alpha baixo).
-                        // Roda ANTES do lock pra ficar abaixo dele:
-                        // lock cobre o wash naturalmente.
+                        // screen + barra de cima quando edit_mode=on.
+                        // Roda ANTES do lock pra ficar abaixo dele.
                         if data.state.edit_mode {
                             let t_edit = crate::theme::current().edit_mode.clone();
+                            let output_w = output_size_logical.w;
+                            let output_h = output_size_logical.h;
+                            // 1) Wash full screen.
                             let overlay = crate::gfx::make_rounded_panel(
-                                output_size_logical.w,
-                                output_size_logical.h,
-                                0,
-                                t_edit.overlay_color,
+                                output_w, output_h, 0, t_edit.overlay_color,
                             );
                             let loc: smithay::utils::Point<i32, smithay::utils::Physical> =
                                 smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
@@ -7246,6 +7244,108 @@ pub fn init_winit(
                             ) {
                                 custom_elements.insert(0, LumaRenderElement::Memory(elem));
                             }
+                            // 2) Barra de cima.
+                            let bar_h = t_edit.top_bar_height;
+                            let bar_panel = crate::gfx::make_rounded_panel(
+                                output_w, bar_h, 0, t_edit.top_bar_bg,
+                            );
+                            let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0))
+                                    .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, bloc.to_f64(), &bar_panel,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                            // 3) Rótulo "Modo de edição" à esquerda.
+                            if let Some(tr) = data.state.text.as_ref() {
+                                let (lpx, lw, lh) = tr.rasterize_colored(
+                                    "Modo de edição",
+                                    t_edit.label_size,
+                                    t_edit.label_color,
+                                );
+                                if lw > 0 && lh > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(
+                                        &lpx,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (lw as i32, lh as i32),
+                                        1, Transform::Normal, None,
+                                    );
+                                    let lx = t_edit.margin_h;
+                                    let ly = (bar_h - lh as i32) / 2;
+                                    let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, lloc.to_f64(), &buf,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // 4) Botão "Pronto" à direita. Pré-rasteriza
+                                //    o texto pra dimensionar a pill.
+                                let (bpx, btw, bth) = tr.rasterize_colored(
+                                    &t_edit.done_button_text,
+                                    t_edit.done_button_text_size,
+                                    t_edit.done_button_text_color,
+                                );
+                                let btn_w = t_edit.done_button_padding_h * 2
+                                    + btw as i32;
+                                let btn_h = t_edit.done_button_height;
+                                let btn_x = output_w - t_edit.margin_h - btn_w;
+                                let btn_y = (bar_h - btn_h) / 2;
+                                // Cache do rect pra hit-test (logical).
+                                data.state.edit_mode_done_rect = Some(
+                                    smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                        smithay::utils::Point::from((btn_x, btn_y)),
+                                        smithay::utils::Size::from((btn_w, btn_h)),
+                                    ),
+                                );
+                                let btn_bg = if data.state.edit_mode_done_hover {
+                                    t_edit.done_button_bg_hover
+                                } else {
+                                    t_edit.done_button_bg
+                                };
+                                let btn_pill = crate::gfx::make_rounded_panel(
+                                    btn_w, btn_h, t_edit.done_button_corner, btn_bg,
+                                );
+                                let btn_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((btn_x, btn_y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, btn_loc.to_f64(), &btn_pill,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Texto do botão centralizado na pill.
+                                if btw > 0 && bth > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(
+                                        &bpx,
+                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                        (btw as i32, bth as i32),
+                                        1, Transform::Normal, None,
+                                    );
+                                    let tx = btn_x + (btn_w - btw as i32) / 2;
+                                    let ty = btn_y + (btn_h - bth as i32) / 2;
+                                    let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, tloc.to_f64(), &buf,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                            }
+                        } else {
+                            // Edit mode desligado: limpa o rect cacheado
+                            // pra hit-test não responder.
+                            data.state.edit_mode_done_rect = None;
+                            data.state.edit_mode_done_hover = false;
                         }
 
                         // H58 fatia 5: observer do outbox PAM. Quando
