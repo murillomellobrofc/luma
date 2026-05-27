@@ -7200,6 +7200,7 @@ pub fn init_winit(
                             let ctx = luma_widget::RenderCtx {
                                 host: luma_widget::WidgetHost::Panel { height: widget_h },
                                 theme: crate::theme::current(),
+                                user_size: None,
                             };
                             let widget_y = bar_y + 4;
                             let widget_gap = 8;

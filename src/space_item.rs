@@ -273,6 +273,7 @@ where
                 let ctx = luma_widget::RenderCtx {
                     host: luma_widget::WidgetHost::Desktop,
                     theme: crate::theme::current(),
+                    user_size: None,
                 };
                 let buffer = {
                     let w = dw.widget.lock().expect("widget poisoned");
