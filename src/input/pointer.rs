@@ -156,6 +156,27 @@ pub fn handle_motion_absolute<I: InputBackend>(
         }
     }
 
+    // Fatia 2.4: hover do botão "Adicionar widget" + tiles/host do seletor.
+    {
+        let hover = state.add_widget_btn_rect
+            .map(|r| r.to_f64().contains(pos))
+            .unwrap_or(false);
+        if state.add_widget_btn_hover != hover {
+            state.add_widget_btn_hover = hover;
+        }
+        let new_tile = state.add_widget_tile_rects.iter()
+            .position(|r| r.to_f64().contains(pos));
+        if state.add_widget_tile_hover != new_tile {
+            state.add_widget_tile_hover = new_tile;
+        }
+        let new_host = state.add_widget_host_rects.iter()
+            .enumerate()
+            .find_map(|(i, r)| r.as_ref().filter(|r| r.to_f64().contains(pos)).map(|_| i));
+        if state.add_widget_host_hover != new_host {
+            state.add_widget_host_hover = new_host;
+        }
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
@@ -772,6 +793,19 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         _ => {}
                     }
                 }
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
+            // Fatia 2.4: botão "Adicionar widget" — toggle seletor.
+            let add_hit = state.add_widget_btn_rect
+                .map(|r| r.to_f64().contains(pointer_pos))
+                .unwrap_or(false);
+            if add_hit {
+                state.add_widget_open = !state.add_widget_open;
+                state.add_widget_selected_type = None;
                 pointer.button(state, &ButtonEvent {
                     button, state: button_state, serial, time: event.time_msec(),
                 });
