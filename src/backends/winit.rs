@@ -7146,13 +7146,15 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
-                        // H58 fatia 3: render capa do lock screen.
-                        // Coffee profundo Golden Hour + relógio grande
-                        // (HH:MM) + data por extenso + dica após delay.
-                        // Auth panel vem na fatia 4.
+                        // H58 fatia 3+4: render lock screen.
+                        // 2 estados sobre o mesmo fundo:
+                        // - capa: relógio grande centro + dica
+                        // - auth: relógio pequeno no topo + painel
+                        //   central (avatar + saudação + senha)
                         if data.state.locked {
                             use chrono::{Datelike, Local, Timelike};
                             let t_lock = crate::theme::current().lock.clone();
+                            let revealed = data.state.lock_revealed;
                             // Bg full screen.
                             let overlay = crate::gfx::make_rounded_panel(
                                 output_size_logical.w,
@@ -7172,7 +7174,6 @@ pub fn init_winit(
                             if let Some(tr) = data.state.text.as_ref() {
                                 let now = Local::now();
                                 let hour_str = format!("{:02}:{:02}", now.hour(), now.minute());
-                                // Data PT-BR por extenso.
                                 let dias_extenso = [
                                     "Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado",
                                 ];
@@ -7190,14 +7191,19 @@ pub fn init_winit(
                                 );
                                 let center_x = output_size_logical.w / 2;
                                 let center_y = output_size_logical.h / 2;
-                                // Hora grande centralizada (vertical
-                                // ligeiramente acima do meio pra dar
-                                // espaço pra data).
+                                let hour_size = if revealed { t_lock.auth_hour_size } else { t_lock.hour_size };
+                                let date_size = if revealed { t_lock.auth_date_size } else { t_lock.date_size };
+                                // Hora.
                                 let (px, hw, hh) = tr.rasterize_colored(
-                                    &hour_str, t_lock.hour_size, t_lock.hour_color,
+                                    &hour_str, hour_size, t_lock.hour_color,
                                 );
                                 let hour_h = hh as i32;
-                                let hour_y = center_y - hour_h / 2 - 20;
+                                let hour_y = if revealed {
+                                    // Topo: ~12% da altura.
+                                    output_size_logical.h / 8
+                                } else {
+                                    center_y - hour_h / 2 - 20
+                                };
                                 if hw > 0 && hh > 0 {
                                     let buf = MemoryRenderBuffer::from_slice(
                                         &px,
@@ -7216,11 +7222,11 @@ pub fn init_winit(
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
-                                // Data por extenso menor abaixo.
+                                // Data.
                                 let (px, dw, dh) = tr.rasterize_colored(
-                                    &date_str, t_lock.date_size, t_lock.date_color,
+                                    &date_str, date_size, t_lock.date_color,
                                 );
-                                let date_y = hour_y + hour_h + 18;
+                                let date_y = hour_y + hour_h + if revealed { 8 } else { 18 };
                                 if dw > 0 && dh > 0 {
                                     let buf = MemoryRenderBuffer::from_slice(
                                         &px,
@@ -7239,27 +7245,112 @@ pub fn init_winit(
                                         custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                     }
                                 }
-                                // Dica após delay parado.
-                                let show_hint = data.state.locked_at
-                                    .map(|t| t.elapsed().as_millis() as u64 >= t_lock.hint_delay_ms)
-                                    .unwrap_or(false);
-                                if show_hint {
-                                    let (px, w, h) = tr.rasterize_colored(
-                                        &t_lock.hint_text,
-                                        t_lock.hint_size,
-                                        t_lock.hint_color,
+                                if !revealed {
+                                    // Capa: dica após delay.
+                                    let show_hint = data.state.locked_at
+                                        .map(|t| t.elapsed().as_millis() as u64 >= t_lock.hint_delay_ms)
+                                        .unwrap_or(false);
+                                    if show_hint {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            &t_lock.hint_text,
+                                            t_lock.hint_size,
+                                            t_lock.hint_color,
+                                        );
+                                        if w > 0 && h > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &px,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (w as i32, h as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let lx = center_x - (w as i32) / 2;
+                                            let ly = output_size_logical.h - 80 - h as i32;
+                                            let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, tloc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Auth panel: avatar + saudação + campo.
+                                    let user = std::env::var("USER")
+                                        .unwrap_or_else(|_| "Usuário".to_string());
+                                    let initial = user
+                                        .chars()
+                                        .next()
+                                        .map(|c| c.to_uppercase().to_string())
+                                        .unwrap_or_default();
+                                    // Saudação por horário.
+                                    let h = now.hour();
+                                    let saudacao = if (5..12).contains(&h) {
+                                        "Bom dia"
+                                    } else if (12..18).contains(&h) {
+                                        "Boa tarde"
+                                    } else {
+                                        "Boa noite"
+                                    };
+                                    let greeting = format!("{}, {}", saudacao, user);
+                                    // Avatar centralizado, abaixo do clock.
+                                    let avatar_y = date_y + dh as i32 + 60;
+                                    let avatar_r = t_lock.avatar_size / 2;
+                                    let avatar = crate::gfx::make_rounded_panel(
+                                        t_lock.avatar_size, t_lock.avatar_size,
+                                        avatar_r, t_lock.avatar_bg,
                                     );
-                                    if w > 0 && h > 0 {
+                                    let ax = center_x - avatar_r;
+                                    let aloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((ax, avatar_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, aloc.to_f64(), &avatar,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // Inicial dentro do avatar.
+                                    let (px, iw, ih) = tr.rasterize_colored(
+                                        &initial, t_lock.avatar_initial_size,
+                                        t_lock.avatar_initial_color,
+                                    );
+                                    if iw > 0 && ih > 0 {
                                         let buf = MemoryRenderBuffer::from_slice(
                                             &px,
                                             smithay::backend::allocator::Fourcc::Argb8888,
-                                            (w as i32, h as i32),
+                                            (iw as i32, ih as i32),
                                             1, Transform::Normal, None,
                                         );
-                                        let lx = center_x - (w as i32) / 2;
-                                        let ly = output_size_logical.h - 80 - h as i32;
+                                        let ix = center_x - (iw as i32) / 2;
+                                        let iy = avatar_y + (t_lock.avatar_size - ih as i32) / 2;
+                                        let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((ix, iy))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, iloc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    // Saudação.
+                                    let (px, gw, gh) = tr.rasterize_colored(
+                                        &greeting, t_lock.greeting_size, t_lock.greeting_color,
+                                    );
+                                    let greet_y = avatar_y + t_lock.avatar_size + 20;
+                                    if gw > 0 && gh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (gw as i32, gh as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let lx = center_x - (gw as i32) / 2;
                                         let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, greet_y))
                                                 .to_physical_precise_round(1.0);
                                         if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
                                             renderer, tloc.to_f64(), &buf,
@@ -7267,6 +7358,103 @@ pub fn init_winit(
                                         ) {
                                             custom_elements.insert(0, LumaRenderElement::Memory(elem));
                                         }
+                                    }
+                                    // Campo de senha (bg + bullets).
+                                    let field_y = greet_y + gh as i32 + 24;
+                                    let field_x = center_x - t_lock.field_width / 2;
+                                    // Border (outer rect).
+                                    let border = crate::gfx::make_rounded_panel(
+                                        t_lock.field_width + 4, t_lock.field_height + 4,
+                                        t_lock.field_corner + 2,
+                                        t_lock.field_border_focus,
+                                    );
+                                    let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((field_x - 2, field_y - 2))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, bloc.to_f64(), &border,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let bg = crate::gfx::make_rounded_panel(
+                                        t_lock.field_width, t_lock.field_height,
+                                        t_lock.field_corner, t_lock.field_bg,
+                                    );
+                                    let fgloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((field_x, field_y))
+                                            .to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                        renderer, fgloc.to_f64(), &bg,
+                                        None, None, None, Kind::Unspecified,
+                                    ) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    // Texto do campo (bullets ou placeholder).
+                                    let pw = data.state.lock_password.clone();
+                                    let (display, color) = if pw.is_empty() {
+                                        (t_lock.field_placeholder.clone(), t_lock.field_placeholder_color)
+                                    } else {
+                                        let masked: String = "•".repeat(pw.chars().count());
+                                        (masked, t_lock.field_text_color)
+                                    };
+                                    let (px, tw, th) = tr.rasterize_colored(
+                                        &display, t_lock.field_text_size, color,
+                                    );
+                                    if tw > 0 && th > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (tw as i32, th as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let tx = field_x + 14;
+                                        let ty = field_y + (t_lock.field_height - th as i32) / 2;
+                                        let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, tloc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    // Indicadores: Caps Lock (warn) + layout.
+                                    let mut parts: Vec<(String, smithay::backend::renderer::Color32F)> =
+                                        Vec::new();
+                                    if data.state.lock_caps_on {
+                                        parts.push((
+                                            "Caps Lock ativado".to_string(),
+                                            t_lock.indicator_warn_color,
+                                        ));
+                                    }
+                                    // Layout placeholder — em PT-BR fixo
+                                    // até XKB lookup real (fatia 6+).
+                                    parts.push(("PT-BR".to_string(), t_lock.indicator_color));
+                                    let ind_y = field_y + t_lock.field_height + 12;
+                                    let mut ind_x = field_x;
+                                    for (text, color) in parts.iter() {
+                                        let (px, w, h) = tr.rasterize_colored(
+                                            text, t_lock.indicator_size, *color,
+                                        );
+                                        if w == 0 || h == 0 { continue; }
+                                        let buf = MemoryRenderBuffer::from_slice(
+                                            &px,
+                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                            (w as i32, h as i32),
+                                            1, Transform::Normal, None,
+                                        );
+                                        let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((ind_x, ind_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, tloc.to_f64(), &buf,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        ind_x += w as i32 + 16;
                                     }
                                 }
                             }

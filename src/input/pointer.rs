@@ -545,6 +545,20 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
     }
 
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
+        // H58: locked intercepta tudo. Primeiro click revela o auth
+        // panel; click depois cai em no-op (campo de senha não recebe
+        // input por click ainda — fatia 5/6 trabalha melhor).
+        if state.locked {
+            if !state.lock_revealed {
+                state.lock_revealed = true;
+                state.lock_password.clear();
+            }
+            pointer.button(state, &ButtonEvent {
+                button, state: button_state, serial, time: event.time_msec(),
+            });
+            pointer.frame(state);
+            return;
+        }
         // H54.P5: central de notificações — bell, panel toggle, DND,
         // clear all, item dismiss. Ordem de prioridade.
         let bell_hit = state.notification_bell_rect.map_or(false, |(x, y, w, h)| {
