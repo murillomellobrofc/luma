@@ -90,6 +90,10 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // disparam shortcut sem cair no fluxo do lock e sem chegar em
     // cliente nenhum (nada tem foco durante lock).
     let mut lock_whitelist_action: Option<KeyAction> = None;
+    // Modo de edição: Esc desliga (prioridade baixa — só dispara se
+    // nenhum popup/menu/etc capturar antes).
+    let edit_mode_on = state.edit_mode;
+    let mut edit_mode_exit_request = false;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -370,6 +374,16 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                     }
                 }
             }
+            // Modo de edição: Esc desliga. Roda DEPOIS de todos os
+            // outros Esc handlers — se um popup/menu já fechou via
+            // Esc, ele retornou Intercept e nunca chega aqui.
+            if edit_mode_on && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    edit_mode_exit_request = true;
+                    return FilterResult::Intercept(());
+                }
+            }
             FilterResult::Forward
         },
     );
@@ -383,6 +397,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // a action diretamente, sem passar pelo input() do cliente.
     if let Some(action) = lock_whitelist_action {
         apply(state, action);
+        return;
+    }
+    if edit_mode_exit_request {
+        state.edit_mode = false;
+        tracing::info!("modo de edição: desligado via Esc");
         return;
     }
     if let Some(ev) = lock_event {

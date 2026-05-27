@@ -90,6 +90,16 @@ pub struct LumaState {
     /// Instant e chama `tick()` quando vence. Mesma cara dos
     /// elapsed-checks do OSD e dos toasts.
     pub widget_last_ticks: Vec<Instant>,
+    /// Modo de edição geral do Luma (fatia 1+). Liga via item do
+    /// menu de contexto "Modo de edição", Super+E ou Ctrl+Alt+E.
+    /// Desliga via Esc ou botão "Pronto" da barra de cima.
+    /// Enquanto ligado: overlay wash + barra no topo, e o arrastar
+    /// de ícone do desktop deixa de estar travado.
+    pub edit_mode: bool,
+    /// Cache do rect do botão "Pronto" pra hit-test no pointer
+    /// (preenchido a cada frame que a barra é renderizada).
+    pub edit_mode_done_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -760,6 +770,8 @@ impl LumaState {
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
             widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
+            edit_mode: false,
+            edit_mode_done_rect: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
