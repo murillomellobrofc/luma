@@ -7156,6 +7156,26 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
+                        // Fatia 3 widgets: tick loop. Pra cada widget,
+                        // verifica se last_tick.elapsed() >= interval
+                        // e chama tick() quando vence. Mesma forma dos
+                        // elapsed-checks do OSD/toasts. Sem catch-up de
+                        // ticks perdidos — o widget só vê "passou tempo
+                        // suficiente, atualiza agora".
+                        for (widget, last_tick) in data
+                            .state
+                            .widgets
+                            .iter_mut()
+                            .zip(data.state.widget_last_ticks.iter_mut())
+                        {
+                            if let Some(interval) = widget.tick_interval() {
+                                if last_tick.elapsed() >= interval {
+                                    widget.tick();
+                                    *last_tick = std::time::Instant::now();
+                                }
+                            }
+                        }
+
                         // Fatia 2 widgets: itera a Vec do layout.toml,
                         // renderiza cada um e empilha em fileira
                         // horizontal acumulando a largura. Origem
