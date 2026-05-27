@@ -100,6 +100,9 @@ pub struct LumaState {
     /// (preenchido a cada frame que a barra é renderizada).
     pub edit_mode_done_rect:
         Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Hover state do botão "Pronto" — atualizado pelo motion
+    /// handler e usado pelo render pra escolher bg_hover.
+    pub edit_mode_done_hover: bool,
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
@@ -772,6 +775,7 @@ impl LumaState {
             widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
             edit_mode: false,
             edit_mode_done_rect: None,
+            edit_mode_done_hover: false,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

@@ -137,6 +137,16 @@ pub fn handle_motion_absolute<I: InputBackend>(
         state.notification_history_hover = new_hover;
     }
 
+    // Modo de edição fatia 1: hover do botão Pronto da barra de cima.
+    {
+        let hover = state.edit_mode_done_rect
+            .map(|r| r.to_f64().contains(pos))
+            .unwrap_or(false);
+        if state.edit_mode_done_hover != hover {
+            state.edit_mode_done_hover = hover;
+        }
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
@@ -564,6 +574,27 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             });
             pointer.frame(state);
             return;
+        }
+        // Modo de edição fatia 1: botão "Pronto" na barra de cima.
+        // Hit-test acontece logo depois do lock pra ter prioridade
+        // sobre interações de janela / desktop / popup. Click consome
+        // o evento (não propaga pra surface debaixo).
+        if state.edit_mode {
+            let hit = state
+                .edit_mode_done_rect
+                .map(|r| r.to_f64().contains(pointer_pos))
+                .unwrap_or(false);
+            if hit {
+                state.edit_mode = false;
+                state.edit_mode_done_rect = None;
+                state.edit_mode_done_hover = false;
+                tracing::info!("modo de edição: desligado via botão Pronto");
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
         }
         // H54.P5: central de notificações — bell, panel toggle, DND,
         // clear all, item dismiss. Ordem de prioridade.
