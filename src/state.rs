@@ -186,6 +186,22 @@ pub struct LumaState {
         Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     pub resize_card_h_minus_rect:
         Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Fatia 3.1: config do painel principal. Lida de [[panel]] no
+    /// layout.toml no boot. Editada live pelo Panel Settings card.
+    pub panel_config: crate::widgets::PanelConfig,
+    /// Snapshot da config quando o card abriu (pra Cancelar reverter).
+    pub panel_config_snapshot: Option<crate::widgets::PanelConfig>,
+    /// Painel selecionado no modo de edição (true = selecionado).
+    pub panel_selected: bool,
+    /// Card "Configurações do painel" aberto.
+    pub panel_settings_open: bool,
+    /// Rects dos controles do card (cacheados pelo render).
+    pub panel_settings_height_plus: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub panel_settings_height_minus: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub panel_settings_align_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 3],
+    pub panel_settings_float_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub panel_settings_save_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub panel_settings_cancel_rect: Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     /// Rects dos botões Sim/Não da confirmação.
     pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
@@ -923,6 +939,20 @@ impl LumaState {
             resize_card_w_minus_rect: None,
             resize_card_h_plus_rect: None,
             resize_card_h_minus_rect: None,
+            panel_config: {
+                let pc = crate::widgets::load_panel_config();
+                crate::taskbar::set_taskbar_height(pc.height);
+                pc
+            },
+            panel_config_snapshot: None,
+            panel_selected: false,
+            panel_settings_open: false,
+            panel_settings_height_plus: None,
+            panel_settings_height_minus: None,
+            panel_settings_align_rects: [None; 3],
+            panel_settings_float_rect: None,
+            panel_settings_save_rect: None,
+            panel_settings_cancel_rect: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

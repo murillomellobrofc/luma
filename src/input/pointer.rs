@@ -889,6 +889,91 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     }
                 }
             }
+            // Fatia 3.1: Panel Settings card controls.
+            if state.panel_settings_open {
+                // Salvar.
+                if state.panel_settings_save_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    let _ = crate::widgets::save_panel_config(&state.panel_config);
+                    state.panel_settings_open = false;
+                    state.panel_config_snapshot = None;
+                    tracing::info!("painel: config salva");
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+                // Cancelar.
+                if state.panel_settings_cancel_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    if let Some(snap) = state.panel_config_snapshot.take() {
+                        crate::taskbar::set_taskbar_height(snap.height);
+                        state.panel_config = snap;
+                    }
+                    state.panel_settings_open = false;
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+                // Altura +/-.
+                if state.panel_settings_height_plus.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    state.panel_config.height = (state.panel_config.height + 2).min(120);
+                    crate::taskbar::set_taskbar_height(state.panel_config.height);
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+                if state.panel_settings_height_minus.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    state.panel_config.height = (state.panel_config.height - 2).max(24);
+                    crate::taskbar::set_taskbar_height(state.panel_config.height);
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+                // Alinhamento.
+                for (i, label) in ["left", "center", "right"].iter().enumerate() {
+                    if state.panel_settings_align_rects[i].map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                        state.panel_config.alignment = label.to_string();
+                        pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                        pointer.frame(state);
+                        return;
+                    }
+                }
+                // Float toggle.
+                if state.panel_settings_float_rect.map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false) {
+                    state.panel_config.floating = !state.panel_config.floating;
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // Fatia 3.1: click em área vazia do painel seleciona.
+            {
+                let taskbar_h = crate::taskbar::taskbar_height();
+                let float_m = if state.panel_config.floating { 12 } else { 0 };
+                let out_size = state.space.output_geometry(state.primary_output())
+                    .map(|g| g.size)
+                    .unwrap_or_default();
+                let bar_y = out_size.h - taskbar_h - float_m;
+                let bar_x = float_m;
+                let bar_w = out_size.w - float_m * 2;
+                let in_panel = pointer_pos.x >= bar_x as f64
+                    && pointer_pos.x < (bar_x + bar_w) as f64
+                    && pointer_pos.y >= bar_y as f64
+                    && pointer_pos.y < (bar_y + taskbar_h) as f64;
+                if in_panel {
+                    // Desseleciona widget se tinha.
+                    state.selected_widget_id = None;
+                    state.handle_confirm_mode = false;
+                    state.config_card_open = false;
+                    state.resize_card_open = false;
+                    if !state.panel_selected {
+                        state.panel_selected = true;
+                        state.panel_settings_open = true;
+                        state.panel_config_snapshot = Some(state.panel_config.clone());
+                    }
+                    pointer.button(state, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(state);
+                    return;
+                }
+            }
             // Fatia 2.3: hit-test nos botões da alça (ANTES do Pronto).
             // Alça normal: [0]=Mover, [1]=Configurar,
             // [2]=Redimensionar, [3]=Remover. Confirm mode: [0]=label,
@@ -1193,12 +1278,18 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 pointer.frame(state);
                 return;
             }
-            // Fatia 2.3: nenhum widget atingido no edit mode.
-            // Desseleciona (se tinha algo selecionado). Não consome —
-            // deixa o click propagar pra handlers normais.
+            // Fatia 2.3+3.1: nenhum widget/painel atingido.
             if state.selected_widget_id.is_some() {
                 state.selected_widget_id = None;
                 state.handle_confirm_mode = false;
+            }
+            if state.panel_selected {
+                if let Some(snap) = state.panel_config_snapshot.take() {
+                    crate::taskbar::set_taskbar_height(snap.height);
+                    state.panel_config = snap;
+                }
+                state.panel_selected = false;
+                state.panel_settings_open = false;
             }
         }
         // H54.P5: central de notificações — bell, panel toggle, DND,

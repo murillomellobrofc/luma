@@ -17,9 +17,18 @@ use smithay::{
 // Layout da taskbar agora vem 100% do `theme.taskbar` (Golden Hour H32.5.2).
 // Helpers `*()` abaixo lêem do tema e são usados pelo render.
 
-/// Altura total da barra inferior. Default 48px (Golden Hour).
+/// Altura efetiva do painel. Começa com o default do theme, mas
+/// sobreescrita pelo [[panel]] do layout.toml e pelo live preview
+/// do modo de edição. AtomicI32 propaga sem refatorar call sites.
+static PANEL_HEIGHT: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(48);
+
 pub fn taskbar_height() -> i32 {
-    crate::theme::current().taskbar.height
+    PANEL_HEIGHT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_taskbar_height(h: i32) {
+    PANEL_HEIGHT.store(h.max(24).min(120), std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Tamanho do container do launcher (quadrado). Default 44 (H33.taskbar.3).
