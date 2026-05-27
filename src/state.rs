@@ -713,31 +713,21 @@ impl LumaState {
             );
         let (notifications_slot, notifications_conn_handle) =
             crate::notifications::spawn();
-        // Fatia 2 widgets: TextRenderer dedicado + monta a fileira a
-        // partir do layout.toml via WidgetRegistry. Entrada inválida
-        // pula com warn — boot nunca derruba por widget mal config'd.
+        // Fatia 4 widgets: pipeline completo de carga, já distribuído
+        // por host. Panel vai pra fileira do painel; desktop é mapeado
+        // como SpaceItem::DesktopWidget logo depois do struct ser
+        // construído (precisa do state.space inicializado).
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
-        let widgets_for_init: Vec<Box<dyn luma_widget::Widget + Send>> =
-            if let Some(tr) = widget_text_for_init.as_ref() {
-                let registry = crate::widgets::build_default_registry(tr.clone());
-                let entries = crate::widgets::default_layout_path()
-                    .map(|p| crate::widgets::load_layout(&p))
-                    .unwrap_or_default();
-                tracing::info!("widgets: {} entrada(s) no layout.toml", entries.len());
-                let mut out = Vec::with_capacity(entries.len());
-                for entry in entries {
-                    match registry.build(&entry.type_name, &entry.config) {
-                        Ok(w) => out.push(w),
-                        Err(e) => tracing::warn!(
-                            "widget pulado (type={}): {e}", entry.type_name,
-                        ),
-                    }
-                }
-                out
-            } else {
-                Vec::new()
-            };
+        let (widgets_for_init, desktop_widgets_pending): (
+            Vec<Box<dyn luma_widget::Widget + Send>>,
+            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)>,
+        ) = if let Some(tr) = widget_text_for_init.as_ref() {
+            let result = crate::widgets::load_all(tr.clone());
+            (result.panel, result.desktop)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
@@ -894,6 +884,21 @@ impl LumaState {
         crate::apps::promote_favorites(&mut apps);
         state.apps = apps;
         state.app_icons = crate::apps::load_icons(&state.apps);
+
+        // Fatia 4 widgets: mapeia os widgets com placement=desktop no
+        // state.space como SpaceItem::DesktopWidget. Z=5 (mesma camada
+        // dos ícones, atrás das janelas). x/y vêm do layout.toml.
+        for (widget, x, y) in desktop_widgets_pending {
+            let item = std::sync::Arc::new(
+                crate::space_item::DesktopWidgetItem::new(widget, x, y),
+            );
+            state.space.map_element(
+                crate::space_item::SpaceItem::DesktopWidget(item),
+                smithay::utils::Point::<i32, smithay::utils::Logical>::from((x, y)),
+                false,
+            );
+        }
+
         Ok(state)
     }
 }
