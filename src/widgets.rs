@@ -564,6 +564,79 @@ pub fn remove_widget_by_id(
     Ok(())
 }
 
+/// Modo de edição fatia 2.4: appenda uma entrada [[widget]] NOVA no
+/// fim do layout.toml via toml_edit. Preserva arquivo existente.
+/// Retorna o id gerado.
+pub fn append_widget(
+    type_id: &str,
+    placement: &Placement,
+    config: &toml::Table,
+    all_ids: &[String],
+) -> Result<String, String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    // Gera id único.
+    let existing: std::collections::HashSet<String> = {
+        let w = doc.get("widget").and_then(|i| i.as_array_of_tables());
+        w.map(|arr| arr.iter()
+            .filter_map(|t| t.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect())
+        .unwrap_or_default()
+    };
+    let mut next = 1u32;
+    let new_id = loop {
+        let candidate = format!("w{next}");
+        next += 1;
+        if !existing.contains(&candidate) && !all_ids.contains(&candidate) {
+            break candidate;
+        }
+    };
+    // Monta a table da nova entrada.
+    let mut entry = toml_edit::Table::new();
+    entry.insert("id", toml_edit::value(new_id.as_str()));
+    entry.insert("type", toml_edit::value(type_id));
+    // Placement como inline table.
+    let mut pl = toml_edit::InlineTable::new();
+    match placement {
+        Placement::Panel => {
+            pl.insert("host", toml_edit::Value::from("panel"));
+        }
+        Placement::Desktop { x, y } => {
+            pl.insert("host", toml_edit::Value::from("desktop"));
+            pl.insert("x", toml_edit::Value::from(*x as i64));
+            pl.insert("y", toml_edit::Value::from(*y as i64));
+        }
+    }
+    entry.insert("placement", toml_edit::Item::Value(toml_edit::Value::InlineTable(pl)));
+    // Config como inline table.
+    let mut cfg_inline = toml_edit::InlineTable::new();
+    for (k, v) in config {
+        if let Some(tv) = toml_value_to_edit(v) {
+            cfg_inline.insert(k, tv);
+        }
+    }
+    entry.insert("config", toml_edit::Item::Value(toml_edit::Value::InlineTable(cfg_inline)));
+    // Append.
+    let widgets = doc
+        .entry("widget")
+        .or_insert_with(|| toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new()))
+        .as_array_of_tables_mut()
+        .ok_or_else(|| "widget não é array de tabelas".to_string())?;
+    widgets.push(entry);
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("layout.toml write falhou: {e}"))?;
+    Ok(new_id)
+}
+
+fn toml_value_to_edit(v: &toml::Value) -> Option<toml_edit::Value> {
+    match v {
+        toml::Value::String(s) => Some(toml_edit::Value::from(s.as_str())),
+        toml::Value::Integer(i) => Some(toml_edit::Value::from(*i)),
+        toml::Value::Float(f) => Some(toml_edit::Value::from(*f)),
+        toml::Value::Boolean(b) => Some(toml_edit::Value::from(*b)),
+        _ => None,
+    }
+}
+
 /// Resultado da carga do layout.toml — widgets já distribuídos por host.
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.

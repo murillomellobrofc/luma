@@ -799,7 +799,81 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 pointer.frame(state);
                 return;
             }
-            // Fatia 2.4: botão "Adicionar widget" — toggle seletor.
+            // Fatia 2.4: seletor "Adicionar widget".
+            if state.add_widget_open {
+                // Host buttons (Painel / Desktop).
+                let host_hit = state.add_widget_host_rects.iter()
+                    .enumerate()
+                    .find_map(|(i, r)| r.as_ref().filter(|r| r.to_f64().contains(pointer_pos)).map(|_| i));
+                if let Some(host_idx) = host_hit {
+                    if let Some(type_id) = state.add_widget_selected_type.take() {
+                        let placement = if host_idx == 0 {
+                            crate::widgets::Placement::Panel
+                        } else {
+                            crate::widgets::Placement::Desktop { x: 100, y: 100 }
+                        };
+                        if let Some(reg) = state.widget_registry.as_ref() {
+                            let config = reg.get_meta(&type_id)
+                                .map(|m| m.default_config.clone())
+                                .unwrap_or_default();
+                            match reg.build(&type_id, &config) {
+                                Ok(w) => {
+                                    match crate::widgets::append_widget(
+                                        &type_id, &placement, &config,
+                                        &state.widget_all_ids,
+                                    ) {
+                                        Ok(new_id) => {
+                                            state.widget_all_ids.push(new_id.clone());
+                                            match &placement {
+                                                crate::widgets::Placement::Panel => {
+                                                    state.widgets.push(w);
+                                                    state.widget_ids.push(new_id);
+                                                    state.widget_last_ticks.push(std::time::Instant::now());
+                                                }
+                                                crate::widgets::Placement::Desktop { x, y } => {
+                                                    let item = std::sync::Arc::new(
+                                                        crate::space_item::DesktopWidgetItem::new(w, new_id),
+                                                    );
+                                                    state.space.map_element(
+                                                        crate::space_item::SpaceItem::DesktopWidget(item),
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((*x, *y)),
+                                                        false,
+                                                    );
+                                                }
+                                            }
+                                            tracing::info!("modo de edição: widget '{type_id}' adicionado");
+                                        }
+                                        Err(e) => tracing::warn!("falha ao salvar novo widget: {e}"),
+                                    }
+                                }
+                                Err(e) => tracing::warn!("falha ao construir widget: {e}"),
+                            }
+                        }
+                        state.add_widget_open = false;
+                    }
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+                // Tiles.
+                let tile_hit = state.add_widget_tile_rects.iter()
+                    .position(|r| r.to_f64().contains(pointer_pos));
+                if let Some(idx) = tile_hit {
+                    if let Some(reg) = state.widget_registry.as_ref() {
+                        if let Some(meta) = reg.type_list().get(idx) {
+                            state.add_widget_selected_type = Some(meta.type_id.clone());
+                        }
+                    }
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+            }
+            // Toggle do botão "Adicionar widget".
             let add_hit = state.add_widget_btn_rect
                 .map(|r| r.to_f64().contains(pointer_pos))
                 .unwrap_or(false);

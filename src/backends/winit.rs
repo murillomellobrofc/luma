@@ -7563,6 +7563,197 @@ pub fn init_winit(
                                         }
                                     }
                                 }
+                                // Fatia 2.4: seletor "Adicionar widget".
+                                if data.state.add_widget_open {
+                                    if let Some(reg) = data.state.widget_registry.as_ref() {
+                                        let types = reg.type_list();
+                                        let sel_type = data.state.add_widget_selected_type.clone();
+                                        let card_w = 400i32;
+                                        let tile_h = 60i32;
+                                        let tile_gap = 6i32;
+                                        let card_pad = 16i32;
+                                        let header_h = 36i32;
+                                        let host_area_h = if sel_type.is_some() { 56 } else { 0 };
+                                        let tiles_h = (tile_h + tile_gap) * types.len() as i32 - tile_gap;
+                                        let card_h = card_pad + header_h + tile_gap + tiles_h + tile_gap + host_area_h + card_pad;
+                                        let card_x = (output_w - card_w) / 2;
+                                        let card_y = bar_h + 10;
+                                        // Card bg.
+                                        let cbg = crate::gfx::make_rounded_panel(
+                                            card_w, card_h, t_edit.handle_corner, t_edit.handle_bg,
+                                        );
+                                        let cloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((card_x, card_y))
+                                                .to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                            renderer, cloc.to_f64(), &cbg,
+                                            None, None, None, Kind::Unspecified,
+                                        ) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        // Header "Adicionar widget".
+                                        let (hpx, hw, hh) = tr.rasterize_colored(
+                                            "Adicionar widget", t_edit.label_size, t_edit.label_color,
+                                        );
+                                        if hw > 0 && hh > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(
+                                                &hpx,
+                                                smithay::backend::allocator::Fourcc::Argb8888,
+                                                (hw as i32, hh as i32),
+                                                1, Transform::Normal, None,
+                                            );
+                                            let hx = card_x + card_pad;
+                                            let hy = card_y + card_pad + (header_h - hh as i32) / 2;
+                                            let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((hx, hy))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, hloc.to_f64(), &buf,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        // Tiles.
+                                        data.state.add_widget_tile_rects.clear();
+                                        let mut ty = card_y + card_pad + header_h + tile_gap;
+                                        for (i, meta) in types.iter().enumerate() {
+                                            let is_sel = sel_type.as_deref() == Some(&meta.type_id);
+                                            let is_hover = data.state.add_widget_tile_hover == Some(i);
+                                            let tbg = if is_sel {
+                                                t_edit.done_button_bg
+                                            } else if is_hover {
+                                                t_edit.handle_btn_bg_hover
+                                            } else {
+                                                t_edit.handle_btn_bg
+                                            };
+                                            let tw = card_w - card_pad * 2;
+                                            let tile = crate::gfx::make_rounded_panel(
+                                                tw, tile_h, t_edit.handle_btn_corner, tbg,
+                                            );
+                                            let tx = card_x + card_pad;
+                                            let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, tloc.to_f64(), &tile,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                            // Nome + descrição.
+                                            let text_color = if is_sel { t_edit.done_button_text_color } else { t_edit.handle_btn_text_color };
+                                            let (npx, nw, nh) = tr.rasterize_colored(
+                                                &meta.display_name, t_edit.handle_btn_text_size + 1.0, text_color,
+                                            );
+                                            if nw > 0 && nh > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &npx,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (nw as i32, nh as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let nx = tx + 14;
+                                                let ny = ty + 8;
+                                                let nloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((nx, ny))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, nloc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                            let desc_color = if is_sel { t_edit.done_button_text_color } else { t_edit.handle_btn_text_disabled };
+                                            let (dpx, dw, dh) = tr.rasterize_colored(
+                                                &meta.description, t_edit.handle_btn_text_size - 1.0, desc_color,
+                                            );
+                                            if dw > 0 && dh > 0 {
+                                                let buf = MemoryRenderBuffer::from_slice(
+                                                    &dpx,
+                                                    smithay::backend::allocator::Fourcc::Argb8888,
+                                                    (dw as i32, dh as i32),
+                                                    1, Transform::Normal, None,
+                                                );
+                                                let dx = tx + 14;
+                                                let dy = ty + tile_h - dh as i32 - 8;
+                                                let dloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, dy))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, dloc.to_f64(), &buf,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                            data.state.add_widget_tile_rects.push(
+                                                smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                                    smithay::utils::Point::from((tx, ty)),
+                                                    smithay::utils::Size::from((tw, tile_h)),
+                                                ),
+                                            );
+                                            ty += tile_h + tile_gap;
+                                        }
+                                        // Host buttons (Painel / Desktop) quando tipo selecionado.
+                                        if sel_type.is_some() {
+                                            let hbtn_w = 160i32;
+                                            let hbtn_h = 40i32;
+                                            let hbtn_gap = 16i32;
+                                            let hbtn_total = hbtn_w * 2 + hbtn_gap;
+                                            let hbtn_x0 = card_x + (card_w - hbtn_total) / 2;
+                                            let hbtn_y = ty + 4;
+                                            for (j, label) in ["Painel", "Desktop"].iter().enumerate() {
+                                                let is_h = data.state.add_widget_host_hover == Some(j);
+                                                let bg = if is_h { t_edit.done_button_bg_hover } else { t_edit.done_button_bg };
+                                                let pill = crate::gfx::make_rounded_panel(
+                                                    hbtn_w, hbtn_h, t_edit.done_button_corner, bg,
+                                                );
+                                                let hx = hbtn_x0 + j as i32 * (hbtn_w + hbtn_gap);
+                                                let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((hx, hbtn_y))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, hloc.to_f64(), &pill,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                                let (lpx, lw, lh) = tr.rasterize_colored(
+                                                    label, t_edit.done_button_text_size, t_edit.done_button_text_color,
+                                                );
+                                                if lw > 0 && lh > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &lpx,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (lw as i32, lh as i32),
+                                                        1, Transform::Normal, None,
+                                                    );
+                                                    let lx = hx + (hbtn_w - lw as i32) / 2;
+                                                    let ly = hbtn_y + (hbtn_h - lh as i32) / 2;
+                                                    let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, lloc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                                data.state.add_widget_host_rects[j] = Some(
+                                                    smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                                        smithay::utils::Point::from((hx, hbtn_y)),
+                                                        smithay::utils::Size::from((hbtn_w, hbtn_h)),
+                                                    ),
+                                                );
+                                            }
+                                        } else {
+                                            data.state.add_widget_host_rects = [None; 2];
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             // Edit mode desligado: limpa o rect cacheado
