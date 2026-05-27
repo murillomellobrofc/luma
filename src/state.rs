@@ -148,6 +148,28 @@ pub struct LumaState {
     /// Rects dos botões Painel/Desktop no seletor (quando type selecionado).
     pub add_widget_host_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     pub add_widget_host_hover: Option<usize>,
+    /// Fatia 2.5: cartão "Configurar" aberto pro widget selecionado.
+    pub config_card_open: bool,
+    /// Valores editados no formulário (mapa chave → valor editado).
+    /// Aplicados só no Salvar — enquanto edita, o widget vivo não muda.
+    pub config_form_values: toml::Table,
+    /// Rects dos botões Salvar/Cancelar do card.
+    pub config_card_save_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub config_card_cancel_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Rects dos botões +/- dos campos int.
+    pub config_card_int_rects:
+        Vec<(String, smithay::utils::Rectangle<i32, smithay::utils::Logical>,
+             smithay::utils::Rectangle<i32, smithay::utils::Logical>)>,
+    /// Rects dos campos string (hit-test pra edição inline).
+    pub config_card_str_rects:
+        Vec<(String, smithay::utils::Rectangle<i32, smithay::utils::Logical>)>,
+    /// Campo string sendo editado no formulário (key). None = nenhum.
+    pub config_editing_field: Option<String>,
+    /// Hover dos botões do config card.
+    pub config_card_save_hover: bool,
+    pub config_card_cancel_hover: bool,
     /// Rects dos botões Sim/Não da confirmação.
     pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
@@ -867,6 +889,15 @@ impl LumaState {
             add_widget_tile_hover: None,
             add_widget_host_rects: [None; 2],
             add_widget_host_hover: None,
+            config_card_open: false,
+            config_form_values: toml::Table::new(),
+            config_card_save_rect: None,
+            config_card_cancel_rect: None,
+            config_card_int_rects: Vec::new(),
+            config_card_str_rects: Vec::new(),
+            config_editing_field: None,
+            config_card_save_hover: false,
+            config_card_cancel_hover: false,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),

@@ -96,6 +96,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let mut edit_mode_exit_request = false;
     enum NudgeDir { Left, Right, Up, Down }
     let mut edit_nudge: Option<NudgeDir> = None;
+    // Fatia 2.5: campo string inline do config card.
+    let config_editing = state.config_editing_field.is_some() && state.config_card_open;
+    let config_card_open = state.config_card_open;
+    enum ConfigKey { Char(char), Backspace, Enter, EscCancel }
+    let mut config_key: Option<ConfigKey> = None;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -379,9 +384,39 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
             // Modo de edição: Esc desliga. Roda DEPOIS de todos os
             // outros Esc handlers — se um popup/menu já fechou via
             // Esc, ele retornou Intercept e nunca chega aqui.
+            // Fatia 2.5: input do campo string do config card.
+            if config_editing && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Return || sym == Keysym::KP_Enter {
+                    config_key = Some(ConfigKey::Enter);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Escape {
+                    config_key = Some(ConfigKey::EscCancel);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::BackSpace {
+                    config_key = Some(ConfigKey::Backspace);
+                    return FilterResult::Intercept(());
+                }
+                let codepoint = smithay::input::keyboard::xkb::keysym_to_utf32(sym);
+                if codepoint != 0 {
+                    if let Some(ch) = char::from_u32(codepoint) {
+                        if !ch.is_control() {
+                            config_key = Some(ConfigKey::Char(ch));
+                            return FilterResult::Intercept(());
+                        }
+                    }
+                }
+                return FilterResult::Intercept(());
+            }
             if edit_mode_on && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
                 if sym == Keysym::Escape {
+                    if config_card_open {
+                        config_key = Some(ConfigKey::EscCancel);
+                        return FilterResult::Intercept(());
+                    }
                     edit_mode_exit_request = true;
                     return FilterResult::Intercept(());
                 }
@@ -418,10 +453,56 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         apply(state, action);
         return;
     }
+    // Fatia 2.5: config card input dispatch.
+    if let Some(ck) = config_key {
+        match ck {
+            ConfigKey::Char(ch) => {
+                if let Some(key) = state.config_editing_field.as_ref() {
+                    let val = state.config_form_values
+                        .get(key)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let mut s = val;
+                    s.push(ch);
+                    state.config_form_values.insert(
+                        key.clone(), toml::Value::String(s),
+                    );
+                }
+            }
+            ConfigKey::Backspace => {
+                if let Some(key) = state.config_editing_field.as_ref() {
+                    let val = state.config_form_values
+                        .get(key)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let mut s = val;
+                    s.pop();
+                    state.config_form_values.insert(
+                        key.clone(), toml::Value::String(s),
+                    );
+                }
+            }
+            ConfigKey::Enter => {
+                state.config_editing_field = None;
+            }
+            ConfigKey::EscCancel => {
+                if state.config_editing_field.is_some() {
+                    state.config_editing_field = None;
+                } else {
+                    state.config_card_open = false;
+                }
+            }
+        }
+        return;
+    }
     if edit_mode_exit_request {
         state.edit_mode = false;
         state.selected_widget_id = None;
         state.handle_confirm_mode = false;
+        state.config_card_open = false;
+        state.config_editing_field = None;
         tracing::info!("modo de edição: desligado via Esc");
         return;
     }
