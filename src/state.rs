@@ -84,7 +84,7 @@ pub struct LumaState {
     /// Fatia 2 widgets: lista de widgets ativos no painel, construída
     /// no boot a partir do `~/.config/luma/layout.toml` via registry.
     /// Ordem do arquivo = ordem da fileira. Vec vazio = nada desenha.
-    pub widgets: Vec<Box<dyn luma_widget::Widget>>,
+    pub widgets: Vec<Box<dyn luma_widget::Widget + Send>>,
     /// Fatia 3 widgets: last_tick paralelo a `widgets`. Cada frame
     /// a luma-bar verifica `widget.tick_interval()` contra esse
     /// Instant e chama `tick()` quando vence. Mesma cara dos
@@ -718,7 +718,7 @@ impl LumaState {
         // pula com warn — boot nunca derruba por widget mal config'd.
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
-        let widgets_for_init: Vec<Box<dyn luma_widget::Widget>> =
+        let widgets_for_init: Vec<Box<dyn luma_widget::Widget + Send>> =
             if let Some(tr) = widget_text_for_init.as_ref() {
                 let registry = crate::widgets::build_default_registry(tr.clone());
                 let entries = crate::widgets::default_layout_path()
