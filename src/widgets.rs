@@ -255,12 +255,23 @@ impl std::error::Error for ConfigError {}
 pub type WidgetBuilder =
     Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError>>;
 
-/// Mapa de "tipo no toml" pra builder. Construído uma vez no boot,
-/// imutável depois. Quando widgets de terceiros entrarem (pós-v1),
-/// o registro vira o ponto de plug-in.
+/// Metadata de um tipo de widget no registro. Usado pelo seletor
+/// "Adicionar widget" pra mostrar nome, descrição e config default.
+pub struct WidgetTypeMeta {
+    pub type_id: String,
+    pub display_name: String,
+    pub description: String,
+    pub default_config: toml::Table,
+    builder: WidgetBuilder,
+}
+
+/// Mapa de "tipo no toml" pra builder+metadata. Construído uma vez
+/// no boot, imutável depois. Quando widgets de terceiros entrarem
+/// (pós-v1), o registro vira o ponto de plug-in.
 #[derive(Default)]
 pub struct WidgetRegistry {
-    builders: HashMap<String, WidgetBuilder>,
+    types: Vec<WidgetTypeMeta>,
+    index: HashMap<String, usize>,
 }
 
 impl WidgetRegistry {
@@ -268,27 +279,51 @@ impl WidgetRegistry {
         Self::default()
     }
 
-    pub fn register<F>(&mut self, name: impl Into<String>, builder: F)
-    where
+    pub fn register<F>(
+        &mut self,
+        type_id: impl Into<String>,
+        display_name: impl Into<String>,
+        description: impl Into<String>,
+        default_config: toml::Table,
+        builder: F,
+    ) where
         F: Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError> + 'static,
     {
-        self.builders.insert(name.into(), Box::new(builder));
+        let id = type_id.into();
+        let idx = self.types.len();
+        self.types.push(WidgetTypeMeta {
+            type_id: id.clone(),
+            display_name: display_name.into(),
+            description: description.into(),
+            default_config,
+            builder: Box::new(builder),
+        });
+        self.index.insert(id, idx);
     }
 
     /// Constrói um widget pelo nome do tipo. Erro = tipo desconhecido
-    /// OU builder devolveu config inválida. Caller (a luma-bar) pula
-    /// a entrada + loga warn, em vez de derrubar o painel.
+    /// OU builder devolveu config inválida.
     pub fn build(
         &self,
         type_name: &str,
         config: &toml::Table,
     ) -> Result<Box<dyn Widget + Send>, ConfigError> {
-        match self.builders.get(type_name) {
-            Some(b) => b(config),
+        match self.index.get(type_name) {
+            Some(&idx) => (self.types[idx].builder)(config),
             None => Err(ConfigError(format!(
                 "tipo de widget desconhecido: {type_name}"
             ))),
         }
+    }
+
+    /// Lista de tipos registrados (pra o seletor de adicionar).
+    pub fn type_list(&self) -> &[WidgetTypeMeta] {
+        &self.types
+    }
+
+    /// Busca metadata de um tipo pelo id.
+    pub fn get_meta(&self, type_id: &str) -> Option<&WidgetTypeMeta> {
+        self.index.get(type_id).map(|&idx| &self.types[idx])
     }
 }
 
@@ -599,17 +634,33 @@ pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistr
     let mut registry = WidgetRegistry::new();
     {
         let tr = text_renderer.clone();
-        registry.register("label", move |cfg| {
-            LabelWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
-        });
+        let mut def = toml::Table::new();
+        def.insert("text".into(), toml::Value::String("Novo rótulo".into()));
+        registry.register(
+            "label",
+            "Rótulo",
+            "Texto fixo numa pill Golden Hour",
+            def,
+            move |cfg| {
+                LabelWidget::from_config(cfg, tr.clone())
+                    .map(|w| Box::new(w) as Box<dyn Widget + Send>)
+            },
+        );
     }
     {
         let tr = text_renderer.clone();
-        registry.register("counter", move |cfg| {
-            CounterWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
-        });
+        let mut def = toml::Table::new();
+        def.insert("start".into(), toml::Value::Integer(0));
+        registry.register(
+            "counter",
+            "Contador",
+            "Número subindo 1/s — POC de widget com estado",
+            def,
+            move |cfg| {
+                CounterWidget::from_config(cfg, tr.clone())
+                    .map(|w| Box::new(w) as Box<dyn Widget + Send>)
+            },
+        );
     }
     registry
 }
