@@ -172,12 +172,60 @@ pub fn set_enabled(on: bool) {
     tracing::info!("bluetooth: power {arg}");
 }
 
+/// Liga discovery via D-Bus direto no Adapter1. Mais confiável que
+/// spawn de bluetoothctl (que sai rápido e o BlueZ pode encerrar
+/// o discovery depois do timeout default). H57.3 fix.
 pub fn scan_on() {
-    let _ = Command::new("bluetoothctl").args(["scan", "on"]).spawn();
+    if let Some(path) = adapter_path() {
+        let _ = with_adapter_call(&path, "StartDiscovery");
+    }
 }
 
 pub fn scan_off() {
-    let _ = Command::new("bluetoothctl").args(["scan", "off"]).spawn();
+    if let Some(path) = adapter_path() {
+        let _ = with_adapter_call(&path, "StopDiscovery");
+    }
+}
+
+/// Encontra o path do adapter default via ObjectManager. Usualmente
+/// /org/bluez/hci0. Retorna None se BlueZ não responde.
+fn adapter_path() -> Option<String> {
+    use zbus::zvariant::OwnedObjectPath;
+    let conn = zbus::blocking::Connection::system().ok()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &conn,
+        "org.bluez",
+        "/",
+        "org.freedesktop.DBus.ObjectManager",
+    )
+    .ok()?;
+    // GetManagedObjects retorna a{oa{sa{sv}}}.
+    let result: std::collections::HashMap<
+        OwnedObjectPath,
+        std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+        >,
+    > = proxy.call("GetManagedObjects", &()).ok()?;
+    for (path, ifaces) in result.iter() {
+        if ifaces.contains_key("org.bluez.Adapter1") {
+            return Some(path.as_str().to_string());
+        }
+    }
+    None
+}
+
+fn with_adapter_call(path: &str, method: &str) -> Result<(), zbus::Error> {
+    let conn = zbus::blocking::Connection::system()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &conn,
+        "org.bluez",
+        path,
+        "org.bluez.Adapter1",
+    )?;
+    proxy.call::<_, _, ()>(method, &())?;
+    tracing::info!("bluetooth: {method} ok");
+    Ok(())
 }
 
 /// Outcome do connect/pair quando o command termina (pode levar
