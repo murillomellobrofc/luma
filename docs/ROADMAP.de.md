@@ -1,339 +1,345 @@
 # 🗺️ Luma — Roadmap
 
-Desktop-Umgebung in Rust + Smithay (Wayland)
-Identität: Golden Hour (coffee / coral / honey / sage)
-Ziel: v1.0 als Portfolio · Zeitplan ~2 Jahre · Surprise Drop
-SCOPE: Luma = die Desktop-Umgebung, läuft auf jeder Distro.
-Lumina OS (eigene Distro, mit eigenem OS-Installer) ist ein
-SEPARATES Projekt mit eigener Roadmap. Gehört NICHT in diese Datei.
+> Desktop-Umgebung in Rust + Smithay (Wayland)
+> Identität: Golden Hour (coffee / coral / honey / sage)
+> Ziel: v1.0 als Portfolio · Zeitrahmen ~2 Jahre · surprise drop
+>
+> GELTUNGSBEREICH: Luma = die Desktop-Umgebung, läuft auf jeder Distro.
+> Lumina OS (eigene Distro mit eigenem Betriebssystem-Installer) ist ein
+> SEPARATES Projekt mit eigenem Roadmap. Gehört NICHT in diese Datei.
 
 ---
 
-## ✅ ERLEDIGT
+## ✅ BEREITS ERLEDIGT
 
 ### Basis / Compositor
-
-- Smithay-Compositor läuft (Wayland)
+- Smithay-Compositor funktionsfähig (Wayland)
 - Multi-Monitor, Multi-Workspace
-- Echte Wayland-Apps laufen
+- Führt echte Wayland-Apps aus
 - GPU-Rendering
 - Rust 1.95 + Edition 2024
-- Technisches QA fertig — 0 kritische Bugs
+- Technische QA abgeschlossen — 0 kritische Bugs
 
-### Interface
-
-- Hybrides Vollbildmenü (Favoriten, Suche, Sitzung)
-- KDE-artige Taskbar (6 Zonen)
-- Fensterdekoration (Titelleiste, Golden-Hour-Buttons)
-- Icon-Resolver (GTK + KDE, 7557 Icons)
+### Oberfläche
+- Hybrides Vollbild-Menü (Favoriten, Suche, Sitzung)
+- Taskbar im KDE-Stil (6 Zonen)
+- Fensterdekoration (Titelleiste, Golden-Hour-Schaltflächen)
+- Symbolauflösung (GTK + KDE, 7557 Symbole)
 
 ### Applets / OSD
-
 - Lautstärke-Applet
 - OSD für Lautstärke + Helligkeit
-- Medien-OSD (Now Playing)
-- Erweiterbares System-Tray + SNI (D-Bus)
-- H54 — Benachrichtigungssystem Phase 1 (macOS-artige Toasts)
+- Medien-OSD (aktueller Titel)
+- Erweiterbarer System Tray + SNI (D-Bus)
+- H54 — Benachrichtigungssystem Phase 1 (Toast im macOS-Stil)
 - H57 — Applets für WLAN, Bluetooth und Akku (Popups)
-  · WLAN wird ausgeblendet, wenn keine Karte vorhanden ist
-    (fehlende Hardware behandelt)
-  · Kabelverbindung im Popup, einheitlicher Hover bei allen Applets,
-    Scan über direkten D-Bus
+  · blendet WLAN aus, wenn kein Adapter vorhanden (fehlende Hardware behandelt)
+  · Kabelverbindung im Popup, einheitlicher Hover in allen Applets,
+    Scan direkt über D-Bus
 
 ### Desktop
-
-- Kontextmenü des Desktops
-- Standard-Golden-Hour-Wallpaper + Galerie
-- Datei-Icons auf dem Desktop (lesen, zeichnen, Raster)
-- Auswahl, Drag, Rubber-Band, Pfeile
-- Pro-Icon-Menü (öffnen, kopieren, umbenennen, Papierkorb)
-- Inline-Umbenennen (ohne KDialog)
+- Desktop-Kontextmenü
+- Golden-Hour-Standardhintergründe + Galerie
+- Dateisymbole auf dem Desktop (lesen, zeichnen, Raster)
+- Auswahl, Drag, Gummiband, Pfeiltasten
+- Menü pro Symbol (öffnen, kopieren, umbenennen, Papierkorb)
+- Inline-Umbenennung (ohne KDialog)
 - H55 — Kalender beim Klick auf die Uhr
-- H56 — 3 dim-Items des Kontextmenüs aktiviert
-  (Neu erstellen, Einfügen, Symbole anordnen — das 4., Modo de edição,
-  bleibt dim bis das Widget-System existiert)
-- **H58 — Sperrbildschirm (Lock Screen)**
+- H56 — 3 abgeblendete Einträge im Kontextmenü aktivieren
+  (Neu erstellen, Einfügen, Symbole anordnen — der 4., Modo de edição,
+  bleibt abgeblendet, bis das Widget-System existiert)
+- H58 — Sperrbildschirm (Lock Screen)
   · Wayland-Protokoll ext-session-lock · Golden-Hour-Bildschirm mit
-    riesiger Uhr, Datum und Passwortfeld · schließt den "Sperren"-
-    Button im Menü
-  · Cards (Kalender, E-Mail usw.) strikt passiv: nur lesend, nicht
-    klickbar, keine sensiblen Inhalte
-  · ist die visuelle Basis, die das SDDM-Theme und der Splash
-    wiederverwenden
+    großer Uhr, Datum und Passwortfeld · schließt die Schaltfläche
+    „Sperren" im Menü ab
+  · Karten (Kalender, E-Mail usw.) strikt passiv: nur lesen,
+    nicht klickbar, kein Durchsickern sensibler Inhalte
+  · dient als visuelle Grundlage, die das SDDM-Theme und der Splash
+    wiederverwenden werden
+  · Scheibe 6 (Härtung): Hotkey Ctrl+Alt+L · Whitelist für XF86-Tasten
+    (Helligkeit, Lautstärke, Medien funktionieren auch im gesperrten
+    Zustand) · Unterdrückung von Client-Surfaces und Pointer während
+    des Locks · OSD rendert über dem Lock-Hintergrund
+- H58.1 — Benachrichtigungen auf dem Sperrbildschirm
+  · dezenter Stapel auf der Lock-Oberfläche (nur Symbol + App + Anzahl,
+    Vollmodus ist opt-in) · Gruppierung nach App aus visible+history
+  · Seed LUMA_FAKE_NOTIFICATIONS=N zum Testen im verschachtelten Modus,
+    ohne das KDE-Popup abzuschießen
+- H59 — Widget-System, FUNDAMENT (Code fertig, DEAKTIVIERT bis
+  ein Bearbeitungsmodus existiert)
+  · Trait Widget (render + tick_interval + tick) im Crate
+    luma-widget · Registry name→builder im Crate luma ·
+    RenderCtx host-aware (Panel { height } / Desktop) ·
+    layout.toml als Konfiguration ([[widget]] mit type, placement,
+    config)
+  · POCs: LabelWidget (fester Text) und CounterWidget (1/s)
+  · Tick-Schleife inline im Redraw-Handler, gleiche Machart wie die
+    elapsed-checks beim OSD und den Toasts
+  · 2 Hosts: Panel-Zeile + freie Position auf dem Desktop
+    (z=5, hinter Fenstern)
+  · MIGRATION DURCHGEFÜHRT: Monorepo Cargo Workspace mit 3 Crates
+    (luma, luma-theme, luma-widget). Die Notiz „nach den Widgets
+    migrieren" wurde zur Geschichte
+  · BEWUSST DEAKTIVIERT: System bleibt AUS, bis der
+    Bearbeitungsmodus existiert. Ohne Bearbeitungsmodus kann der
+    Nutzer keine Widgets hinzufügen/verschieben/entfernen — nur
+    durch manuelles Bearbeiten der layout.toml, und das ist eine
+    Entwickler-Erfahrung, keine Nutzer-Erfahrung. Reaktivierung
+    mit 1 Uncomment in state.rs, sobald der Bearbeitungsmodus da ist.
 
 ### In Arbeit
+- 🔨 Kontextuelle Personalisierung (reiner Mint-Stil) — PHASE im Design
+  Umbenannt von „Allgemeiner Bearbeitungsmodus". ENTSCHEIDUNG: wird 100%
+  im Mint/Cinnamon-Stil, OHNE Modus. Konfiguration geschieht per
+  Rechtsklick direkt dort, wo das Problem ist, genau wie Cinnamon es
+  macht. Aktiviert das ruhende Widget-System (H59). H-Nummer wird pro
+  Scheibe vergeben.
 
-(nichts im Moment — der nächste Schritt kommt aus "Mittelfristig")
+  Warum reiner Mint-Stil (nicht hybrid mit KDE):
+  · Mint ist einer der 4 Pfeiler der Luma-Identität (Windows-7-Menü
+    + Linux Mint Anpassung + COSMIC-Technik + PCD-Design)
+  · PCD: kein Modus bedeutet keine Reibung. Rechtsklick löst das
+    Problem, ohne dass man sich merken muss, einen Modus zu
+    betreten/verlassen
+  · Der „Widget-Griff" im KDE-Stil (Halo im Bearbeitungsmodus) entfällt.
+    Die PCD-Absicht wandert: Rechtsklick-Menüs haben große Einträge,
+    starken Kontrast und Hit-Target ≥ 40px
+
+  So funktioniert es (Cinnamon-Modell):
+  · Rechtsklick auf das Panel → Menü mit Widget hinzufügen,
+    Panel konfigurieren usw.
+  · Rechtsklick auf den Desktop → Widget hinzufügen, Desktop
+    personalisieren, Hintergrundbild/Preset wechseln
+  · Rechtsklick auf ein Widget → konfigurieren, verschieben, dieses
+    spezifische Widget entfernen
+  · Es gibt KEINEN „Bearbeitungsmodus" zum Betreten/Verlassen
+
+  Konsequenzen (aufgeschrieben, damit nichts vergessen wird):
+  · der abgeblendete Eintrag „Modo de edição" im Desktop-Kontextmenü
+    wird GELÖSCHT (nicht aktiviert) — Teil der Aufgaben dieser Phase
+  · das „Taskbar-Kontextmenü", das im mittelfristigen Bereich stand,
+    wird von dieser Phase absorbiert (Rechtsklick auf das Panel IST
+    jetzt der Konfigurationseinstieg)
+  · die alte Scheibe „Modus positioniert nur Desktop-Symbole" entfällt
+    — im Mint-Stil zieht der Nutzer einfach das Symbol, es funktioniert
+    bereits
+
+  Vorgeschlagene Scheiben (Design-Chat kann verfeinern):
+  1. Rechtsklick-Menüs (Panel, Desktop, Widget) + H59 aktivieren.
+     Nutzer kann bereits Widgets hinzufügen/verschieben/entfernen
+  2. Personalisierungsdialog (installierte Widgets verwalten,
+     Hintergrundbild/Preset wechseln). KANN ein Tab im nativen
+     Einstellungsbildschirm werden statt eines separaten Dialogs —
+     im Design-Chat entscheiden
+  3. Panel konfigurieren (Höhe, Ausrichtung, Panel erstellen/entfernen)
+
+  Wird beim Abschluss der Phase freigeschaltet: Widget-System verlässt
+  den Ruhezustand + abgeblendeter Menüeintrag wird gelöscht +
+  Taskbar-Kontextmenü wird erstellt.
 
 ---
 
 ## 🔜 NÄCHSTE SCHRITTE (Weg zur v1.0)
 
 ### Kurzfristig
-
-(leer — Items zu "In Arbeit" befördert oder bereits fertig.
-Nächste Charge kommt aus "Mittelfristig")
+- (leer — Einträge wurden zu „In Arbeit" befördert oder sind bereits
+  erledigt. Nächster Schwung kommt aus „Mittelfristig")
 
 ### Mittelfristig
-
-- **Benachrichtigungen Phase 2:** Stapeln, nach App gruppieren,
-  Zentrum/Verlauf
-- **Konfigurierbares Widget-System** (KDE-Plasma-artig)
-  → Widgets, die der Nutzer im Panel und auf dem Desktop hinzufügt/
-    entfernt/konfiguriert (Uhr, Wetter, Notizen, Systemmonitor usw.)
-  → ENTSCHEIDUNG: Widgets = Luma-native in Rust, von der luma-bar
-    selbst gerendert. KEIN GTK, KEIN Qt. Wie KDE-Plasmoids — die sind
-    keine einsteckbaren Qt-Apps. Nur durch eigenes Rendern garantiert
-    man Golden Hour + Hit Target ≥ 40px.
-    GTK/Qt kommt anders nach Luma: Drittanbieter-Apps als Fenster
-    (Wayland), Tray über SNI, und GTK/Qt-Theme-Generierung.
-  → ist ein großes architektonisches FUNDAMENT — einer der größten
-    Schritte der Roadmap. Erst wenn die DE-Basis reif ist.
-  → entsperrt: Taskbar-Kontextmenü + allgemeiner Bearbeitungsmodus
-- **Allgemeiner Bearbeitungsmodus von Luma** (KDE-artig, vereint)
-  → ein Modus, in dem der Nutzer alles an einem Ort organisiert:
-    Desktop-Icons neu positioniert UND Widgets/Panel-Layout anpasst
-  → hängt von Desktop-Icons (✅ vorhanden) + Widget-System (❌ noch
-    nicht) ab — deshalb zusammen mit/nach den Widgets
-  → aktiviert das dim "Modo de edição"-Item des Kontextmenüs
-  → vereint 3 Roadmap-Items in einem: dim-Menüitem + Widget-System +
-    dieser allgemeine Bearbeitungsmodus
-
-  **Funktionsweise:**
-  · Eintritt über das "Modo de edição"-Item im Kontextmenü +
-    Tastenkürzel; Austritt mit "Fertig"-Button oder Esc (alles
-    sperrt wieder)
-  · Bildschirm bekommt subtiles Overlay, Panels/Widgets haben
-    Hervorhebungsrand, oben Leiste mit "Widget hinzufügen" und
-    "Fertig"
-  · erlaubt: Desktop-Icons neu positionieren · Widgets hinzufügen/
-    bewegen/entfernen/konfigurieren (Desktop und Panels) · Panels
-    anpassen (Höhe, Ausrichtung, fixieren/schweben, neu erstellen) ·
-    Wallpaper und Preset wechseln
-
-  **Widget-Griff — PCD-Differenzierer:**
-  · jedes fokussierte Widget zeigt einen Griff mit Buttons
-    (konfigurieren, bewegen, Größe ändern, entfernen)
-  · in KDE sind diese Griffe winzig und nervig — in Luma,
-    Hit Target ≥ 40px, große Buttons, Golden-Hour-Farbe
-  · "Drehen" aus KDE entfernt (niemand benutzt es)
-  · Bearbeitungsmodus nutzbar für Menschen mit Tremor / Sehschwäche =
-    die PCD Max-Geschichte in der Praxis
-
-  **Scheiben (jede kompiliert und läuft alleine):**
-  1. Modus, der nur Desktop-Icons neu positioniert (Basis vorhanden)
-  2. Widgets hinzufügen/bewegen/entfernen/konfigurieren
-  3. Panel-Bearbeitung (Höhe, Ausrichtung, Panel erstellen)
-
-- **Taskbar-Kontextmenü** (hängt von Widgets ab)
-- **Native Luma-Einstellungsoberfläche** (enthält die Theme-Seiten der
-  System-Bildschirme: Splash, Login/SDDM, Boot — ein Panel, wie das
-  Farben-und-Themen von KDE)
-- **Bildschirmkonfiguration** (Auflösung, Monitore)
-- **Helligkeits-Slider im Akku-Applet** (kein eigenes Applet — geht
-  mit dem Akku zusammen, wie KDE es macht. Das Backend existiert
-  bereits, das Helligkeits-OSD beweist es; nur die klickbare Hülle
-  fehlt. Erscheint nur, wenn Backlight vorhanden ist, gleiche Logik
-  wie Akku)
+- Benachrichtigungen Phase 2: stapeln, nach App gruppieren, Zentrale/Verlauf
+- Nativer Luma-Einstellungsbildschirm (enthält die Theme-Seiten der
+  Systembildschirme: Splash, Login/SDDM, Boot — ein einziges Panel,
+  wie das Panel „Farben und Themes" in KDE)
+- Bildschirmkonfiguration (Auflösung, Monitore)
+- Helligkeitsregler innerhalb des Akku-Applets (kein eigenes Applet —
+  sitzt zusammen mit dem Akku, wie KDE es macht. Backend existiert
+  bereits, das Helligkeits-OSD beweist es; es fehlt nur die klickbare
+  Hülle. Erscheint nur bei vorhandenem Backlight, gleiche Logik wie
+  beim Akku)
 
 ### Native Luma-Apps
+> Eigene Programme von Luma mit Golden-Hour-Identität.
+> Jede davon ist praktisch ein Projekt im Projekt — immer nur eine
+> gleichzeitig umsetzen, und erst nachdem die DE-Basis ausgereift ist.
+- Dateimanager (der wichtigste — öffnet Desktop-Ordner, navigiert,
+  kopiert/verschiebt)
+- Screenshot-Werkzeug (Bildschirmausschnitt, Fenster oder freier
+  Bereich, mit Anmerkung. Im Stil von Cmd+Shift+5 auf dem Mac /
+  Snipping Tool unter Windows. HOHE PRIORITÄT: jede ernsthafte DE hat
+  das, direkt nach dem Dateimanager umsetzen)
+- Texteditor
+- Bildbetrachter
+- Taschenrechner
+- Eigenes Terminal (optional — nutzt derzeit das Systemterminal)
+- Aufgabenmanager (vollständiger Systemmonitor: Prozessliste, hängende
+  App beenden, Tabs für CPU / Arbeitsspeicher / Festplatte / Netzwerk.
+  Teilt sich das Auslesen von /proc mit dem Widget „Systemmonitor" aus
+  den Zukunftsideen — Widget ist der schnelle Blick im Panel, die App
+  ist die vollständige Ansicht. Niedrige Priorität, Ende der Warteschlange
+  der nativen Apps, nach dem Dateimanager)
+- Software-Center (Modell COSMIC Store, KEIN unabhängiger Store)
+  → grafische Oberfläche im Golden-Hour-Stil zum Suchen, Installieren,
+    Aktualisieren und Entfernen von Apps
+  → nutzt im Hintergrund vorhandene Infrastruktur: libflatpak für
+    Flathub + PackageKit für Systempakete. Luma hostet NICHTS,
+    moderiert NICHT, hat KEINE eigene Infrastruktur
+  → direkte Referenz: cosmic-store ist in Rust und quelloffen,
+    man kann studieren, wie System76 es umgesetzt hat
+  → substanzielle App, niedrige Priorität, blockiert nicht die v1.0
+    (anfangs nutzt der Anwender ein beliebiges Software-Center, wie
+    heute das Terminal)
+- Einstellungszentrale (bereits unter „Mittelfristig" aufgeführt)
 
-Eigene Programme von Luma mit Golden-Hour-Identität.
-Jedes ist praktisch ein Projekt im Projekt — eines nach dem
-anderen machen, und erst nachdem die DE-Basis reif ist.
+### Infrastruktur / Technik
+- DRM-Backend (außerhalb eines anderen Compositors laufen)
+  → schaltet frei: echte abgerundete Ecken, natives Multi-Window
+  → schaltet AUCH frei: VRR und Multi-Monitor mit gemischter
+    Bildwiederholrate (Tier 2 von Gaming) — und die sind
+    Grundvoraussetzung für Gamer. Das heißt, DRM verdient mehr
+    Priorität als es scheint: es ist nicht nur „abgerundete Ecken",
+    es entsperrt die Hälfte dessen, was die Gaming-Community
+    verlangt. In der mittelfristigen Warteschlange nach oben rücken.
+- HiDPI / Skalierung — Fractional Scaling OHNE unscharfe Darstellung.
+  PRIORITÄT: dient Gamern (hochauflösender Monitor) UND der
+  PCD-Seite (lesbare UI bei hoher Dichte) gleichzeitig. Gleiche
+  Arbeit, zwei Zielgruppen. Darf nicht fehlerhaft ausgeliefert werden.
+- GTK/Qt-Theme-Generierung (Drittanbieter-Apps übernehmen Golden Hour)
+- Migration zu Monorepo (Cargo Workspace) — ✅ ABGESCHLOSSEN in H59.
+  Heute ist Luma ein Monorepo mit 3 Crates: luma, luma-theme,
+  luma-widget. Notiz beibehalten nur zur Dokumentation der Entscheidung
+  und des Migrationszeitpunkts.
 
-1. **Dateimanager** (das wichtigste — öffnet die Desktop-Ordner,
-   navigiert, kopiert/verschiebt)
-2. **Screenshot-Tool** (Ausschnitt von Bildschirm, Fenster oder
-   freiem Bereich, mit Anmerkungen. Stil Cmd+Shift+5 von Mac /
-   Snipping Tool von Windows. HOHE PRIORITÄT: jedes ernsthafte DE
-   hat das, direkt nach dem Dateimanager machen)
-3. **Texteditor**
-4. **Bildbetrachter**
-5. **Taschenrechner**
-6. **Eigenes Terminal** (optional — heute wird das des Systems benutzt)
-7. **Task-Manager** (vollständiger Systemmonitor: Prozessliste,
-   hängende App killen, Tabs für CPU / Speicher / Festplatte /
-   Netzwerk. Teilt /proc-Lesen mit dem "Systemmonitor"-Widget aus
-   den zukünftigen Ideen — Widget ist der schnelle Blick auf dem
-   Panel, die App ist die vollständige Sache. Niedrige Priorität,
-   Ende der Native-Apps-Warteschlange, nach dem Dateimanager)
-8. **Software-Zentrum** (COSMIC-Store-Modell, KEIN eigenständiger Store)
-   → grafische Vitrine mit Golden-Hour-Look zum Finden, Installieren,
-     Aktualisieren und Entfernen von Apps
-   → verwendet darunter, was bereits existiert: libflatpak für
-     Flathub + packagekit für Systempakete. Luma hostet NICHTS,
-     moderiert NICHT, hat KEINE eigene Infrastruktur
-   → direkte Referenz: cosmic-store ist Rust und Open Source, man
-     kann studieren, wie System76 es gemacht hat
-   → substanzielle App, niedrige Priorität, blockiert v1.0 nicht (am
-     Anfang nutzt der Nutzer irgendein Software-Zentrum, wie das
-     Terminal heute)
-9. **Konfigurationszentrum** (bereits unter "mittelfristig" aufgeführt)
+### Gaming (einzelne Phase — „dem Spiel aus dem Weg gehen")
+> Spieleunterstützung. Passt in eine einzige Phase, ist kein Monster.
+> Im Kern muss der Compositor lernen, sich zurückzunehmen. Smithay
+> liefert bereits die Bausteine für den Großteil (Direct Scanout, VRR
+> im DRM-Backend, Tearing) — es geht mehr ums Verdrahten als ums
+> Neuerfinden.
+> Position: nach der Taskbar und einem soliden DE-Kern. MUSS NICHT
+> in der ersten v1.0 enthalten sein. Aber Tier 1 lässt sich früh
+> einbauen, weil es wenig Code ist und der Gewinn groß.
+>
+> PRIORITÄT — was die Leute laut fordern, ist NICHT das, wofür sie
+> dich abstrafen. HDR ist die lauteste Forderung, aber auch die
+> schwierigste, und niemand verreißt eine neue DE, weil sie kein HDR
+> in v1 hat. VRR, Fractional Scaling und Multi-Monitor dagegen sind
+> Grundvoraussetzung: fehlen sie oder sind kaputt, testet der Gamer
+> 10 Minuten und geht. Die DÜRFEN NICHT fehlerhaft ausgeliefert werden.
+> HDR wird der Star von v2, Schlagzeile für den surprise drop.
 
-### Infra / technisch
-
-- **DRM-Backend** (außerhalb eines anderen Compositors laufen)
-  → entsperrt: echte abgerundete Ecken, natives Multi-Window
-  → entsperrt AUCH: VRR und Multi-Monitor mit gemischtem Refresh
-    (Gaming Tier 2) — und das ist Brot und Butter für den Gamer.
-    Also, DRM verdient mehr Priorität als es scheint: es ist nicht
-    nur "abgerundete Ecken", es entsperrt die Hälfte dessen, was die
-    Gaming-Community fordert. In der mittelfristigen Warteschlange
-    nach oben schieben.
-- **HiDPI / Skalierung** — fractional scaling OHNE den Bildschirm zu
-  verwischen. PRIORITÄT: dient dem Gamer (hochauflösender Monitor)
-  UND der PCD-Seite (lesbare UI bei hoher Dichte) gleichzeitig.
-  Gleiche Arbeit, zwei Publika. Darf nicht kaputt ausgeliefert werden.
-- **GTK/Qt-Theme-Generierung** (Drittanbieter-Apps übernehmen Golden Hour)
-
-### Gaming (einzelne Phase — "dem Spiel aus dem Weg gehen")
-
-Spielsupport. Passt in eine einzige Phase, kein Monster. Im Grunde
-lernt der Compositor, beiseite zu treten. Smithay liefert bereits
-die Blöcke für das meiste (Direct Scanout, VRR im DRM-Backend,
-Tearing) — es ist mehr Verkabelung als Erfindung.
-Position: nach der Taskbar und solidem DE-Kern. Muss NICHT im
-ersten v1.0 sein. Aber Tier 1 kann früh dazukommen, weil es wenig
-Code ist und der Gewinn groß.
-
-PRIORITÄT — was die Leute laut fordern, ist NICHT das, wofür sie
-einen bestrafen, wenn es fehlt. HDR ist die lauteste Forderung,
-aber die schwierigste, und niemand zerstört ein neues DE, weil v1
-kein HDR hat. VRR, fractional scaling und Multi-Monitor sind
-dagegen Brot und Butter: fehlen sie oder kommen kaputt, testet der
-Gamer 10 Min und geht. Diese DÜRFEN nicht kaputt ausgeliefert
-werden. HDR bleibt als Star von v2, Schlagzeile für den Surprise Drop.
-
-**Tier 1 — essenziell (ohne das ist Luma schlecht für Spiele):**
-- Direct Scanout im Vollbild — der Spielpuffer geht direkt zur
-  Hardware, ohne dass Luma in der Mitte kopiert
-- Idle Inhibit — Wayland-Protokoll, das verhindert, dass der
-  Bildschirm abschaltet, während das Spiel läuft (z.B. RedM mit
-  Controller spielen ohne die Tastatur zu berühren). Klassischer
-  Bug, billig zu lösen
-- Eigene Effekte ausschalten — Vollbildspiel erkannt, Animation,
-  Blur und Schatten abschalten. Spart GPU
+**Tier 1 — essentiell (ohne das ist Luma schlecht für Spiele):**
+- Direct Scanout im Vollbild — der Spielpuffer geht direkt an die
+  Hardware, ohne dass Luma dazwischen kopiert
+- Idle Inhibit — Wayland-Protokoll, das verhindert, dass der Bildschirm
+  sich ausschaltet, während das Spiel läuft (z.B. RedM mit Controller
+  spielen, ohne die Tastatur zu berühren). Klassischer Bug, günstig
+  zu beheben
+- Eigene Effekte abschalten — erkennt Vollbild-Spiel, deaktiviert
+  Animation, Blur und Schatten. Hört auf, GPU sinnlos zu belasten
 
 **Tier 2 — wichtig, kann später kommen:**
-- VRR (Adaptive Sync) — Pro-Monitor-Toggle für FreeSync/G-Sync.
-  Tötet das Stuttering. Hängt vom DRM-Backend ab
-- Multi-Monitor mit gemischtem Refresh — ein 144Hz und ein 60Hz
-  zusammen, ohne dass das System alles auf den langsameren festklemmt.
-  Hängt vom DRM-Backend ab
-- Tearing Control — wp_tearing_control-Protokoll, Spiel fordert
-  asynchrone Präsentation für minimale Latenz (kompetitives Spielen)
+- VRR (Adaptive Sync) — Toggle pro Monitor für FreeSync/G-Sync.
+  Eliminiert Stutter. Hängt vom DRM-Backend ab
+- Multi-Monitor mit gemischter Bildwiederholrate — ein 144-Hz- und ein
+  60-Hz-Monitor zusammen, ohne dass das System alles auf den niedrigsten
+  Wert drosselt. Hängt vom DRM-Backend ab
+- Tearing Control — Protokoll wp_tearing_control, Spiel fordert
+  asynchrone Darstellung für minimale Latenz (Wettkampfspiele)
 
-**Tier 3 — Luxus, viel später:**
-- GameMode-Status in der Leiste (Dekoration, optional)
+**Tier 3 — Luxus, deutlich später:**
+- GameMode-Status in der Leiste (Schmuck, optional)
 - HDR — zu komplex und zu neu für v1. Wird der STAR von v2:
-  die lauteste Forderung der Community und Beschwerde Nr. 1 von
-  Linux-Neulingen. Absichtlich aufgehoben für Schlagzeilen
+  die lauteste Forderung der Community und die Beschwerde Nr. 1
+  von Linux-Neulingen. Absichtlich aufgespart für die Schlagzeile
 
-### Auf v1.0 zu
+### Weg zur v1.0
 
-**System-Bildschirme (das "Chrome" um die Sitzung):**
-Wie KDE behandelt Luma diese als themable Komponenten, alle
-konfigurierbar in einem einzigen Panel der nativen
-Einstellungsoberfläche. Es wird KEIN Display Manager gebaut —
-SDDM wird thematisiert.
+**Systembildschirme (das „Chrome" rund um die Sitzung):**
+> Wie KDE behandelt Luma diese als thembare Komponenten,
+> alle konfigurierbar in einem einzigen Panel des nativen
+> Einstellungsbildschirms. Man baut KEINEN Display Manager —
+> man themet SDDM.
+- Sitzungsdatei (.desktop) — lässt Luma in der Liste von
+  SDDM / GDM / jedem Display Manager erscheinen. Trivial, aber OHNE
+  das kann sich niemand bei Luma anmelden. PFLICHT für v1.0.
+- SDDM-Theme (Golden Hour) — der Login-Bildschirm. Ein QML-Theme für
+  SDDM, exakt wie KDE es macht. ENTSCHEIDUNG: kein eigener Greeter
+  von Grund auf; man themet SDDM, das bereits existiert. Polish.
+- Splash Screen — der kurze Bildschirm nach dem Login, während die DE
+  lädt (der KSplash von KDE). Luma-gerendert, leicht, Markenmoment.
+  Polish, niedrige Priorität.
+- Boot-Theme (Plymouth) Golden Hour — nur Grafik + kleine
+  Konfiguration, nichts Eigenes bauen. Günstiges Polish, hoher Ertrag.
 
-- **Sitzungsdatei (.desktop)** — lässt Luma in der Liste von SDDM /
-  GDM / jedem Display Manager erscheinen. Trivial, aber OHNE das
-  loggt sich niemand in Luma ein. PFLICHT für v1.0.
-- **SDDM-Theme (Golden Hour)** — der Login-Bildschirm. Ein QML-Theme
-  für SDDM, genau wie KDE es macht. ENTSCHEIDUNG: kein eigener
-  Greeter von Grund auf geschrieben; SDDM wird thematisiert, das
-  schon existiert. Polish.
-- **Splash-Screen** — der schnelle Bildschirm nach dem Login, während
-  das DE lädt (das KSplash von KDE). Luma-gerendert, leicht,
-  Markenmoment. Polish, niedrige Priorität.
-- **Boot-Theme (Plymouth) Golden Hour** — nur Grafik + kleine
-  Konfiguration, nichts wird gebaut. Billiger Polish, hoher Ertrag.
-- **Packaging und Installation von Luma** — wie das DE auf die
-  Maschine der Leute kommt. Deckt ab: Build-Anweisungen für den Code
-  + Distro-Pakete (AUR für Arch, COPR für Fedora, .deb für Ubuntu).
-  PFLICHT für den Surprise Drop — ohne das öffnen die Leute von
+- Paketierung und Installation von Luma — so gelangt die DE auf die
+  Rechner der Nutzer. Umfasst: Build-Anweisungen für den Quellcode +
+  Distro-Pakete (AUR für Arch, COPR für Fedora, .deb für Ubuntu).
+  PFLICHT für den surprise drop — ohne das öffnen die Leute von
   r/linux, Phoronix und HN das Repo und können nicht testen.
-  Paart sich mit der Sitzungsdatei. (Luma ist DE: wird NICHT zu
-  Flatpak, Flatpak ist für Apps, ein DE installiert ins System.)
-- **Allgemeiner Polish, vollständiges QA**
-- **Die 4 visuellen Presets:** Classic, Mint, Dock, PCD Max
-- **Endgültige Dokumentation**
-- **Surprise Drop:** Diolinux, r/linux, Phoronix, Hacker News
+  Gehört zusammen mit der Sitzungsdatei. (Luma ist eine DE: wird NICHT
+  zum Flatpak, Flatpak ist für Apps, DE wird im System installiert.)
+- Allgemeines Polish, vollständige QA
+- Die 4 visuellen Presets: Classic, Mint, Dock, PCD Max
+- Abschließende Dokumentation
+- Surprise Drop: Diolinux, r/linux, Phoronix, Hacker News
 
 ---
 
-## 📌 NOTIERTE TECHNISCHE SCHULDEN (docs/DEBT.md)
-
+## 📌 FESTGEHALTENE TECHNISCHE SCHULDEN (docs/DEBT.md)
 - Abgerundete Fensterecken (wartet auf DRM-Backend)
-- Benachrichtigungen: Stapeln / Zentrum / Aktionen / Ton
-- Kontextmenü: 1 dim-Item übrig (Rest in H56 gelöst):
-  · Modo de edição → wartet auf Widget-System + allgemeinen
-    Bearbeitungsmodus
-- Taskbar-Kontextmenü (wartet auf Widget-System)
-- "Sperren"-Button im Sitzungsmenü → wartet auf den Sperrbildschirm
-  (ext-session-lock). Solange er nicht existiert, hat der Button
-  nichts zu tun.
+- Kontextmenü: 1 verbliebener abgeblendeter Eintrag (Rest in H56 gelöst):
+  · Modo de edição → dieser Eintrag wird in der Phase der kontextuellen
+    Personalisierung GELÖSCHT (nicht aktiviert), Entscheidung reiner
+    Mint-Stil: kein Modus, Konfiguration per Rechtsklick direkt dort,
+    wo das Problem ist
+- Taskbar-Menü → absorbiert von der Phase der kontextuellen
+  Personalisierung (Rechtsklick auf das Panel IST der
+  Konfigurationseinstieg)
 
 ---
 
-## 💭 ZUKÜNFTIGE IDEEN (nach der Basis, notiert um nicht zu vergessen)
+## 💭 ZUKUNFTSIDEEN (nach der Basis, festgehalten zum Nicht-Vergessen)
+> Funktionen inspiriert von macOS/Windows, die in eine DE passen. KEINE
+> Priorität — kommen erst nach der Basis und den nativen Apps.
+- Globale Suche (im Spotlight-Stil) — Apps, Dateien und Einstellungen
+  an einem Ort suchen. Erweitert die bereits vorhandene Menüsuche.
+- Fenster-Snapping — an den Rand ziehen rastet das Fenster auf halber
+  Bildschirmbreite ein. Produktivitätsfunktion.
+- Automatischer Dunkel-/Hellmodus nach Uhrzeit — das Theme folgt dem
+  Sonnenuntergang. Passt zur Golden-Hour-Identität, wäre ein
+  thematisches Alleinstellungsmerkmal von Luma.
+- Vom Nutzer anpassbare Tastenkürzel.
+- Dateivorschau — Vorschau beim Auswählen einer Datei auf dem Desktop.
+- Fensterwechsler mit Miniaturansicht — Alt+Tab zeigt eine Vorschau
+  jedes Fensters statt nur eines Symbols.
+- Fensterübersicht — im Exposé-/Mission-Control-Stil von macOS,
+  verteilt alle Fenster auf dem Bildschirm zur Auswahl.
+- Zwischenablage-Verlauf — das Win+V, speichert die zuletzt kopierten
+  Einträge.
+- Aktive Ecken — die Maus in eine Ecke bewegen löst eine Aktion aus
+  (Desktop anzeigen, Menü öffnen usw.).
+- Nachtlicht — der Bildschirm wird nachts wärmer im Farbton. Passt
+  zur Golden-Hour-Identität, wie der automatische Dunkelmodus.
 
-Features inspiriert von mac/Windows, die in ein DE passen. KEINE
-Priorität — kommen erst nach der Basis und den nativen Apps.
+### Barrierefreiheit (speisen das Preset PCD Max)
+> Diese sind KEINE echten „Zukunftsideen" — sie verleihen dem
+> Narrativ „DE, entworfen von einer Person mit Behinderung" beim
+> surprise drop Gewicht. Verdienen es, in der Warteschlange aufzusteigen
+> und vor v1.0 eingebaut zu werden.
+- Bildschirmlupe — einen Bereich des Bildschirms vergrößern.
+- Großer Cursor mit Hervorhebung — den Zeiger leicht finden.
+- Einrastfunktion — Tastenkürzel eine Taste nach der anderen drücken.
 
-- **Globale Suche (Spotlight-artig)** — Apps, Dateien und
-  Einstellungen an einem Ort suchen. Erweitert die bereits
-  vorhandene Menüsuche.
-- **Fenster-Snap** — Ziehen zum Rand rastet das Fenster auf halbem
-  Bildschirm ein. Produktivitäts-Feature.
-- **Automatischer Dunkel-/Hell-Modus nach Tageszeit** — das Theme
-  folgt dem Sonnenuntergang. Passt zur Golden-Hour-Identität, wäre
-  ein thematischer Differenzierer von Luma.
-- **Benutzerdefinierbare Tastenkürzel** vom Nutzer.
-- **Dateivorschau** — Vorschau beim Auswählen einer Datei auf dem
-  Desktop.
-- **Fensterwechsler mit Miniatur** — das Alt+Tab, das eine Vorschau
-  jedes Fensters statt nur Icon zeigt.
-- **Fensterübersicht** — Stil Exposé/Mission Control von Mac,
-  breitet alle Fenster auf dem Bildschirm aus zur Auswahl.
-- **Zwischenablage-Verlauf** — das Win+V, hält die letzten kopierten
-  Items.
-- **Aktive Ecken** — die Maus in eine Ecke werfen löst eine Aktion
-  aus (Desktop zeigen, Menü öffnen usw.).
-- **Night Light** — der Bildschirm wärmt sich nachts farblich auf.
-  Passt zur Golden-Hour-Identität, wie der automatische Dunkelmodus.
-
-### Barrierefreiheit (füttert das PCD Max-Preset)
-
-Diese sind KEINE echten "zukünftigen Ideen" — sie geben dem
-Winkel "von einer Person mit Behinderung gestaltetes DE" Gewicht
-beim Surprise Drop. Sie verdienen es, in der Schlange aufzusteigen
-und vor v1.0 zu kommen.
-
-- **Bildschirmlupe** — einen Bildschirmausschnitt vergrößern.
-- **Großer und hervorgehobener Cursor** — den Zeiger leicht finden.
-- **Einrastetasten** — Tastenkürzel eine Taste auf einmal drücken.
-
----
-
-## 🚫 AUSSERHALB DES UMFANGS (nicht verfolgen)
-
-Features von Megakonzernen — passen nicht zu einem Portfolio-DE.
-
-- Dateiversionshistorie (Time-Machine-Stil)
-- Kontinuität zwischen Geräten
+## 🚫 AUSSERHALB DES GELTUNGSBEREICHS (nicht verfolgen)
+> Features großer Unternehmen — gehen über eine Portfolio-DE hinaus.
+- Dateiversionsverlauf (à la Time Machine)
+- Geräteübergreifende Kontinuität
 - Sprachassistent
 
----
-
 ## 🎯 PROJEKTPRINZIPIEN
-
-- Ein Schritt nach dem anderen, fertig und getestet vor dem nächsten
-- Feature, das von einem nicht bereiten System abhängt = dim-Item +
-  Notiz im DEBT
-- Null Hardcoded-Hex — alles in theme.toml
+- Ein Schritt nach dem anderen, abgeschlossen und getestet bevor der nächste beginnt
+- Feature, das ein noch nicht fertiges System voraussetzt = abgeblendeter Eintrag + Notiz in DEBT
+- Null hartcodierte Hex-Werte — alles in theme.toml
 - Atomare Commits, jeder kompiliert und läuft
 - Backup-Tag vor jeder Etappe
-- PCD-Barrierefreiheit: Hit Targets ≥ 40px, WCAG AA
+- Barrierefreiheit PCD: Hit-Targets ≥ 40px, WCAG AA
