@@ -1250,6 +1250,8 @@ dependencies = [
  "image",
  "libc",
  "libloading",
+ "luma-theme",
+ "luma-widget",
  "meval",
  "resvg",
  "serde",
@@ -1263,6 +1265,24 @@ dependencies = [
  "walkdir",
  "xcursor",
  "zbus",
+]
+
+[[package]]
+name = "luma-theme"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "smithay",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "luma-widget"
+version = "0.1.0"
+dependencies = [
+ "luma-theme",
+ "smithay",
 ]
 
 [[package]]

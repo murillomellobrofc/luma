@@ -1,3 +1,6 @@
+[workspace]
+members = ["crates/luma-theme", "crates/luma-widget"]
+
 [package]
 name = "luma"
 version = "0.3.0"
@@ -6,6 +9,8 @@ description = "Wayland compositor e ambiente gráfico do Lumina OS"
 license = "GPL-3.0-or-later"
 
 [dependencies]
+luma-theme = { path = "crates/luma-theme" }
+luma-widget = { path = "crates/luma-widget" }
 bitflags = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fontdue = "0.9"

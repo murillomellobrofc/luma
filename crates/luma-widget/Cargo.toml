@@ -1,0 +1,14 @@
+[package]
+name = "luma-widget"
+version = "0.1.0"
+edition = "2024"
+description = "Trait Widget + RenderCtx — fundação do sistema de widgets do Luma"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+luma-theme = { path = "../luma-theme" }
+
+[dependencies.smithay]
+git = "https://github.com/Smithay/smithay.git"
+default-features = false
+features = ["renderer_gl"]
