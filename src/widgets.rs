@@ -510,6 +510,25 @@ pub fn save_panel_order(
     Ok(())
 }
 
+/// Modo de edição fatia 2.3: remove uma entrada [[widget]] do
+/// layout.toml por id. Preserva comentários e outras entradas.
+pub fn remove_widget_by_id(
+    id: &str,
+    all_ids: &[String],
+) -> Result<(), String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    let idx = find_entry_by_id(&doc, id)
+        .ok_or_else(|| format!("id '{id}' não encontrado no layout.toml"))?;
+    let widgets = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+        .ok_or_else(|| "layout.toml sem [[widget]]".to_string())?;
+    widgets.remove(idx);
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("layout.toml write falhou: {e}"))?;
+    Ok(())
+}
+
 /// Resultado da carga do layout.toml — widgets já distribuídos por host.
 /// Panel vai pra fileira do painel (state.widgets); desktop vai pro Space
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
