@@ -223,6 +223,10 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
 /// Loga pra debug.
 fn toggle_edit_mode(state: &mut LumaState) {
     state.edit_mode = !state.edit_mode;
+    if !state.edit_mode {
+        state.selected_widget_id = None;
+        state.handle_confirm_mode = false;
+    }
     tracing::info!("modo de edição: {}", if state.edit_mode { "ligado" } else { "desligado" });
 }
 

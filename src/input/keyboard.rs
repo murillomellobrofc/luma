@@ -401,6 +401,8 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     }
     if edit_mode_exit_request {
         state.edit_mode = false;
+        state.selected_widget_id = None;
+        state.handle_confirm_mode = false;
         tracing::info!("modo de edição: desligado via Esc");
         return;
     }

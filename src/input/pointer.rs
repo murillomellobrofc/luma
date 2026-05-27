@@ -577,8 +577,8 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
-    // Fatia 2.2: mouseup encerra drag de reorder de painel e salva
-    // a ordem nova no layout.toml via toml_edit.
+    // Fatia 2.2 + 2.3: mouseup de reorder OU seleção de painel.
+    // Drag ativo = reorder + salva. Drag inativo (click curto) = seleção.
     if button_state == ButtonState::Released {
         if let Some(drag) = state.panel_widget_drag.take() {
             if drag.active {
@@ -594,12 +594,15 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         "modo de edição: falha ao salvar reorder: {e}",
                     ),
                 }
+            } else if let Some(id) = state.widget_ids.get(drag.current_index).cloned() {
+                state.selected_widget_id = Some(id);
+                state.handle_confirm_mode = false;
             }
         }
     }
 
-    // Modo de edição fatia 2.1: mouseup encerra o drag de widget de
-    // desktop e grava o novo x/y no layout.toml via toml_edit.
+    // Fatia 2.1 + 2.3: mouseup de desktop widget drag OU seleção.
+    // Drag ativo = mover + salvar. Drag inativo (click curto) = seleção.
     if button_state == ButtonState::Released {
         if let Some(drag) = state.desktop_widget_drag.take() {
             if drag.active {
@@ -617,6 +620,10 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         "modo de edição: falha ao salvar layout.toml: {e}",
                     ),
                 }
+            } else {
+                // Click curto sem drag = seleção.
+                state.selected_widget_id = Some(drag.item.id.clone());
+                state.handle_confirm_mode = false;
             }
         }
     }
@@ -704,6 +711,8 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 state.edit_mode = false;
                 state.edit_mode_done_rect = None;
                 state.edit_mode_done_hover = false;
+                state.selected_widget_id = None;
+                state.handle_confirm_mode = false;
                 tracing::info!("modo de edição: desligado via botão Pronto");
                 pointer.button(state, &ButtonEvent {
                     button, state: button_state, serial, time: event.time_msec(),
@@ -784,6 +793,13 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 });
                 pointer.frame(state);
                 return;
+            }
+            // Fatia 2.3: nenhum widget atingido no edit mode.
+            // Desseleciona (se tinha algo selecionado). Não consome —
+            // deixa o click propagar pra handlers normais.
+            if state.selected_widget_id.is_some() {
+                state.selected_widget_id = None;
+                state.handle_confirm_mode = false;
             }
         }
         // H54.P5: central de notificações — bell, panel toggle, DND,
