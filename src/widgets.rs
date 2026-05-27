@@ -131,13 +131,17 @@ fn render_pill_text(
     let (text_px, text_w, text_h) =
         text_renderer.rasterize_colored(text, font_size, text_color);
 
-    // Altura: painel dita; desktop escolhe (40px é uma altura
-    // razoável que combina com a font size atual de 13.5).
-    let pill_h = match ctx.host {
-        WidgetHost::Panel { height } => height as i32,
-        WidgetHost::Desktop => 40,
+    // Tamanho: user_size sobrescreve quando presente (modo de edição
+    // "Redimensionar"). Senão, painel dita altura; desktop = 40px.
+    let (pill_w, pill_h) = if let Some((uw, uh)) = ctx.user_size {
+        (uw as i32, uh as i32)
+    } else {
+        let h = match ctx.host {
+            WidgetHost::Panel { height } => height as i32,
+            WidgetHost::Desktop => 40,
+        };
+        (padding_h + text_w as i32 + padding_h, h)
     };
-    let pill_w = padding_h + text_w as i32 + padding_h;
 
     // 2) Pill arredondada (mesmo helper que o resto do compositor usa —
     //    alpha=0 fora dos cantos). Reconstruímos os pixels manualmente
@@ -353,12 +357,19 @@ impl WidgetRegistry {
 /// Onde o widget mora — versão TOML de luma_widget::WidgetHost.
 /// `{ host = "panel" }` (default) ou `{ host = "desktop", x = N, y = M }`.
 /// Internally-tagged via serde: o campo `host` discrimina a variante.
-#[derive(Debug, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize, Default)]
 #[serde(tag = "host", rename_all = "lowercase")]
 pub enum Placement {
     #[default]
     Panel,
-    Desktop { x: i32, y: i32 },
+    Desktop {
+        x: i32,
+        y: i32,
+        #[serde(default)]
+        width: Option<i32>,
+        #[serde(default)]
+        height: Option<i32>,
+    },
 }
 
 /// Entrada do layout.toml — antes do construtor rodar. O `type`
@@ -623,7 +634,7 @@ pub fn append_widget(
         Placement::Panel => {
             pl.insert("host", toml_edit::Value::from("panel"));
         }
-        Placement::Desktop { x, y } => {
+        Placement::Desktop { x, y, .. } => {
             pl.insert("host", toml_edit::Value::from("desktop"));
             pl.insert("x", toml_edit::Value::from(*x as i64));
             pl.insert("y", toml_edit::Value::from(*y as i64));
@@ -677,6 +688,37 @@ pub fn save_widget_config(
     Ok(())
 }
 
+/// Modo de edição fatia 2.6: atualiza width e height na placement
+/// de um widget desktop no layout.toml, por id.
+pub fn save_widget_size(
+    id: &str,
+    width: i32,
+    height: i32,
+    all_ids: &[String],
+) -> Result<(), String> {
+    let (mut doc, path) = open_layout_for_write(all_ids)?;
+    let idx = find_entry_by_id(&doc, id)
+        .ok_or_else(|| format!("id '{id}' não encontrado"))?;
+    let widgets = doc
+        .get_mut("widget")
+        .and_then(|i| i.as_array_of_tables_mut())
+        .ok_or_else(|| "sem [[widget]]".to_string())?;
+    let entry = widgets.get_mut(idx).unwrap();
+    let placement = entry
+        .get_mut("placement")
+        .ok_or_else(|| "entrada sem placement".to_string())?;
+    if let Some(inline) = placement.as_inline_table_mut() {
+        inline.insert("width", toml_edit::Value::from(width as i64));
+        inline.insert("height", toml_edit::Value::from(height as i64));
+    } else if let Some(table) = placement.as_table_mut() {
+        table["width"] = toml_edit::value(width as i64);
+        table["height"] = toml_edit::value(height as i64);
+    }
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("write falhou: {e}"))?;
+    Ok(())
+}
+
 fn toml_value_to_edit(v: &toml::Value) -> Option<toml_edit::Value> {
     match v {
         toml::Value::String(s) => Some(toml_edit::Value::from(s.as_str())),
@@ -693,8 +735,8 @@ fn toml_value_to_edit(v: &toml::Value) -> Option<toml_edit::Value> {
 pub struct WidgetLoadResult {
     /// (widget, id)
     pub panel: Vec<(Box<dyn Widget + Send>, String)>,
-    /// (widget, x, y, id)
-    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, String)>,
+    /// (widget, x, y, id, user_size)
+    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, String, Option<(u32, u32)>)>,
     /// IDs de TODAS as entradas [[widget]] do arquivo, na ordem do
     /// doc (inclusive as que falharam no build). Necessário pro
     /// ensure_ids_in_doc do save, que grava ids faltantes.
@@ -743,7 +785,13 @@ pub fn load_all(text_renderer: Arc<TextRenderer>) -> (WidgetLoadResult, WidgetRe
         match registry.build(&entry.type_name, &entry.config) {
             Ok(w) => match entry.placement {
                 Placement::Panel => panel.push((w, id)),
-                Placement::Desktop { x, y } => desktop.push((w, x, y, id)),
+                Placement::Desktop { x, y, width, height } => {
+                    let us = match (width, height) {
+                        (Some(w_), Some(h_)) => Some((w_ as u32, h_ as u32)),
+                        _ => None,
+                    };
+                    desktop.push((w, x, y, id, us));
+                }
             },
             Err(e) => tracing::warn!(
                 "widget pulado (type={}): {e}", entry.type_name,

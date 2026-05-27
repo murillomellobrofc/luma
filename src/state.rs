@@ -170,6 +170,22 @@ pub struct LumaState {
     /// Hover dos botões do config card.
     pub config_card_save_hover: bool,
     pub config_card_cancel_hover: bool,
+    /// Fatia 2.6: cartão "Redimensionar" aberto.
+    pub resize_card_open: bool,
+    pub resize_width: i32,
+    pub resize_height: i32,
+    pub resize_card_save_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub resize_card_cancel_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub resize_card_w_plus_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub resize_card_w_minus_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub resize_card_h_plus_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    pub resize_card_h_minus_rect:
+        Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
     /// Rects dos botões Sim/Não da confirmação.
     pub handle_confirm_rects: [Option<smithay::utils::Rectangle<i32, smithay::utils::Logical>>; 2],
     /// TextRenderer próprio dos widgets (Arc compartilhada entre todos
@@ -824,7 +840,7 @@ impl LumaState {
         ): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
             Vec<String>,
-            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String)>,
+            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String, Option<(u32, u32)>)>,
             Vec<String>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
             let (result, _reg) = crate::widgets::load_all(tr.clone());
@@ -898,6 +914,15 @@ impl LumaState {
             config_editing_field: None,
             config_card_save_hover: false,
             config_card_cancel_hover: false,
+            resize_card_open: false,
+            resize_width: 200,
+            resize_height: 50,
+            resize_card_save_rect: None,
+            resize_card_cancel_rect: None,
+            resize_card_w_plus_rect: None,
+            resize_card_w_minus_rect: None,
+            resize_card_h_plus_rect: None,
+            resize_card_h_minus_rect: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
@@ -1028,9 +1053,9 @@ impl LumaState {
         // dos ícones, atrás das janelas). x/y vêm do layout.toml.
         // layout_index acompanha pra o modo de edição saber onde
         // gravar o novo x/y na hora de salvar.
-        for (widget, x, y, id) in desktop_widgets_pending {
+        for (widget, x, y, id, user_size) in desktop_widgets_pending {
             let item = std::sync::Arc::new(
-                crate::space_item::DesktopWidgetItem::new(widget, id),
+                crate::space_item::DesktopWidgetItem::new_with_size(widget, id, user_size),
             );
             state.space.map_element(
                 crate::space_item::SpaceItem::DesktopWidget(item),
