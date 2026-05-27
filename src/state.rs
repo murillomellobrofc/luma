@@ -90,6 +90,13 @@ pub struct LumaState {
     /// Instant e chama `tick()` quando vence. Mesma cara dos
     /// elapsed-checks do OSD e dos toasts.
     pub widget_last_ticks: Vec<Instant>,
+    /// Fatia 2.2: id estável de cada widget do painel, paralelo a
+    /// `widgets`. Usado pelo modo de edição pra salvar reorder.
+    pub widget_ids: Vec<String>,
+    /// IDs de TODAS as entradas [[widget]] do arquivo (incluindo as
+    /// que falharam no build), na ordem original do doc. Usado pra
+    /// ensure_ids_in_doc na hora de salvar.
+    pub widget_all_ids: Vec<String>,
     /// Modo de edição geral do Luma (fatia 1+). Liga via item do
     /// menu de contexto "Modo de edição", Super+E ou Ctrl+Alt+E.
     /// Desliga via Esc ou botão "Pronto" da barra de cima.
@@ -736,14 +743,22 @@ impl LumaState {
         // construído (precisa do state.space inicializado).
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
-        let (widgets_for_init, desktop_widgets_pending): (
+        let (
+            widgets_for_init,
+            widget_ids_for_init,
+            desktop_widgets_pending,
+            widget_all_ids_for_init,
+        ): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
-            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, usize)>,
+            Vec<String>,
+            Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32, String)>,
+            Vec<String>,
         ) = if let Some(tr) = widget_text_for_init.as_ref() {
             let result = crate::widgets::load_all(tr.clone());
-            (result.panel, result.desktop)
+            let (ws, ids): (Vec<_>, Vec<_>) = result.panel.into_iter().unzip();
+            (ws, ids, result.desktop, result.all_ids)
         } else {
-            (Vec::new(), Vec::new())
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
         let mut state = Self {
             start_time: Instant::now(),
@@ -777,6 +792,8 @@ impl LumaState {
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
             widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
+            widget_ids: widget_ids_for_init,
+            widget_all_ids: widget_all_ids_for_init,
             edit_mode: false,
             edit_mode_done_rect: None,
             edit_mode_done_hover: false,
@@ -911,9 +928,9 @@ impl LumaState {
         // dos ícones, atrás das janelas). x/y vêm do layout.toml.
         // layout_index acompanha pra o modo de edição saber onde
         // gravar o novo x/y na hora de salvar.
-        for (widget, x, y, layout_index) in desktop_widgets_pending {
+        for (widget, x, y, id) in desktop_widgets_pending {
             let item = std::sync::Arc::new(
-                crate::space_item::DesktopWidgetItem::new(widget, layout_index),
+                crate::space_item::DesktopWidgetItem::new(widget, id),
             );
             state.space.map_element(
                 crate::space_item::SpaceItem::DesktopWidget(item),
