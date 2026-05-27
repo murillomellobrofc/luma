@@ -958,30 +958,47 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     return;
                 }
             }
-            // Fatia 3.1: click em área vazia do painel seleciona.
+            // Fatia 3.1+3.2: click em área vazia de QUALQUER painel seleciona.
             {
-                let taskbar_h = crate::taskbar::taskbar_height();
-                let float_m = if state.main_panel().floating { 12 } else { 0 };
                 let out_size = state.space.output_geometry(state.primary_output())
                     .map(|g| g.size)
                     .unwrap_or_default();
-                let bar_y = out_size.h - taskbar_h - float_m;
-                let bar_x = float_m;
-                let bar_w = out_size.w - float_m * 2;
-                let in_panel = pointer_pos.x >= bar_x as f64
-                    && pointer_pos.x < (bar_x + bar_w) as f64
-                    && pointer_pos.y >= bar_y as f64
-                    && pointer_pos.y < (bar_y + taskbar_h) as f64;
-                if in_panel {
-                    // Desseleciona widget se tinha.
+                let main_h = crate::taskbar::taskbar_height();
+                let main_fm = if state.main_panel().floating { 12 } else { 0 };
+                let mut hit_panel_id: Option<String> = None;
+                for panel in state.panels.iter() {
+                    let ph = if panel.id == "main" { main_h } else { panel.height };
+                    let pfm = if panel.floating { 12 } else { 0 };
+                    let pw = out_size.w - pfm * 2;
+                    let py = if panel.position == "top" {
+                        let edit_offset = if state.edit_mode {
+                            crate::theme::current().edit_mode.top_bar_height + 4
+                        } else { 0 };
+                        pfm + edit_offset
+                    } else if panel.id == "main" {
+                        out_size.h - ph - pfm
+                    } else {
+                        out_size.h - main_h - main_fm - ph - pfm
+                    };
+                    let px = pfm;
+                    if pointer_pos.x >= px as f64
+                        && pointer_pos.x < (px + pw) as f64
+                        && pointer_pos.y >= py as f64
+                        && pointer_pos.y < (py + ph) as f64
+                    {
+                        hit_panel_id = Some(panel.id.clone());
+                        break;
+                    }
+                }
+                if let Some(pid) = hit_panel_id {
                     state.selected_widget_id = None;
                     state.handle_confirm_mode = false;
                     state.config_card_open = false;
                     state.resize_card_open = false;
-                    if !state.panel_selected {
+                    if state.panel_selected_id.as_deref() != Some(&pid) {
                         state.panel_selected = true;
                         state.panel_settings_open = true;
-                        state.panel_selected_id = Some("main".to_string());
+                        state.panel_selected_id = Some(pid);
                         if let Some(pc) = state.selected_panel_mut() {
                             state.panel_config_snapshot = Some(pc.clone());
                         }
