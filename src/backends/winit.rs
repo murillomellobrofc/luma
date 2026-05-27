@@ -7156,6 +7156,31 @@ pub fn init_winit(
                             custom_elements.push(LumaRenderElement::Memory(elem));
                         }
 
+                        // Fatia 1 widgets: renderiza o Box<dyn Widget>
+                        // POC num x fixo do painel. Sem layout, sem
+                        // registro — só prova que a fundação roda.
+                        if let Some(widget) = data.state.widget.as_ref() {
+                            let widget_h = (taskbar_h as u32).saturating_sub(8).max(24);
+                            let ctx = luma_widget::RenderCtx {
+                                panel_height: widget_h,
+                                theme: crate::theme::current(),
+                            };
+                            let buf = widget.render(&ctx);
+                            let widget_x = 12;
+                            let widget_y = bar_y + 4;
+                            let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                smithay::utils::Point::<i32, smithay::utils::Logical>::from(
+                                    (widget_x, widget_y),
+                                )
+                                .to_physical_precise_round(1.0);
+                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                renderer, wloc.to_f64(), &buf,
+                                None, None, None, Kind::Unspecified,
+                            ) {
+                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                            }
+                        }
+
                         // H58 fatia 5: observer do outbox PAM. Quando
                         // a thread termina, atualiza state e (em
                         // sucesso) destrava.
