@@ -46,6 +46,8 @@ pub enum KeyAction {
     MediaPrev,
     /// Parar reprodução via MPRIS + mostra OSD. H46.osd-media.
     MediaStop,
+    /// Ativa a tela de bloqueio (Ctrl+Alt+L em modo aninhado). H58 fatia 6.
+    LockSession,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -84,6 +86,8 @@ pub fn match_shortcut(
         Keysym::XF86_AudioNext => return Some(KeyAction::MediaNext),
         Keysym::XF86_AudioPrev => return Some(KeyAction::MediaPrev),
         Keysym::XF86_AudioStop => return Some(KeyAction::MediaStop),
+        // H58 fatia 6: alguns laptops têm tecla dedicada de lock.
+        Keysym::XF86_ScreenSaver => return Some(KeyAction::LockSession),
         _ => {}
     }
     if modifiers.alt && modifiers.shift && keysym == Keysym::F4 {
@@ -107,6 +111,11 @@ pub fn match_shortcut(
     // XF86 antes de chegar aqui em modo aninhado. Mesmo padrão do
     // show-desktop e workspaces.
     if modifiers.ctrl && modifiers.alt {
+        // H58 fatia 6: lock via Ctrl+Alt+L (em DRM nativo migrará pra
+        // Super+L). XF86_ScreenSaver também vira lock direto, sem mod.
+        if keysym == Keysym::l || keysym == Keysym::L {
+            return Some(KeyAction::LockSession);
+        }
         // Mídia.
         if keysym == Keysym::space {
             return Some(KeyAction::MediaPlayPause);
@@ -193,7 +202,24 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::MediaNext => media_action(state, MediaCmd::Next),
         KeyAction::MediaPrev => media_action(state, MediaCmd::Previous),
         KeyAction::MediaStop => media_action(state, MediaCmd::Stop),
+        KeyAction::LockSession => lock_session(state),
     }
+}
+
+/// H58 fatia 6: trigger interno do lock. Idempotente — segundo trigger
+/// quando já locked é no-op. Não fecha menus/popups (lock cobre tudo
+/// no render).
+fn lock_session(state: &mut LumaState) {
+    if state.locked {
+        return;
+    }
+    state.locked = true;
+    state.locked_at = Some(std::time::Instant::now());
+    state.lock_revealed = false;
+    state.lock_password.clear();
+    state.lock_auth_error = None;
+    state.lock_auth_in_flight = false;
+    tracing::info!("luma lock: hotkey/menu");
 }
 
 #[derive(Debug, Clone, Copy)]

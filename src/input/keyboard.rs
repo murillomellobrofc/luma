@@ -86,6 +86,10 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     enum LockKey { RevealOnly, Char(char), Backspace, Submit, Cancel }
     let mut lock_event: Option<LockKey> = None;
     let mut caps_state: Option<bool> = None;
+    // H58 fatia 6: whitelist quando locked — XF86 brilho/volume/mídia
+    // disparam shortcut sem cair no fluxo do lock e sem chegar em
+    // cliente nenhum (nada tem foco durante lock).
+    let mut lock_whitelist_action: Option<KeyAction> = None;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -99,12 +103,25 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         serial,
         time,
         |_state, _modifiers, handle| {
-            // H58: lock ativo intercepta TODA tecla. Brilho e volume
-            // (XF86 keys) ficam na whitelist em fatias futuras.
+            // H58: lock ativo intercepta TODA tecla. Whitelist (fatia 6):
+            // XF86 de brilho, volume e mídia passam pro shortcut handler
+            // mesmo locked. Resto fica preso no fluxo de lock.
             if locked && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
                 // Track Caps Lock pra indicator no auth panel.
                 caps_state = Some(_modifiers.caps_lock);
+                // Whitelist: resolve shortcut e, se a action for de
+                // brilho/volume/mídia, dispatcha sem chegar em cliente
+                // nenhum. Cobre tanto teclas XF86 nativas quanto
+                // fallback Ctrl+Alt+X (modo aninhado em KDE host).
+                if let Some(action) =
+                    crate::input::shortcuts::match_shortcut(_modifiers, sym, key_state)
+                {
+                    if is_lock_whitelisted_action(action) {
+                        lock_whitelist_action = Some(action);
+                        return FilterResult::Intercept(());
+                    }
+                }
                 if !lock_revealed {
                     // Primeira tecla revela o auth panel. Não entra
                     // no campo de senha (per spec H58).
@@ -361,6 +378,12 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         if state.lock_caps_on != c {
             state.lock_caps_on = c;
         }
+    }
+    // H58 fatia 6: whitelist (brilho/volume/mídia) durante lock — aplica
+    // a action diretamente, sem passar pelo input() do cliente.
+    if let Some(action) = lock_whitelist_action {
+        apply(state, action);
+        return;
     }
     if let Some(ev) = lock_event {
         match ev {
@@ -763,6 +786,26 @@ pub(crate) fn commit_rename(
         }
         Err(e) => tracing::warn!("rename: falhou ({e})"),
     }
+}
+
+/// H58 fatia 6: actions que rodam mesmo com lock ativo. Brilho, volume
+/// e mídia — tanto via XF86 puro quanto via fallback Ctrl+Alt+X.
+/// LockSession fica de fora (já está travado, no-op faria sentido mas
+/// o handler resolve idempotência sozinho — só não vale a pena gastar
+/// dispatch). Workspaces, menu, close, overview ficam BLOQUEADOS.
+fn is_lock_whitelisted_action(action: KeyAction) -> bool {
+    matches!(
+        action,
+        KeyAction::VolumeRaise
+            | KeyAction::VolumeLower
+            | KeyAction::VolumeMute
+            | KeyAction::BrightnessRaise
+            | KeyAction::BrightnessLower
+            | KeyAction::MediaPlayPause
+            | KeyAction::MediaNext
+            | KeyAction::MediaPrev
+            | KeyAction::MediaStop
+    )
 }
 
 enum MenuKey {
