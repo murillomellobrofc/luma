@@ -22,24 +22,51 @@ use crate::{render::LumaRenderElement, wallpaper::Wallpaper, window::LumaWindow}
 /// Mutex. last_tick segue paralelo ao Vec<Instant> do painel, só que
 /// per-widget porque cada DesktopWidget vive sozinho.
 ///
-/// x/y são lógicos, origem no canto superior-esquerdo do output
-/// principal. Multi-monitor fica pra depois (spec fatia 4).
+/// Posição (x, y lógicos, origem canto superior-esquerdo do output
+/// principal) NÃO é guardada aqui — fica no Space, lida via
+/// `space.element_location(item)`. Multi-monitor fica pra depois.
+///
+/// `layout_index` é a posição (0-based) da entrada [[widget]] no
+/// layout.toml de onde este widget foi carregado. O modo de edição
+/// usa esse índice pra salvar o novo x/y no lugar certo do arquivo,
+/// sem tocar nas outras entradas.
 pub struct DesktopWidgetItem {
     pub widget: Mutex<Box<dyn luma_widget::Widget + Send>>,
     pub last_tick: Mutex<Instant>,
-    pub x: i32,
-    pub y: i32,
+    pub layout_index: usize,
 }
 
 impl DesktopWidgetItem {
-    pub fn new(widget: Box<dyn luma_widget::Widget + Send>, x: i32, y: i32) -> Self {
+    pub fn new(
+        widget: Box<dyn luma_widget::Widget + Send>,
+        layout_index: usize,
+    ) -> Self {
         Self {
             widget: Mutex::new(widget),
             last_tick: Mutex::new(Instant::now()),
-            x,
-            y,
+            layout_index,
         }
     }
+}
+
+/// Estado de drag de um widget de desktop. Vive em
+/// `LumaState::desktop_widget_drag` enquanto o botão está pressionado
+/// dentro do modo de edição. Threshold pequeno antes de ativar pra
+/// não promover click sem intenção de mover.
+pub struct DesktopWidgetDrag {
+    /// Widget sendo arrastado. Arc é cheap clone — o real continua
+    /// no Space.
+    pub item: std::sync::Arc<DesktopWidgetItem>,
+    /// Offset do cursor pra origem do widget no momento do press.
+    /// Mantém o widget firme sob o cursor (não pula pra origem).
+    pub offset: smithay::utils::Point<i32, smithay::utils::Logical>,
+    /// Posição inicial do cursor (screen) — usada pra threshold.
+    pub start_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
+    /// Posição atual do cursor (screen) — atualizada por motion.
+    pub current_screen: smithay::utils::Point<f64, smithay::utils::Logical>,
+    /// true quando o drag passou do threshold e está mexendo de fato.
+    /// Click curto sem mover = ativa nunca, no-op.
+    pub active: bool,
 }
 
 /// Item do `Space` do Luma. Wallpaper e janelas convivem no mesmo Space

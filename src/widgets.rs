@@ -371,8 +371,10 @@ pub fn load_layout(path: &Path) -> Vec<LayoutEntry> {
 /// como SpaceItem::DesktopWidget no x,y de cada entrada.
 pub struct WidgetLoadResult {
     pub panel: Vec<Box<dyn Widget + Send>>,
-    /// (widget, x, y) — coordenadas lógicas do desktop.
-    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32)>,
+    /// (widget, x, y, layout_index). O `layout_index` é a posição
+    /// 0-based da entrada [[widget]] no arquivo — preservado pra o
+    /// modo de edição saber onde gravar o novo x/y.
+    pub desktop: Vec<(Box<dyn Widget + Send>, i32, i32, usize)>,
 }
 
 /// Pipeline completo de carga: registro default + parsing + dispatch
@@ -387,11 +389,11 @@ pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
     tracing::info!("widgets: {} entrada(s) no layout.toml", entries.len());
     let mut panel = Vec::new();
     let mut desktop = Vec::new();
-    for entry in entries {
+    for (idx, entry) in entries.into_iter().enumerate() {
         match registry.build(&entry.type_name, &entry.config) {
             Ok(w) => match entry.placement {
                 Placement::Panel => panel.push(w),
-                Placement::Desktop { x, y } => desktop.push((w, x, y)),
+                Placement::Desktop { x, y } => desktop.push((w, x, y, idx)),
             },
             Err(e) => tracing::warn!(
                 "widget pulado (type={}): {e}", entry.type_name,
