@@ -94,6 +94,8 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // nenhum popup/menu/etc capturar antes).
     let edit_mode_on = state.edit_mode;
     let mut edit_mode_exit_request = false;
+    enum NudgeDir { Left, Right, Up, Down }
+    let mut edit_nudge: Option<NudgeDir> = None;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -383,6 +385,23 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                     edit_mode_exit_request = true;
                     return FilterResult::Intercept(());
                 }
+                // Fatia 2.3: nudge do widget selecionado por seta.
+                if sym == Keysym::Left {
+                    edit_nudge = Some(NudgeDir::Left);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Right {
+                    edit_nudge = Some(NudgeDir::Right);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Up {
+                    edit_nudge = Some(NudgeDir::Up);
+                    return FilterResult::Intercept(());
+                }
+                if sym == Keysym::Down {
+                    edit_nudge = Some(NudgeDir::Down);
+                    return FilterResult::Intercept(());
+                }
             }
             FilterResult::Forward
         },
@@ -404,6 +423,65 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         state.selected_widget_id = None;
         state.handle_confirm_mode = false;
         tracing::info!("modo de edição: desligado via Esc");
+        return;
+    }
+    // Fatia 2.3: nudge do widget selecionado por seta.
+    if let Some(dir) = edit_nudge {
+        if let Some(sel_id) = state.selected_widget_id.clone() {
+            // Checa se é painel (troca posição ±1) ou desktop (±10px).
+            let panel_idx = state.widget_ids.iter()
+                .position(|id| *id == sel_id);
+            if let Some(idx) = panel_idx {
+                // Painel: esquerda/direita troca ordem, cima/baixo no-op.
+                let n = state.widgets.len();
+                let target = match dir {
+                    NudgeDir::Left if idx > 0 => Some(idx - 1),
+                    NudgeDir::Right if idx + 1 < n => Some(idx + 1),
+                    _ => None,
+                };
+                if let Some(t) = target {
+                    state.widgets.swap(idx, t);
+                    state.widget_ids.swap(idx, t);
+                    state.widget_last_ticks.swap(idx, t);
+                    let _ = crate::widgets::save_panel_order(
+                        &state.widget_ids, &state.widget_all_ids,
+                    );
+                }
+            } else {
+                // Desktop: ±10px.
+                let delta = 10i32;
+                let (dx, dy) = match dir {
+                    NudgeDir::Left => (-delta, 0),
+                    NudgeDir::Right => (delta, 0),
+                    NudgeDir::Up => (0, -delta),
+                    NudgeDir::Down => (0, delta),
+                };
+                let moved = {
+                    let items: Vec<_> = state.space.elements()
+                        .filter_map(|item| {
+                            if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                if dw.id == sel_id {
+                                    state.space.element_location(item).map(|loc| (dw.clone(), loc))
+                                } else { None }
+                            } else { None }
+                        })
+                        .collect();
+                    items.into_iter().next()
+                };
+                if let Some((item, loc)) = moved {
+                    let nx = loc.x + dx;
+                    let ny = loc.y + dy;
+                    state.space.map_element(
+                        crate::space_item::SpaceItem::DesktopWidget(item.clone()),
+                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((nx, ny)),
+                        false,
+                    );
+                    let _ = crate::widgets::save_desktop_widget_position(
+                        &sel_id, nx, ny, &state.widget_all_ids,
+                    );
+                }
+            }
+        }
         return;
     }
     if let Some(ev) = lock_event {
