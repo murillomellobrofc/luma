@@ -34,6 +34,9 @@ pub struct DesktopWidgetItem {
     pub widget: Mutex<Box<dyn luma_widget::Widget + Send>>,
     pub last_tick: Mutex<Instant>,
     pub id: String,
+    /// Tamanho custom do modo de edição. None = natural. Set pelo
+    /// cartão "Redimensionar" e persistido em placement.width/height.
+    pub user_size: Mutex<Option<(u32, u32)>>,
 }
 
 impl DesktopWidgetItem {
@@ -45,6 +48,20 @@ impl DesktopWidgetItem {
             widget: Mutex::new(widget),
             last_tick: Mutex::new(Instant::now()),
             id,
+            user_size: Mutex::new(None),
+        }
+    }
+
+    pub fn new_with_size(
+        widget: Box<dyn luma_widget::Widget + Send>,
+        id: String,
+        size: Option<(u32, u32)>,
+    ) -> Self {
+        Self {
+            widget: Mutex::new(widget),
+            last_tick: Mutex::new(Instant::now()),
+            id,
+            user_size: Mutex::new(size),
         }
     }
 }
@@ -270,10 +287,11 @@ where
                 // no location que o Space nos passou (já contém o
                 // x/y mapeado, em coords Physical).
                 let _ = alpha;
+                let us = dw.user_size.lock().ok().and_then(|g| *g);
                 let ctx = luma_widget::RenderCtx {
                     host: luma_widget::WidgetHost::Desktop,
                     theme: crate::theme::current(),
-                    user_size: None,
+                    user_size: us,
                 };
                 let buffer = {
                     let w = dw.widget.lock().expect("widget poisoned");

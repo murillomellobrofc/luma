@@ -7463,6 +7463,8 @@ pub fn init_winit(
                                         }
                                     };
                                     if let Some(wr) = sel_rect {
+                                        let is_desktop = data.state.widget_ids.iter()
+                                            .all(|id| id.as_str() != sel_id.as_str());
                                         let labels = if data.state.handle_confirm_mode {
                                             vec![
                                                 ("Remover este widget?", false, true),
@@ -7473,7 +7475,7 @@ pub fn init_winit(
                                             vec![
                                                 ("Mover", false, true),
                                                 ("Configurar", false, true),
-                                                ("Redimensionar", false, false),
+                                                ("Redimensionar", false, is_desktop),
                                                 ("Remover", false, true),
                                             ]
                                         };
@@ -7562,6 +7564,138 @@ pub fn init_winit(
                                             );
                                             bx += bw + gap;
                                         }
+                                    }
+                                }
+                                // Fatia 2.6: resize card.
+                                if data.state.resize_card_open {
+                                    let card_w = 320i32;
+                                    let card_pad = 16i32;
+                                    let field_h = 44i32;
+                                    let field_gap = 10i32;
+                                    let header_h = 36i32;
+                                    let card_h = card_pad + header_h + field_gap + (20 + field_h + field_gap) * 2 + 50 + card_pad;
+                                    let card_x = (output_w - card_w) / 2;
+                                    let card_y = bar_h + 10;
+                                    let cbg = crate::gfx::make_rounded_panel(card_w, card_h, t_edit.handle_corner, t_edit.handle_bg);
+                                    let cloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((card_x, card_y)).to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, cloc.to_f64(), &cbg, None, None, None, Kind::Unspecified) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                    let (hpx, hw, hh) = tr.rasterize_colored("Redimensionar", t_edit.label_size, t_edit.label_color);
+                                    if hw > 0 && hh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(&hpx, smithay::backend::allocator::Fourcc::Argb8888, (hw as i32, hh as i32), 1, Transform::Normal, None);
+                                        let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((card_x + card_pad, card_y + card_pad + (header_h - hh as i32) / 2)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, hloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    let mut fy = card_y + card_pad + header_h + field_gap;
+                                    let btn_sz = 40i32;
+                                    let input_w = card_w - card_pad * 2;
+                                    for (label, val, plus_dst, minus_dst) in [
+                                        ("Largura", data.state.resize_width, &mut data.state.resize_card_w_plus_rect, &mut data.state.resize_card_w_minus_rect),
+                                        ("Altura", data.state.resize_height, &mut data.state.resize_card_h_plus_rect, &mut data.state.resize_card_h_minus_rect),
+                                    ] {
+                                        let (lpx, lw, lh) = tr.rasterize_colored(label, t_edit.handle_btn_text_size, t_edit.label_color);
+                                        if lw > 0 && lh > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&lpx, smithay::backend::allocator::Fourcc::Argb8888, (lw as i32, lh as i32), 1, Transform::Normal, None);
+                                            let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((card_x + card_pad, fy)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, lloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        fy += 20;
+                                        let num_w = input_w - btn_sz * 2 - 8;
+                                        // - button.
+                                        let mx = card_x + card_pad;
+                                        let mp = crate::gfx::make_rounded_panel(btn_sz, field_h, t_edit.handle_btn_corner, t_edit.handle_btn_bg);
+                                        let mloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((mx, fy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, mloc.to_f64(), &mp, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        let (mpx, mw, mh) = tr.rasterize_colored("−", t_edit.done_button_text_size, t_edit.handle_btn_text_color);
+                                        if mw > 0 && mh > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&mpx, smithay::backend::allocator::Fourcc::Argb8888, (mw as i32, mh as i32), 1, Transform::Normal, None);
+                                            let mll: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((mx + (btn_sz - mw as i32)/2, fy + (field_h - mh as i32)/2)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, mll.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        *minus_dst = Some(smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(smithay::utils::Point::from((mx, fy)), smithay::utils::Size::from((btn_sz, field_h))));
+                                        // Number.
+                                        let nx = mx + btn_sz + 4;
+                                        let np = crate::gfx::make_rounded_panel(num_w, field_h, t_edit.handle_btn_corner, t_edit.handle_btn_bg);
+                                        let nloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((nx, fy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, nloc.to_f64(), &np, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        let ns = val.to_string();
+                                        let (npx, nw, nh) = tr.rasterize_colored(&ns, t_edit.handle_btn_text_size, t_edit.handle_btn_text_color);
+                                        if nw > 0 && nh > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&npx, smithay::backend::allocator::Fourcc::Argb8888, (nw as i32, nh as i32), 1, Transform::Normal, None);
+                                            let nll: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((nx + (num_w - nw as i32)/2, fy + (field_h - nh as i32)/2)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, nll.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        // + button.
+                                        let px = nx + num_w + 4;
+                                        let pp = crate::gfx::make_rounded_panel(btn_sz, field_h, t_edit.handle_btn_corner, t_edit.handle_btn_bg);
+                                        let ploc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((px, fy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, ploc.to_f64(), &pp, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        let (ppx, pw, ph) = tr.rasterize_colored("+", t_edit.done_button_text_size, t_edit.handle_btn_text_color);
+                                        if pw > 0 && ph > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&ppx, smithay::backend::allocator::Fourcc::Argb8888, (pw as i32, ph as i32), 1, Transform::Normal, None);
+                                            let pll: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((px + (btn_sz - pw as i32)/2, fy + (field_h - ph as i32)/2)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, pll.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        *plus_dst = Some(smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(smithay::utils::Point::from((px, fy)), smithay::utils::Size::from((btn_sz, field_h))));
+                                        fy += field_h + field_gap;
+                                    }
+                                    // Footer: Salvar + Cancelar.
+                                    let fbtn_w = 120i32;
+                                    let fbtn_h = 40i32;
+                                    let fbtn_gap = 16i32;
+                                    let fbtn_total = fbtn_w * 2 + fbtn_gap;
+                                    let fbtn_x0 = card_x + (card_w - fbtn_total) / 2;
+                                    for (j, label) in ["Salvar", "Cancelar"].iter().enumerate() {
+                                        let pill = crate::gfx::make_rounded_panel(fbtn_w, fbtn_h, t_edit.done_button_corner, t_edit.done_button_bg);
+                                        let fx = fbtn_x0 + j as i32 * (fbtn_w + fbtn_gap);
+                                        let floc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((fx, fy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, floc.to_f64(), &pill, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        let (lpx2, lw2, lh2) = tr.rasterize_colored(label, t_edit.done_button_text_size, t_edit.done_button_text_color);
+                                        if lw2 > 0 && lh2 > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&lpx2, smithay::backend::allocator::Fourcc::Argb8888, (lw2 as i32, lh2 as i32), 1, Transform::Normal, None);
+                                            let lx2 = fx + (fbtn_w - lw2 as i32) / 2;
+                                            let ly2 = fy + (fbtn_h - lh2 as i32) / 2;
+                                            let lloc2: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx2, ly2)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, lloc2.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        let rect = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                            smithay::utils::Point::from((fx, fy)),
+                                            smithay::utils::Size::from((fbtn_w, fbtn_h)),
+                                        );
+                                        if j == 0 { data.state.resize_card_save_rect = Some(rect); }
+                                        else { data.state.resize_card_cancel_rect = Some(rect); }
                                     }
                                 }
                                 // Fatia 2.4: seletor "Adicionar widget".

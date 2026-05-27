@@ -730,6 +730,69 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
         // Modo de edição fatia 1+2.3: Pronto + botões da alça.
         if state.edit_mode {
+            // Fatia 2.6: resize card — Salvar, Cancelar, +/-.
+            if state.resize_card_open {
+                let save_hit = state.resize_card_save_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                let cancel_hit = state.resize_card_cancel_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                if save_hit {
+                    if let Some(sel_id) = state.selected_widget_id.clone() {
+                        let w = state.resize_width.max(40);
+                        let h = state.resize_height.max(24);
+                        // Atualiza em memória.
+                        for item in state.space.elements() {
+                            if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                if dw.id == sel_id {
+                                    if let Ok(mut g) = dw.user_size.lock() {
+                                        *g = Some((w as u32, h as u32));
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        // Persiste.
+                        let _ = crate::widgets::save_widget_size(
+                            &sel_id, w, h, &state.widget_all_ids,
+                        );
+                        tracing::info!("modo de edição: resize '{sel_id}' → {w}×{h}");
+                    }
+                    state.resize_card_open = false;
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+                if cancel_hit {
+                    state.resize_card_open = false;
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+                // +/- buttons.
+                let w_plus = state.resize_card_w_plus_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                let w_minus = state.resize_card_w_minus_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                let h_plus = state.resize_card_h_plus_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                let h_minus = state.resize_card_h_minus_rect
+                    .map(|r| r.to_f64().contains(pointer_pos)).unwrap_or(false);
+                if w_plus { state.resize_width = (state.resize_width + 10).min(800); }
+                if w_minus { state.resize_width = (state.resize_width - 10).max(40); }
+                if h_plus { state.resize_height = (state.resize_height + 10).min(400); }
+                if h_minus { state.resize_height = (state.resize_height - 10).max(24); }
+                if w_plus || w_minus || h_plus || h_minus {
+                    pointer.button(state, &ButtonEvent {
+                        button, state: button_state, serial, time: event.time_msec(),
+                    });
+                    pointer.frame(state);
+                    return;
+                }
+            }
             // Fatia 2.5: config card — Salvar, Cancelar, +/- int.
             if state.config_card_open {
                 let save_hit = state.config_card_save_rect
@@ -914,8 +977,34 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                 state.config_card_open = false;
                             }
                         }
+                        2 => {
+                            // Redimensionar: abre card (só desktop).
+                            let is_desktop = state.widget_ids.iter()
+                                .all(|id| state.selected_widget_id.as_deref() != Some(id.as_str()));
+                            if is_desktop && !state.resize_card_open {
+                                state.resize_card_open = true;
+                                // Pre-fill com tamanho atual.
+                                if let Some(sel_id) = state.selected_widget_id.as_ref() {
+                                    let found = state.space.elements().find_map(|item| {
+                                        if let crate::space_item::SpaceItem::DesktopWidget(dw) = item {
+                                            if &dw.id == sel_id {
+                                                dw.user_size.lock().ok().and_then(|g| *g)
+                                            } else { None }
+                                        } else { None }
+                                    });
+                                    if let Some((w, h)) = found {
+                                        state.resize_width = w as i32;
+                                        state.resize_height = h as i32;
+                                    } else {
+                                        state.resize_width = 200;
+                                        state.resize_height = 50;
+                                    }
+                                }
+                            } else if state.resize_card_open {
+                                state.resize_card_open = false;
+                            }
+                        }
                         // Mover (0): no-op (nudge por seta é o mover acessível)
-                        // Redimensionar (2): disabled
                         _ => {}
                     }
                 }
@@ -936,7 +1025,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         let placement = if host_idx == 0 {
                             crate::widgets::Placement::Panel
                         } else {
-                            crate::widgets::Placement::Desktop { x: 100, y: 100 }
+                            crate::widgets::Placement::Desktop { x: 100, y: 100, width: None, height: None }
                         };
                         if let Some(reg) = state.widget_registry.as_ref() {
                             let config = reg.get_meta(&type_id)
@@ -956,7 +1045,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                                     state.widget_ids.push(new_id);
                                                     state.widget_last_ticks.push(std::time::Instant::now());
                                                 }
-                                                crate::widgets::Placement::Desktop { x, y } => {
+                                                crate::widgets::Placement::Desktop { x, y, .. } => {
                                                     let item = std::sync::Arc::new(
                                                         crate::space_item::DesktopWidgetItem::new(w, new_id),
                                                     );
