@@ -51,8 +51,11 @@
 
 ### In progress
 
-(nothing right now — short-term queue empty, next batch comes from
-"Mid term")
+- 🔨 **H58 — Lock screen**
+  Wayland protocol `ext-session-lock` · Golden Hour screen with
+  password field and user info · security-weight (breakable lock =
+  serious bug) · closes the "Lock" button in the menu · creates the
+  visual language that the SDDM theme and splash reuse.
 
 ---
 
@@ -113,7 +116,9 @@ comes from "Mid term")
   3. + panel edit (height, alignment, create panel)
 
 - **Taskbar context menu** (depends on widgets)
-- **Native Luma settings screen**
+- **Native Luma settings screen** (includes the theme pages for the
+  System Screens: splash, login/SDDM, boot — one panel, just like
+  KDE's Colors and Themes)
 - **Display configuration** (resolution, monitors)
 - **Brightness slider inside the battery applet** — not its own applet,
   goes with the battery, like KDE does. The backend already exists
@@ -217,6 +222,26 @@ comes from "Mid term")
 
 ### Toward v1.0
 
+**System screens** (the "chrome" around the session):
+
+> Like KDE, Luma treats these as theme-able components, all configurable
+> in a single panel of the native Settings screen. We do NOT build a
+> display manager — we theme SDDM.
+
+- **Session file** (`.desktop`) — makes Luma appear in the SDDM / GDM /
+  any display manager list. Trivial, but WITHOUT this no one can log
+  into Luma. MANDATORY for v1.0.
+- **SDDM theme (Golden Hour)** — the login screen. A QML theme for
+  SDDM, exactly like KDE does. DECISION: no own greeter written from
+  scratch; theme SDDM, which already exists. Polish.
+- **Splash screen** — the quick screen after login while the DE loads
+  (KDE's KSplash). Luma-rendered, lightweight, brand moment. Polish,
+  low priority.
+- **Boot theme (Plymouth) Golden Hour** — just graphics + small config,
+  builds nothing. Cheap polish, high return.
+
+**Closing:**
+
 - General polish, full QA
 - The 4 visual presets: Classic, Mint, Dock, PCD Max
 - Final documentation
@@ -231,6 +256,9 @@ comes from "Mid term")
 - Context menu: 1 dim item remaining (rest resolved in H56):
   - Edit mode → waits for widget system + unified edit mode
 - Taskbar context menu (waits for widget system)
+- "Lock" button in the session menu → waits for the lock screen
+  (`ext-session-lock`). While it doesn't exist, the button has
+  nothing to do.
 
 ---
 
