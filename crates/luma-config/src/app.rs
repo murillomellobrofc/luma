@@ -38,6 +38,11 @@ const CARD_ICON_SQUARE_RADIUS: u16 = 9;
 const CARD_ICON_SIZE: u16 = 22;
 const CARD_WIDTH: u16 = 240;
 
+/// Hit target mínimo PCD pros botões interativos do app (modal +
+/// "Adicionar" do card). Cosmic default = space_l = 32px, abaixo
+/// do floor do brief — overridamos com .height().
+const BUTTON_HIT_HEIGHT: u16 = 40;
+
 #[derive(Debug, Clone)]
 pub enum ConnectionState {
     Probing,
@@ -155,12 +160,15 @@ impl Application for AppModel {
         let title = format!("Adicionar “{}” onde?", d.display_name);
         let panel_btn = button::suggested("Adicionar ao painel")
             .width(Length::Fill)
+            .height(BUTTON_HIT_HEIGHT)
             .on_press(Message::AddDialogChoose(WidgetTarget::Panel));
         let desktop_btn = button::suggested("Adicionar ao desktop")
             .width(Length::Fill)
+            .height(BUTTON_HIT_HEIGHT)
             .on_press(Message::AddDialogChoose(WidgetTarget::Desktop));
         let cancel_btn = button::standard("Cancelar")
             .width(Length::Fill)
+            .height(BUTTON_HIT_HEIGHT)
             .on_press(Message::AddDialogCancel);
 
         Some(
@@ -542,6 +550,7 @@ impl AppModel {
             .push(
                 button::suggested("Adicionar")
                     .width(Length::Fill)
+                    .height(BUTTON_HIT_HEIGHT)
                     .on_press(Message::OpenAddDialog {
                         type_name: info.type_name.clone(),
                         display_name: info.display_name.clone(),
