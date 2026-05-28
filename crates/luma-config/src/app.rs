@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::widget::{self, container, row};
-use cosmic::iced::{Alignment, Background, Border, Color};
+use cosmic::iced::{Alignment, Background, Border, Color, Length};
 use cosmic::theme;
-use cosmic::widget::nav_bar;
+use cosmic::widget::{button, column, icon, nav_bar, text};
 use cosmic::{Application, Element};
+use luma_ipc::WidgetInfo;
 
 use crate::ipc;
 use crate::pages::Page;
@@ -17,26 +18,48 @@ const APP_ID: &str = "dev.luma.Config";
 /// indicador virar sage assim que o `Ping` aceitar.
 const RECONNECT_DELAY: Duration = Duration::from_secs(3);
 
-/// Diâmetro do ponto indicador (px). Hit target irrelevante — é
-/// puramente visual.
+/// Diâmetro do ponto indicador (px) no rodapé. Hit target irrelevante.
 const DOT_SIZE: u16 = 10;
+
+/// Tamanho do ícone do card de widget.
+const CARD_ICON_SIZE: u16 = 48;
+
+/// Largura fixa do card. Linha simples por enquanto (3c.2); grid de
+/// verdade vira polish.
+const CARD_WIDTH: u16 = 240;
 
 /// Estado da conexão D-Bus com o compositor (3b).
 #[derive(Debug, Clone)]
 pub enum ConnectionState {
-    /// Estado inicial — Ping disparado, aguardando resposta.
     Probing,
-    /// Conectado; guardamos a string de versão devolvida pelo Ping.
     Connected { version: String },
-    /// Compositor não respondeu ao Ping (não tá no ar, ou bus error).
+    Disconnected,
+}
+
+/// Estado da página Widgets (3c.2). Deriva de `ConnectionState` na
+/// transição, mas vive como campo próprio porque `Loaded` carrega o
+/// catálogo e `Disconnected` precisa renderizar diferente do Loading.
+#[derive(Debug, Clone)]
+pub enum WidgetsState {
+    /// Conectado mas catálogo ainda não chegou (ou catálogo vai chegar
+    /// depois do próximo Connected).
+    Loading,
+    Loaded(Vec<WidgetInfo>),
+    /// Sem compositor — UI mostra a mensagem de "conecte o compositor"
+    /// no lugar dos cards.
     Disconnected,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Resultado do `Ping`. `Ok(version)` em sucesso; `Err(msg)` com a
-    /// descrição do erro em falha (zbus::Error não é Clone).
+    /// Resultado do `Ping`. `Ok(version)` em sucesso; `Err(msg)` em
+    /// falha (zbus::Error não é Clone).
     PingResult(Result<String, String>),
+    /// Resultado do `ListAvailableWidgets` disparado depois do Ping Ok.
+    ListResult(Result<Vec<WidgetInfo>, String>),
+    /// Botão Adicionar clicado num card. Em 3c.2 só loga; em 3c.3 abre
+    /// o mini-modal de destino.
+    AddRequested(String),
 }
 
 pub struct AppModel {
@@ -44,6 +67,7 @@ pub struct AppModel {
     nav: nav_bar::Model,
     current_page: Page,
     connection: ConnectionState,
+    widgets_state: WidgetsState,
 }
 
 impl Application for AppModel {
@@ -67,16 +91,16 @@ impl Application for AppModel {
         let mut nav = nav_bar::Model::default();
         nav.insert()
             .text("Widgets")
-            .icon(cosmic::widget::icon::from_name("applications-science-symbolic"))
+            .icon(icon::from_name("applications-science-symbolic"))
             .data::<Page>(Page::Widgets)
             .activate();
         nav.insert()
             .text("Wallpaper")
-            .icon(cosmic::widget::icon::from_name("preferences-desktop-wallpaper-symbolic"))
+            .icon(icon::from_name("preferences-desktop-wallpaper-symbolic"))
             .data::<Page>(Page::Wallpaper);
         nav.insert()
             .text("Preset")
-            .icon(cosmic::widget::icon::from_name("preferences-desktop-theme-symbolic"))
+            .icon(icon::from_name("preferences-desktop-theme-symbolic"))
             .data::<Page>(Page::Preset);
 
         let model = Self {
@@ -84,6 +108,7 @@ impl Application for AppModel {
             nav,
             current_page: Page::Widgets,
             connection: ConnectionState::Probing,
+            widgets_state: WidgetsState::Loading,
         };
 
         (model, ping_task(Duration::ZERO))
@@ -102,25 +127,20 @@ impl Application for AppModel {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let content = match self.current_page {
-            Page::Widgets => "Widgets — em construção",
-            Page::Wallpaper => "Wallpaper — em breve",
-            Page::Preset => "Preset — em breve",
-        };
-        widget::text(content)
-            .size(18)
-            .into()
+        match self.current_page {
+            Page::Widgets => self.view_widgets(),
+            Page::Wallpaper => text("Wallpaper — em breve").size(18).into(),
+            Page::Preset => text("Preset — em breve").size(18).into(),
+        }
     }
 
     /// Rodapé: indicador discreto de status da conexão com o compositor.
-    /// Ponto colorido (sage = conectado, honey-dim = desconectado /
-    /// probing) + label textual com a versão ou estado.
     fn footer(&self) -> Option<Element<'_, Self::Message>> {
         let colors = &luma_theme::current().colors;
         let dot_color = match &self.connection {
-            ConnectionState::Connected { .. } => iced_color(colors.hover_maximize.components()), // sage
+            ConnectionState::Connected { .. } => iced_color(colors.hover_maximize.components()),
             ConnectionState::Disconnected | ConnectionState::Probing => {
-                let [r, g, b, _] = colors.hover_minimize.components(); // honey-dim
+                let [r, g, b, _] = colors.hover_minimize.components();
                 Color::from_rgba(r, g, b, 0.45)
             }
         };
@@ -145,7 +165,7 @@ impl Application for AppModel {
                 }
             }));
 
-        let indicator = row![dot, widget::text(label).size(13)]
+        let indicator = row![dot, text(label).size(13)]
             .spacing(8)
             .align_y(Alignment::Center);
 
@@ -157,7 +177,9 @@ impl Application for AppModel {
             Message::PingResult(Ok(version)) => {
                 eprintln!("[luma-config] conectado ao compositor: {version}");
                 self.connection = ConnectionState::Connected { version };
-                Task::none()
+                self.widgets_state = WidgetsState::Loading;
+                // Encadeia: catálogo de widgets logo após o ping aceitar.
+                list_task()
             }
             Message::PingResult(Err(err)) => {
                 eprintln!(
@@ -165,15 +187,99 @@ impl Application for AppModel {
                     RECONNECT_DELAY.as_secs()
                 );
                 self.connection = ConnectionState::Disconnected;
+                self.widgets_state = WidgetsState::Disconnected;
                 ping_task(RECONNECT_DELAY)
+            }
+            Message::ListResult(Ok(widgets)) => {
+                eprintln!(
+                    "[luma-config] catálogo carregado: {} widget(s)",
+                    widgets.len()
+                );
+                self.widgets_state = WidgetsState::Loaded(widgets);
+                Task::none()
+            }
+            Message::ListResult(Err(err)) => {
+                eprintln!(
+                    "[luma-config] ListAvailableWidgets falhou: {err} — voltando pro fluxo de retry"
+                );
+                // Trata como desconexão; o próximo Ping retry refaz o
+                // ciclo (Ping → List → Loaded).
+                self.connection = ConnectionState::Disconnected;
+                self.widgets_state = WidgetsState::Disconnected;
+                ping_task(RECONNECT_DELAY)
+            }
+            Message::AddRequested(type_name) => {
+                // 3c.2: ainda inerte. 3c.3 abre o mini-modal de destino.
+                eprintln!("[luma-config] AddRequested({type_name}) — modal entra em 3c.3");
+                Task::none()
             }
         }
     }
 }
 
+impl AppModel {
+    fn view_widgets(&self) -> Element<'_, Message> {
+        let spacing = theme::active().cosmic().spacing;
+
+        match &self.widgets_state {
+            WidgetsState::Loading => container(text("Carregando catálogo…").size(15))
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into(),
+            WidgetsState::Disconnected => container(
+                text("Conecte o compositor pra ver os widgets disponíveis.")
+                    .size(15),
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into(),
+            WidgetsState::Loaded(widgets) if widgets.is_empty() => {
+                container(text("Nenhum widget disponível.").size(15))
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .into()
+            }
+            WidgetsState::Loaded(widgets) => {
+                let mut cards = row::with_capacity(widgets.len()).spacing(spacing.space_m);
+                for info in widgets {
+                    cards = cards.push(card(info));
+                }
+                container(cards)
+                    .padding(spacing.space_m)
+                    .width(Length::Fill)
+                    .into()
+            }
+        }
+    }
+}
+
+fn card(info: &WidgetInfo) -> Element<'_, Message> {
+    let spacing = theme::active().cosmic().spacing;
+    let type_name = info.type_name.clone();
+
+    let icon_widget = icon::from_name(info.icon_name.as_str()).size(CARD_ICON_SIZE);
+
+    let content = column::with_capacity(4)
+        .push(icon_widget)
+        .push(text::title4(&info.display_name))
+        .push(text::body(&info.description))
+        .push(
+            button::suggested("Adicionar")
+                .width(Length::Fill)
+                .on_press(Message::AddRequested(type_name)),
+        )
+        .spacing(spacing.space_xs)
+        .align_x(Alignment::Start);
+
+    container(content)
+        .padding(spacing.space_s)
+        .width(CARD_WIDTH)
+        .class(theme::Container::Card)
+        .into()
+}
+
 /// Cria uma `Task` que, após `delay`, chama `connect_and_ping` e
-/// devolve o resultado como `Message::PingResult`. Com `delay == 0`,
-/// dispara imediatamente — usado no startup.
+/// devolve o resultado como `Message::PingResult`.
 fn ping_task(delay: Duration) -> Task<Message> {
     cosmic::task::future(async move {
         if !delay.is_zero() {
@@ -183,6 +289,17 @@ fn ping_task(delay: Duration) -> Task<Message> {
             .await
             .map_err(|err| err.to_string());
         Message::PingResult(result)
+    })
+}
+
+/// Cria uma `Task` que busca o catálogo de widgets e devolve via
+/// `Message::ListResult`.
+fn list_task() -> Task<Message> {
+    cosmic::task::future(async {
+        let result = ipc::fetch_available_widgets()
+            .await
+            .map_err(|err| err.to_string());
+        Message::ListResult(result)
     })
 }
 
