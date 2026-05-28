@@ -7,3 +7,4 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 luma-theme = { path = "../luma-theme" }
+tracing = "0.1"

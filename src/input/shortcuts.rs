@@ -48,8 +48,6 @@ pub enum KeyAction {
     MediaStop,
     /// Ativa a tela de bloqueio (Ctrl+Alt+L em modo aninhado). H58 fatia 6.
     LockSession,
-    /// Abre o diálogo de personalização (Ctrl+Alt+P temporário).
-    OpenCustomize,
 }
 
 /// Mapeia uma tecla pra uma ação. Retorna `None` quando não há atalho
@@ -117,9 +115,6 @@ pub fn match_shortcut(
         // Super+L). XF86_ScreenSaver também vira lock direto, sem mod.
         if keysym == Keysym::l || keysym == Keysym::L {
             return Some(KeyAction::LockSession);
-        }
-        if keysym == Keysym::p || keysym == Keysym::P {
-            return Some(KeyAction::OpenCustomize);
         }
         // Mídia.
         if keysym == Keysym::space {
@@ -208,12 +203,6 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::MediaPrev => media_action(state, MediaCmd::Previous),
         KeyAction::MediaStop => media_action(state, MediaCmd::Stop),
         KeyAction::LockSession => lock_session(state),
-        KeyAction::OpenCustomize => {
-            state.customize.open(
-                luma_customize::Tab::Widgets,
-                luma_customize::WidgetTarget::Free,
-            );
-        }
     }
 }
 
