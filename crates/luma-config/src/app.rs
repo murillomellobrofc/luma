@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use clap::Parser;
 use cosmic::app::{Core, Task};
 use cosmic::iced::widget::{self, container, row};
 use cosmic::iced::{Alignment, Background, Border, Color, Length};
@@ -9,6 +10,7 @@ use cosmic::widget::{button, column, dialog, icon, nav_bar, text};
 use cosmic::{Application, Element};
 use luma_ipc::{WidgetInfo, WidgetTarget};
 
+use crate::flags::{CliArgs, LumaConfigFlags};
 use crate::ipc;
 use crate::pages::Page;
 
@@ -42,6 +44,22 @@ pub enum WidgetsState {
     Loading,
     Loaded(Vec<WidgetInfo>),
     Disconnected,
+}
+
+/// Contexto de UI do app (3c.4) — NÃO cruza o D-Bus, é puramente
+/// estado interno do app. `Panel` e `Desktop` vêm dos itens do menu
+/// da Fatia 1 que abrem o app já apontando pra onde o widget vai. Aí
+/// o botão Adicionar pula o mini-modal e chama AddWidget direto.
+/// `Free` é o estado quando o app é aberto sem contexto (cli sem
+/// `--target` ou via "Personalizar desktop") — o mini-modal pergunta.
+///
+/// Distinto de `luma_ipc::WidgetTarget`, que só tem Panel/Desktop
+/// (o que o AddWidget aceita).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppContext {
+    Panel,
+    Desktop,
+    Free,
 }
 
 /// Mini-modal de destino (3c.3) — captura qual widget tá sendo
@@ -78,11 +96,13 @@ pub struct AppModel {
     widgets_state: WidgetsState,
     add_dialog: Option<AddDialog>,
     toasts: Toasts<Message>,
+    /// 3c.4: contexto atual (Panel/Desktop pulam o mini-modal).
+    app_context: AppContext,
 }
 
 impl Application for AppModel {
     type Executor = cosmic::executor::Default;
-    type Flags = ();
+    type Flags = LumaConfigFlags;
     type Message = Message;
 
     const APP_ID: &'static str = APP_ID;
@@ -95,7 +115,7 @@ impl Application for AppModel {
         &mut self.core
     }
 
-    fn init(mut core: Core, _flags: Self::Flags) -> (Self, Task<Self::Message>) {
+    fn init(mut core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         core.set_header_title("Configurações".to_string());
 
         let mut nav = nav_bar::Model::default();
@@ -113,7 +133,7 @@ impl Application for AppModel {
             .icon(icon::from_name("preferences-desktop-theme-symbolic"))
             .data::<Page>(Page::Preset);
 
-        let model = Self {
+        let mut model = Self {
             core,
             nav,
             current_page: Page::Widgets,
@@ -121,9 +141,33 @@ impl Application for AppModel {
             widgets_state: WidgetsState::Loading,
             add_dialog: None,
             toasts: Toasts::new(Message::CloseToast),
+            app_context: AppContext::Free,
         };
+        model.apply_cli_args(&flags.cli);
 
         (model, ping_task(Duration::ZERO))
+    }
+
+    /// Single-instance re-ativação (3c.4): quando alguém dispara
+    /// `luma-config --tab ... --target ...` e o app já tá aberto, o
+    /// cosmic encaminha os args via D-Bus. Re-parseia e aplica.
+    fn dbus_activation(
+        &mut self,
+        msg: cosmic::dbus_activation::Message,
+    ) -> Task<Self::Message> {
+        if let cosmic::dbus_activation::Details::ActivateAction { args, .. } = msg.msg {
+            // Prepend nome do binário pro clap aceitar o iterator.
+            let cli = CliArgs::try_parse_from(
+                std::iter::once(String::from("luma-config")).chain(args),
+            )
+            .unwrap_or_default();
+            eprintln!(
+                "[luma-config] dbus_activation: tab={:?} target={:?}",
+                cli.tab, cli.target
+            );
+            self.apply_cli_args(&cli);
+        }
+        Task::none()
     }
 
     fn nav_model(&self) -> Option<&nav_bar::Model> {
@@ -245,8 +289,15 @@ impl Application for AppModel {
                 ping_task(RECONNECT_DELAY)
             }
             Message::OpenAddDialog { type_name, display_name } => {
-                self.add_dialog = Some(AddDialog { type_name, display_name });
-                Task::none()
+                // 3c.4: contexto Panel/Desktop pula o modal e adiciona
+                // direto; Free abre o modal (3c.3).
+                match context_to_target(self.app_context) {
+                    Some(target) => add_widget_task(type_name, display_name, target),
+                    None => {
+                        self.add_dialog = Some(AddDialog { type_name, display_name });
+                        Task::none()
+                    }
+                }
             }
             Message::AddDialogCancel => {
                 self.add_dialog = None;
@@ -258,17 +309,7 @@ impl Application for AppModel {
                     // Defensive: choose chegou sem modal aberto. Não deveria.
                     None => return Task::none(),
                 };
-                let target_str = target.as_str();
-                let display_name = dialog.display_name.clone();
-                let type_name = dialog.type_name;
-                cosmic::task::future(async move {
-                    match ipc::add_widget(type_name, target_str).await {
-                        Ok(()) => Message::AddResult(Ok((display_name, target))),
-                        Err(err) => {
-                            Message::AddResult(Err((display_name, err.to_string())))
-                        }
-                    }
-                })
+                add_widget_task(dialog.type_name, dialog.display_name, target)
             }
             Message::AddResult(Ok((display_name, target))) => {
                 eprintln!(
@@ -295,6 +336,40 @@ impl Application for AppModel {
 }
 
 impl AppModel {
+    /// Aplica args CLI ao estado: troca aba e contexto. Reutilizado no
+    /// boot (`init`) e na re-ativação via single-instance
+    /// (`dbus_activation`).
+    fn apply_cli_args(&mut self, cli: &CliArgs) {
+        let page = match cli.tab.as_deref() {
+            Some("wallpaper") => Page::Wallpaper,
+            Some("preset") => Page::Preset,
+            // Default + valor desconhecido: cai em Widgets (aba que
+            // tem mais chance de ser o que o usuário queria — único
+            // alvo dos menus da Fatia 1 hoje).
+            _ => Page::Widgets,
+        };
+        self.select_page(page);
+
+        self.app_context = match cli.target.as_deref() {
+            Some("panel") => AppContext::Panel,
+            Some("desktop") => AppContext::Desktop,
+            _ => AppContext::Free,
+        };
+    }
+
+    /// Troca a aba ativa, casando o `nav_bar` com o `current_page`.
+    /// Itera porque o nav_bar não tem lookup por data.
+    fn select_page(&mut self, target: Page) {
+        let ids: Vec<nav_bar::Id> = self.nav.iter().collect();
+        for id in ids {
+            if matches!(self.nav.data::<Page>(id), Some(p) if *p == target) {
+                self.nav.activate(id);
+                break;
+            }
+        }
+        self.current_page = target;
+    }
+
     fn view_widgets(&self) -> Element<'_, Message> {
         let spacing = theme::active().cosmic().spacing;
 
@@ -386,4 +461,32 @@ fn target_label(t: WidgetTarget) -> &'static str {
         WidgetTarget::Panel => "painel",
         WidgetTarget::Desktop => "desktop",
     }
+}
+
+/// 3c.4: mapeia `AppContext` pra `WidgetTarget` quando o destino tá
+/// implícito pelo contexto. `Free` retorna None (modal vai perguntar).
+fn context_to_target(ctx: AppContext) -> Option<WidgetTarget> {
+    match ctx {
+        AppContext::Panel => Some(WidgetTarget::Panel),
+        AppContext::Desktop => Some(WidgetTarget::Desktop),
+        AppContext::Free => None,
+    }
+}
+
+/// Dispara um `AddWidget` via D-Bus e converte o resultado em
+/// `Message::AddResult`. Compartilhado por dois caminhos:
+/// (1) o modal escolheu destino (Free + AddDialogChoose), e
+/// (2) o contexto Panel/Desktop pula o modal direto (3c.4).
+fn add_widget_task(
+    type_name: String,
+    display_name: String,
+    target: WidgetTarget,
+) -> Task<Message> {
+    let target_str = target.as_str();
+    cosmic::task::future(async move {
+        match ipc::add_widget(type_name, target_str).await {
+            Ok(()) => Message::AddResult(Ok((display_name, target))),
+            Err(err) => Message::AddResult(Err((display_name, err.to_string()))),
+        }
+    })
 }
