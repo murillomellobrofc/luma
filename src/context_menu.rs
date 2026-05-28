@@ -58,6 +58,16 @@ pub enum ContextAction {
     /// Placeholder pros items que dependem de features ainda não
     /// prontas. Nunca dispatcha (item fica enabled=false).
     Disabled,
+    /// 3c.4: spawn `luma-config --tab widgets --target panel`. App
+    /// abre na aba Widgets com contexto Panel — botão Adicionar pula
+    /// o mini-modal e adiciona direto no painel.
+    OpenConfigAddPanel,
+    /// 3c.4: spawn `luma-config --tab widgets --target desktop`. Idem
+    /// pro desktop.
+    OpenConfigAddDesktop,
+    /// 3c.4: spawn `luma-config --tab widgets`. Contexto livre — o
+    /// mini-modal pergunta destino.
+    OpenConfigCustomize,
 }
 
 /// Critério de ordenação para "Organizar ícones" do menu de
@@ -700,6 +710,24 @@ pub fn change_wallpaper_blocking() -> Option<std::path::PathBuf> {
 
 /// Abre o theme.toml do user em editor padrão via xdg-open. Cria o
 /// arquivo vazio se não existir. H48.ctx.7.
+/// 3c.4: spawn do app luma-config com os args. Se já existe instância
+/// rodando, o single-instance do cosmic detecta via D-Bus e encaminha
+/// os args pra ela em vez de subir nova janela. Resolução do binário:
+/// primeiro tenta sibling do compositor (cobre dev — `target/debug/`),
+/// senão cai pra PATH (cobre produção com binário instalado).
+/// Dívida: resolução robusta quando existir sistema de install.
+pub fn open_luma_config(args: &[&str]) {
+    let bin: std::path::PathBuf = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("luma-config")))
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| std::path::PathBuf::from("luma-config"));
+    match Command::new(&bin).args(args).spawn() {
+        Ok(_) => tracing::info!("ctx menu: spawn {bin:?} {args:?}"),
+        Err(err) => tracing::warn!("ctx menu: spawn de {bin:?} falhou: {err}"),
+    }
+}
+
 pub fn open_luma_settings() {
     let home = match std::env::var("HOME") {
         Ok(h) => h,
@@ -831,6 +859,30 @@ fn default_items() -> Vec<ContextItem> {
             label: "Mudar papel de parede".into(),
             icon: Some("ctx-wallpaper"),
             kind: ItemKind::Submenu(wallpaper_gallery_items()),
+            enabled: true,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "".into(),
+            icon: None,
+            kind: ItemKind::Separator,
+            enabled: false,
+            shortcut: None,
+        },
+        // 3c.4: dois entry points pro app luma-config no menu do
+        // desktop. "Adicionar widget ao desktop" passa contexto direto
+        // (skip-modal); "Personalizar desktop" abre contexto livre.
+        ContextItem {
+            label: "Adicionar widget ao desktop".into(),
+            icon: Some("ctx-new"),
+            kind: ItemKind::Action(ContextAction::OpenConfigAddDesktop),
+            enabled: true,
+            shortcut: None,
+        },
+        ContextItem {
+            label: "Personalizar desktop".into(),
+            icon: Some("ctx-settings"),
+            kind: ItemKind::Action(ContextAction::OpenConfigCustomize),
             enabled: true,
             shortcut: None,
         },
