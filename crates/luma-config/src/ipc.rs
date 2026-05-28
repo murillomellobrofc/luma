@@ -41,9 +41,7 @@ pub async fn fetch_available_widgets() -> zbus::Result<Vec<WidgetInfo>> {
 }
 
 /// Conecta no session bus e dispara `AddWidget(type_name, target)`.
-/// `target` deve ser `"panel"` ou `"desktop"`. 3c.2 já registra o
-/// helper; o consumidor entra em 3c.3 quando o modal liga o botão.
-#[allow(dead_code)]
+/// `target` deve ser `"panel"` ou `"desktop"`.
 pub async fn add_widget(type_name: String, target: &'static str) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
     let proxy = CompositorProxy::new(&conn).await?;

@@ -4,9 +4,10 @@ use cosmic::app::{Core, Task};
 use cosmic::iced::widget::{self, container, row};
 use cosmic::iced::{Alignment, Background, Border, Color, Length};
 use cosmic::theme;
-use cosmic::widget::{button, column, icon, nav_bar, text};
+use cosmic::widget::toaster::{Toast, ToastId, Toasts, toaster};
+use cosmic::widget::{button, column, dialog, icon, nav_bar, text};
 use cosmic::{Application, Element};
-use luma_ipc::WidgetInfo;
+use luma_ipc::{WidgetInfo, WidgetTarget};
 
 use crate::ipc;
 use crate::pages::Page;
@@ -18,14 +19,13 @@ const APP_ID: &str = "dev.luma.Config";
 /// indicador virar sage assim que o `Ping` aceitar.
 const RECONNECT_DELAY: Duration = Duration::from_secs(3);
 
-/// Diâmetro do ponto indicador (px) no rodapé. Hit target irrelevante.
+/// Diâmetro do ponto indicador (px) no rodapé.
 const DOT_SIZE: u16 = 10;
 
 /// Tamanho do ícone do card de widget.
 const CARD_ICON_SIZE: u16 = 48;
 
-/// Largura fixa do card. Linha simples por enquanto (3c.2); grid de
-/// verdade vira polish.
+/// Largura fixa do card (3c.2 — linha simples; grid responsivo é polish).
 const CARD_WIDTH: u16 = 240;
 
 /// Estado da conexão D-Bus com o compositor (3b).
@@ -36,30 +36,38 @@ pub enum ConnectionState {
     Disconnected,
 }
 
-/// Estado da página Widgets (3c.2). Deriva de `ConnectionState` na
-/// transição, mas vive como campo próprio porque `Loaded` carrega o
-/// catálogo e `Disconnected` precisa renderizar diferente do Loading.
+/// Estado da página Widgets (3c.2).
 #[derive(Debug, Clone)]
 pub enum WidgetsState {
-    /// Conectado mas catálogo ainda não chegou (ou catálogo vai chegar
-    /// depois do próximo Connected).
     Loading,
     Loaded(Vec<WidgetInfo>),
-    /// Sem compositor — UI mostra a mensagem de "conecte o compositor"
-    /// no lugar dos cards.
     Disconnected,
+}
+
+/// Mini-modal de destino (3c.3) — captura qual widget tá sendo
+/// adicionado pra renderizar o título "Adicionar X onde?" e fechar
+/// quando o destino for escolhido (ou cancelado).
+#[derive(Debug, Clone)]
+struct AddDialog {
+    type_name: String,
+    display_name: String,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Resultado do `Ping`. `Ok(version)` em sucesso; `Err(msg)` em
-    /// falha (zbus::Error não é Clone).
     PingResult(Result<String, String>),
-    /// Resultado do `ListAvailableWidgets` disparado depois do Ping Ok.
     ListResult(Result<Vec<WidgetInfo>, String>),
-    /// Botão Adicionar clicado num card. Em 3c.2 só loga; em 3c.3 abre
-    /// o mini-modal de destino.
-    AddRequested(String),
+    /// Botão Adicionar clicado num card — abre o modal.
+    OpenAddDialog { type_name: String, display_name: String },
+    /// Usuário escolheu destino no modal — dispara AddWidget.
+    AddDialogChoose(WidgetTarget),
+    /// Usuário cancelou (botão Cancelar do modal).
+    AddDialogCancel,
+    /// Resultado do AddWidget: `Ok((display_name, target))` em sucesso,
+    /// `Err((display_name, error_msg))` em falha.
+    AddResult(Result<(String, WidgetTarget), (String, String)>),
+    /// Toast expirou ou foi fechado — remove da fila.
+    CloseToast(ToastId),
 }
 
 pub struct AppModel {
@@ -68,6 +76,8 @@ pub struct AppModel {
     current_page: Page,
     connection: ConnectionState,
     widgets_state: WidgetsState,
+    add_dialog: Option<AddDialog>,
+    toasts: Toasts<Message>,
 }
 
 impl Application for AppModel {
@@ -109,6 +119,8 @@ impl Application for AppModel {
             current_page: Page::Widgets,
             connection: ConnectionState::Probing,
             widgets_state: WidgetsState::Loading,
+            add_dialog: None,
+            toasts: Toasts::new(Message::CloseToast),
         };
 
         (model, ping_task(Duration::ZERO))
@@ -127,11 +139,38 @@ impl Application for AppModel {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        match self.current_page {
+        let page: Element<'_, Self::Message> = match self.current_page {
             Page::Widgets => self.view_widgets(),
             Page::Wallpaper => text("Wallpaper — em breve").size(18).into(),
             Page::Preset => text("Preset — em breve").size(18).into(),
-        }
+        };
+        toaster(&self.toasts, page)
+    }
+
+    /// Mini-modal de destino (3c.3). cosmic renderiza centralizado
+    /// com backdrop escurecido automaticamente.
+    fn dialog(&self) -> Option<Element<'_, Self::Message>> {
+        let d = self.add_dialog.as_ref()?;
+        let title = format!("Adicionar “{}” onde?", d.display_name);
+        let panel_btn = button::suggested("Adicionar ao painel")
+            .width(Length::Fill)
+            .on_press(Message::AddDialogChoose(WidgetTarget::Panel));
+        let desktop_btn = button::suggested("Adicionar ao desktop")
+            .width(Length::Fill)
+            .on_press(Message::AddDialogChoose(WidgetTarget::Desktop));
+        let cancel_btn = button::standard("Cancelar")
+            .width(Length::Fill)
+            .on_press(Message::AddDialogCancel);
+
+        Some(
+            dialog()
+                .title(title)
+                .control(panel_btn)
+                .control(desktop_btn)
+                .control(cancel_btn)
+                .max_width(420.0)
+                .into(),
+        )
     }
 
     /// Rodapé: indicador discreto de status da conexão com o compositor.
@@ -178,7 +217,6 @@ impl Application for AppModel {
                 eprintln!("[luma-config] conectado ao compositor: {version}");
                 self.connection = ConnectionState::Connected { version };
                 self.widgets_state = WidgetsState::Loading;
-                // Encadeia: catálogo de widgets logo após o ping aceitar.
                 list_task()
             }
             Message::PingResult(Err(err)) => {
@@ -202,15 +240,54 @@ impl Application for AppModel {
                 eprintln!(
                     "[luma-config] ListAvailableWidgets falhou: {err} — voltando pro fluxo de retry"
                 );
-                // Trata como desconexão; o próximo Ping retry refaz o
-                // ciclo (Ping → List → Loaded).
                 self.connection = ConnectionState::Disconnected;
                 self.widgets_state = WidgetsState::Disconnected;
                 ping_task(RECONNECT_DELAY)
             }
-            Message::AddRequested(type_name) => {
-                // 3c.2: ainda inerte. 3c.3 abre o mini-modal de destino.
-                eprintln!("[luma-config] AddRequested({type_name}) — modal entra em 3c.3");
+            Message::OpenAddDialog { type_name, display_name } => {
+                self.add_dialog = Some(AddDialog { type_name, display_name });
+                Task::none()
+            }
+            Message::AddDialogCancel => {
+                self.add_dialog = None;
+                Task::none()
+            }
+            Message::AddDialogChoose(target) => {
+                let dialog = match self.add_dialog.take() {
+                    Some(d) => d,
+                    // Defensive: choose chegou sem modal aberto. Não deveria.
+                    None => return Task::none(),
+                };
+                let target_str = target.as_str();
+                let display_name = dialog.display_name.clone();
+                let type_name = dialog.type_name;
+                cosmic::task::future(async move {
+                    match ipc::add_widget(type_name, target_str).await {
+                        Ok(()) => Message::AddResult(Ok((display_name, target))),
+                        Err(err) => {
+                            Message::AddResult(Err((display_name, err.to_string())))
+                        }
+                    }
+                })
+            }
+            Message::AddResult(Ok((display_name, target))) => {
+                eprintln!(
+                    "[luma-config] AddWidget OK: {display_name} → {}",
+                    target.as_str()
+                );
+                let toast_msg =
+                    format!("Adicionado: {display_name} no {}", target_label(target));
+                // `Toasts::push` devolve iced::Task<Message>; cosmic::Task
+                // espera Task<Action<Message>>, daí o map.
+                self.toasts.push(Toast::new(toast_msg)).map(cosmic::Action::App)
+            }
+            Message::AddResult(Err((display_name, err))) => {
+                eprintln!("[luma-config] AddWidget falhou ({display_name}): {err}");
+                let toast_msg = format!("Falha ao adicionar {display_name}: {err}");
+                self.toasts.push(Toast::new(toast_msg)).map(cosmic::Action::App)
+            }
+            Message::CloseToast(id) => {
+                self.toasts.remove(id);
                 Task::none()
             }
         }
@@ -227,8 +304,7 @@ impl AppModel {
                 .center_y(Length::Fill)
                 .into(),
             WidgetsState::Disconnected => container(
-                text("Conecte o compositor pra ver os widgets disponíveis.")
-                    .size(15),
+                text("Conecte o compositor pra ver os widgets disponíveis.").size(15),
             )
             .center_x(Length::Fill)
             .center_y(Length::Fill)
@@ -255,7 +331,6 @@ impl AppModel {
 
 fn card(info: &WidgetInfo) -> Element<'_, Message> {
     let spacing = theme::active().cosmic().spacing;
-    let type_name = info.type_name.clone();
 
     let icon_widget = icon::from_name(info.icon_name.as_str()).size(CARD_ICON_SIZE);
 
@@ -266,7 +341,10 @@ fn card(info: &WidgetInfo) -> Element<'_, Message> {
         .push(
             button::suggested("Adicionar")
                 .width(Length::Fill)
-                .on_press(Message::AddRequested(type_name)),
+                .on_press(Message::OpenAddDialog {
+                    type_name: info.type_name.clone(),
+                    display_name: info.display_name.clone(),
+                }),
         )
         .spacing(spacing.space_xs)
         .align_x(Alignment::Start);
@@ -278,8 +356,6 @@ fn card(info: &WidgetInfo) -> Element<'_, Message> {
         .into()
 }
 
-/// Cria uma `Task` que, após `delay`, chama `connect_and_ping` e
-/// devolve o resultado como `Message::PingResult`.
 fn ping_task(delay: Duration) -> Task<Message> {
     cosmic::task::future(async move {
         if !delay.is_zero() {
@@ -292,8 +368,6 @@ fn ping_task(delay: Duration) -> Task<Message> {
     })
 }
 
-/// Cria uma `Task` que busca o catálogo de widgets e devolve via
-/// `Message::ListResult`.
 fn list_task() -> Task<Message> {
     cosmic::task::future(async {
         let result = ipc::fetch_available_widgets()
@@ -305,4 +379,11 @@ fn list_task() -> Task<Message> {
 
 fn iced_color([r, g, b, a]: [f32; 4]) -> Color {
     Color::from_rgba(r, g, b, a)
+}
+
+fn target_label(t: WidgetTarget) -> &'static str {
+    match t {
+        WidgetTarget::Panel => "painel",
+        WidgetTarget::Desktop => "desktop",
+    }
 }
