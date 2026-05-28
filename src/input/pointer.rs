@@ -2257,8 +2257,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             }
             // (widget right-click handler movido pra alta prioridade acima)
             // Personalização contextual: right-click no painel abre
-            // menu do painel (estilo Mint). Itens desabilitados até
-            // fatias 2 e 3.
+            // menu do painel (estilo Mint). 3c.4 religou Adicionar
+            // widget + Personalizar desktop. "Configurar painel"
+            // segue Disabled (fora do escopo da Fatia 3).
             if button == 0x111 {
                 let output_size = state
                     .space
@@ -2279,9 +2280,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                     label: "Adicionar widget ao painel".into(),
                                     icon: None,
                                     kind: crate::context_menu::ItemKind::Action(
-                                        crate::context_menu::ContextAction::Disabled,
+                                        crate::context_menu::ContextAction::OpenConfigAddPanel,
                                     ),
-                                    enabled: false,
+                                    enabled: true,
                                     shortcut: None,
                                 },
                                 crate::context_menu::ContextItem {
@@ -2304,9 +2305,9 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                                     label: "Personalizar desktop".into(),
                                     icon: None,
                                     kind: crate::context_menu::ItemKind::Action(
-                                        crate::context_menu::ContextAction::Disabled,
+                                        crate::context_menu::ContextAction::OpenConfigCustomize,
                                     ),
-                                    enabled: false,
+                                    enabled: true,
                                     shortcut: None,
                                 },
                             ],
@@ -2423,6 +2424,16 @@ fn dispatch_context_action(
             }
         }
         ContextAction::OpenLumaSettings => crate::context_menu::open_luma_settings(),
+        // 3c.4: 3 entry points pro app luma-config com contexto.
+        ContextAction::OpenConfigAddPanel => {
+            crate::context_menu::open_luma_config(&["--tab", "widgets", "--target", "panel"]);
+        }
+        ContextAction::OpenConfigAddDesktop => {
+            crate::context_menu::open_luma_config(&["--tab", "widgets", "--target", "desktop"]);
+        }
+        ContextAction::OpenConfigCustomize => {
+            crate::context_menu::open_luma_config(&["--tab", "widgets"]);
+        }
         ContextAction::ConfigureDisplay => {
             // Dim na UI; este arm cobre eventual desync (item enabled
             // mas action ConfigureDisplay). No-op.
