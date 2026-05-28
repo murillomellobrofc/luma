@@ -6,6 +6,7 @@ use cosmic::iced::widget::{self, container, row};
 use cosmic::iced::{Alignment, Background, Border, Color, Length};
 use cosmic::theme;
 use cosmic::widget::toaster::{Toast, ToastId, Toasts, toaster};
+use cosmic::font;
 use cosmic::widget::{button, column, dialog, icon, text, text_input};
 use cosmic::{Application, Element};
 use libluma::GoldenHour;
@@ -373,7 +374,15 @@ impl AppModel {
             }
         }));
 
-        let label = text(meta.label).size(14);
+        // Label 14px (brief). Ativo ganha peso semibold (≈ "peso 500"
+        // — Weight::Medium não existe na fonte default; Semibold é o
+        // mais próximo). A cor cream do ativo vem do wrapping
+        // container abaixo via text_color override.
+        let label = if is_active {
+            text(meta.label).size(14).font(font::semibold())
+        } else {
+            text(meta.label).size(14)
+        };
 
         let content = row![icon_square, label]
             .spacing(11)
@@ -457,9 +466,10 @@ impl AppModel {
             }
         }));
 
+        // Brief: título 22px peso 500 honey; descrição 13px honey_dim.
         let text_col = column::with_capacity(2)
-            .push(text::title3(meta.label))
-            .push(text::body(meta.description))
+            .push(text(meta.label).size(22).font(font::semibold()))
+            .push(dim_text(meta.description, 13, self.gh.honey_dim))
             .spacing(spacing.space_xxxs);
 
         row![icon_box, text_col]
@@ -524,10 +534,11 @@ impl AppModel {
             }
         }));
 
+        // Brief: nome 14px peso 500 honey; descrição 12px honey_dim.
         let content = column::with_capacity(4)
             .push(icon_box)
-            .push(text::title4(&info.display_name))
-            .push(text::body(&info.description))
+            .push(text(info.display_name.as_str()).size(14).font(font::semibold()))
+            .push(dim_text(&info.description, 12, self.gh.honey_dim))
             .push(
                 button::suggested("Adicionar")
                     .width(Length::Fill)
@@ -582,6 +593,20 @@ struct SectionMeta {
 
 fn placeholder_body<'a>(msg: &'a str) -> Element<'a, Message> {
     text(msg).size(15).into()
+}
+
+/// Renderiza `s` em `size`px com cor honey_dim (text_color via
+/// container wrapping — iced text `.color()` não funciona sob o
+/// cosmic Theme). Usado em descrições de página e card.
+fn dim_text<'a>(s: &'a str, size: u16, dim_color: Color) -> Element<'a, Message> {
+    container(text(s).size(size))
+        .class(theme::Container::custom(move |_| {
+            cosmic::iced::widget::container::Style {
+                text_color: Some(dim_color),
+                ..Default::default()
+            }
+        }))
+        .into()
 }
 
 fn target_label(t: WidgetTarget) -> &'static str {
