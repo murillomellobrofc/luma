@@ -811,13 +811,8 @@ fn default_items() -> Vec<ContextItem> {
             enabled: true,
             shortcut: None,
         },
-        ContextItem {
-            label: "Modo de edição".into(),
-            icon: Some("ctx-edit"),
-            kind: ItemKind::Action(ContextAction::Disabled),
-            enabled: false,
-            shortcut: None,
-        },
+        // "Modo de edição" apagado — personalização contextual Mint
+        // puro: configuração por right-click direto, sem modo global.
         ContextItem {
             label: "".into(),
             icon: None,

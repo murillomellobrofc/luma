@@ -2142,15 +2142,78 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     l.set_rubber_band(Some(rb));
                 }
             }
+            // Personalização contextual: right-click no painel abre
+            // menu do painel (estilo Mint). Itens desabilitados até
+            // fatias 2 e 3.
+            if button == 0x111 {
+                let output_size = state
+                    .space
+                    .output_geometry(state.output_under_cursor(pointer_pos))
+                    .map(|g| g.size);
+                if let Some(out) = output_size {
+                    let bar_top = out.h - crate::taskbar::taskbar_height();
+                    let on_taskbar = pointer_pos.y >= bar_top as f64;
+                    if on_taskbar {
+                        let tokens = crate::theme::current().context_menu.clone();
+                        let mut menu = crate::context_menu::ContextMenu {
+                            origin: smithay::utils::Point::from((
+                                pointer_pos.x.round() as i32,
+                                pointer_pos.y.round() as i32,
+                            )),
+                            items: vec![
+                                crate::context_menu::ContextItem {
+                                    label: "Adicionar widget ao painel".into(),
+                                    icon: None,
+                                    kind: crate::context_menu::ItemKind::Action(
+                                        crate::context_menu::ContextAction::Disabled,
+                                    ),
+                                    enabled: false,
+                                    shortcut: None,
+                                },
+                                crate::context_menu::ContextItem {
+                                    label: "Configurar painel".into(),
+                                    icon: None,
+                                    kind: crate::context_menu::ItemKind::Action(
+                                        crate::context_menu::ContextAction::Disabled,
+                                    ),
+                                    enabled: false,
+                                    shortcut: None,
+                                },
+                                crate::context_menu::ContextItem {
+                                    label: "".into(),
+                                    icon: None,
+                                    kind: crate::context_menu::ItemKind::Separator,
+                                    enabled: false,
+                                    shortcut: None,
+                                },
+                                crate::context_menu::ContextItem {
+                                    label: "Personalizar desktop".into(),
+                                    icon: None,
+                                    kind: crate::context_menu::ItemKind::Action(
+                                        crate::context_menu::ContextAction::Disabled,
+                                    ),
+                                    enabled: false,
+                                    shortcut: None,
+                                },
+                            ],
+                            hovered: None,
+                            open_submenu: None,
+                            submenu_hovered: None,
+                            target: None,
+                            dbus_menu: None,
+                        };
+                        menu.clamp_into(out, &tokens);
+                        state.context_menu = Some(menu);
+                        pointer.button(state, &ButtonEvent {
+                            button, state: button_state, serial, time: event.time_msec(),
+                        });
+                        pointer.frame(state);
+                        return;
+                    }
+                }
+            }
             // H48.ctx.1: right-click no desktop (área vazia, sem
-            // janela sob o cursor) abre menu de contexto. Botão
-            // esquerdo segue defocando como antes.
-            //
-            // H48.fix.1: extra guard — click na faixa da taskbar
-            // (y >= output.h - taskbar_height) NÃO abre o menu do
-            // desktop, mesmo que não tenha janela ali. A taskbar pode
-            // ter o seu próprio menu no futuro; por enquanto, só não
-            // sobrepõe o menu do desktop em cima dela.
+            // janela sob o cursor) abre menu de contexto.
             if button == 0x111 {
                 let output_size = state
                     .space
