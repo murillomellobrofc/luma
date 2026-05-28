@@ -255,12 +255,32 @@ impl std::error::Error for ConfigError {}
 pub type WidgetBuilder =
     Box<dyn Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError>>;
 
-/// Mapa de "tipo no toml" pra builder. Construído uma vez no boot,
-/// imutável depois. Quando widgets de terceiros entrarem (pós-v1),
-/// o registro vira o ponto de plug-in.
+/// Descreve um tipo de widget pro usuário (picker do app, futuros
+/// pickers). 3c.1: hoje em string fixa pt-BR; i18n vira dívida quando
+/// o sistema de localização maturar nos dois lados (compositor + app).
+#[derive(Debug, Clone)]
+pub struct WidgetMetadata {
+    /// Nome humano do tipo (ex.: "Etiqueta", "Contador").
+    pub display_name: String,
+    /// Frase curta explicando o que o widget faz.
+    pub description: String,
+    /// Nome do ícone no icon theme freedesktop (ex.: "list-add-symbolic").
+    pub icon_name: String,
+}
+
+/// Entrada do registro: builder + metadata. Internal — o público
+/// itera via `available()` que entrega `(type_name, &metadata)`.
+struct RegistryEntry {
+    builder: WidgetBuilder,
+    metadata: WidgetMetadata,
+}
+
+/// Mapa de "tipo no toml" pra builder + metadata. Construído uma vez
+/// no boot, imutável depois. Quando widgets de terceiros entrarem
+/// (pós-v1), o registro vira o ponto de plug-in.
 #[derive(Default)]
 pub struct WidgetRegistry {
-    builders: HashMap<String, WidgetBuilder>,
+    entries: HashMap<String, RegistryEntry>,
 }
 
 impl WidgetRegistry {
@@ -268,11 +288,16 @@ impl WidgetRegistry {
         Self::default()
     }
 
-    pub fn register<F>(&mut self, name: impl Into<String>, builder: F)
-    where
-        F: Fn(&toml::Table) -> Result<Box<dyn Widget + Send>, ConfigError> + 'static,
-    {
-        self.builders.insert(name.into(), Box::new(builder));
+    pub fn register(
+        &mut self,
+        type_name: &str,
+        builder: WidgetBuilder,
+        metadata: WidgetMetadata,
+    ) {
+        self.entries.insert(
+            type_name.to_string(),
+            RegistryEntry { builder, metadata },
+        );
     }
 
     /// Constrói um widget pelo nome do tipo. Erro = tipo desconhecido
@@ -283,12 +308,20 @@ impl WidgetRegistry {
         type_name: &str,
         config: &toml::Table,
     ) -> Result<Box<dyn Widget + Send>, ConfigError> {
-        match self.builders.get(type_name) {
-            Some(b) => b(config),
+        match self.entries.get(type_name) {
+            Some(e) => (e.builder)(config),
             None => Err(ConfigError(format!(
                 "tipo de widget desconhecido: {type_name}"
             ))),
         }
+    }
+
+    /// Itera os tipos disponíveis com sua metadata. Usado pelo
+    /// `ListAvailableWidgets` do D-Bus (3c.1) pra preencher o picker
+    /// do app. Ordem do HashMap não é estável — caller que precisar
+    /// de ordem determinística ordena ele mesmo.
+    pub fn available(&self) -> impl Iterator<Item = (&str, &WidgetMetadata)> {
+        self.entries.iter().map(|(k, v)| (k.as_str(), &v.metadata))
     }
 }
 
@@ -447,17 +480,33 @@ pub fn build_default_registry(text_renderer: Arc<TextRenderer>) -> WidgetRegistr
     let mut registry = WidgetRegistry::new();
     {
         let tr = text_renderer.clone();
-        registry.register("label", move |cfg| {
-            LabelWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
-        });
+        registry.register(
+            "label",
+            Box::new(move |cfg| {
+                LabelWidget::from_config(cfg, tr.clone())
+                    .map(|w| Box::new(w) as Box<dyn Widget + Send>)
+            }),
+            WidgetMetadata {
+                display_name: "Etiqueta".into(),
+                description: "Mostra um texto fixo configurável.".into(),
+                icon_name: "text-x-generic-symbolic".into(),
+            },
+        );
     }
     {
         let tr = text_renderer.clone();
-        registry.register("counter", move |cfg| {
-            CounterWidget::from_config(cfg, tr.clone())
-                .map(|w| Box::new(w) as Box<dyn Widget + Send>)
-        });
+        registry.register(
+            "counter",
+            Box::new(move |cfg| {
+                CounterWidget::from_config(cfg, tr.clone())
+                    .map(|w| Box::new(w) as Box<dyn Widget + Send>)
+            }),
+            WidgetMetadata {
+                display_name: "Contador".into(),
+                description: "Contador simples que sobe um a cada segundo.".into(),
+                icon_name: "list-add-symbolic".into(),
+            },
+        );
     }
     registry
 }
