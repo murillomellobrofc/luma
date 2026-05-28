@@ -42,10 +42,14 @@ libloading = "0.8"
 # necessários. libc usada pra malloc/strdup pras respostas
 # de conversation (PAM espera ponteiros que ele mesmo libera).
 libc = "0.2"
-# H47b.sni: cliente D-Bus. blocking::Connection + thread dedicada
-# pra signals do StatusNotifierWatcher. Defaults incluem async-io
-# (~30 deps) + blocking-api — usamos só o blocking wrapper.
-zbus = "5"
+# H47b.sni: cliente D-Bus blocking pra StatusNotifierWatcher (thread
+# dedicada). 3b.IPC: servidor D-Bus async tokio pro app luma-config.
+# Defaults = async-io + blocking-api; +"tokio" pra rodar o servidor
+# numa runtime current_thread tokio na thread de IPC.
+zbus = { version = "5", features = ["tokio"] }
+# 3b.IPC: runtime tokio só pra thread do servidor D-Bus. current_thread
+# basta — net+time pelo zbus, sync pra futuros oneshots vindos do calloop.
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay.git"
