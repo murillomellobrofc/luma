@@ -1,9 +1,13 @@
-//! Diálogo de personalização do Luma — overlay custom_element.
+//! WIP: esta crate carrega state e lógica da personalização do Luma.
 //!
-//! Renderizado como overlay fixo 720×520 centralizado. Sem
-//! redimensionar nem mover nesta fase (vira janela real quando o
-//! framework de janelas maturar). State vive aqui, render no
-//! winit.rs do crate principal.
+//! O render foi removido do compositor (overlay no winit.rs revertido).
+//! O destino final é ser usada pelo app nativo de configuração
+//! (cliente Wayland em libcosmic, IPC D-Bus), ainda não construído.
+//!
+//! Até o app nativo nascer, a API pública desta crate
+//! (`open_customize`, `close_customize`, `is_customize_open`)
+//! retorna no-op ou stub. Não chama essa API de lugar nenhum
+//! por enquanto.
 
 /// Aba ativa na sidebar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,19 +22,16 @@ pub enum Tab {
 pub enum WidgetTarget {
     Panel,
     Desktop,
-    /// Deixa o usuário escolher via mini-modal.
     Free,
 }
 
-/// State do diálogo de personalização.
+/// State do diálogo de personalização (WIP — usado pelo app nativo futuro).
 #[derive(Debug)]
 pub struct CustomizeDialog {
     pub open: bool,
     pub active_tab: Tab,
     pub target: WidgetTarget,
-    /// Item da sidebar sob hover (0=Widgets, 1=Wallpaper, 2=Preset).
     pub sidebar_hover: Option<usize>,
-    /// Hover do botão X do header.
     pub close_hover: bool,
 }
 
@@ -46,14 +47,9 @@ impl CustomizeDialog {
     }
 
     pub fn open(&mut self, tab: Tab, target: WidgetTarget) {
-        if self.open {
-            self.active_tab = tab;
-            self.target = target;
-        } else {
-            self.open = true;
-            self.active_tab = tab;
-            self.target = target;
-        }
+        self.open = true;
+        self.active_tab = tab;
+        self.target = target;
     }
 
     pub fn close(&mut self) {
@@ -61,14 +57,14 @@ impl CustomizeDialog {
     }
 }
 
-/// Dimensões fixas do overlay.
-pub const DIALOG_W: i32 = 720;
-pub const DIALOG_H: i32 = 520;
-pub const HEADER_H: i32 = 52;
-pub const SIDEBAR_W: i32 = 160;
+// Stubs — no-op até o app nativo existir.
 
-pub const SIDEBAR_ITEMS: &[(&str, Tab)] = &[
-    ("Widgets", Tab::Widgets),
-    ("Wallpaper", Tab::Wallpaper),
-    ("Preset", Tab::Preset),
-];
+pub fn open_customize(_initial_tab: Tab, _context: WidgetTarget) {
+    tracing::warn!("open_customize chamado, mas app nativo ainda não existe. No-op.");
+}
+
+pub fn close_customize() {}
+
+pub fn is_customize_open() -> bool {
+    false
+}

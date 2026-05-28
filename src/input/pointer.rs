@@ -575,65 +575,6 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
-    // Diálogo de personalização: click handlers.
-    if button_state == ButtonState::Pressed && state.customize.open {
-        let td = crate::theme::current().dialog.clone();
-        let dw = luma_customize::DIALOG_W;
-        let dh = luma_customize::DIALOG_H;
-        let out_size = state.space.output_geometry(state.primary_output())
-            .map(|g| g.size).unwrap_or_default();
-        let dx = (out_size.w - dw) / 2;
-        let dy = (out_size.h - dh) / 2;
-        let hh = luma_customize::HEADER_H;
-        let sw = luma_customize::SIDEBAR_W;
-        // Inside dialog?
-        let inside = pointer_pos.x >= dx as f64 && pointer_pos.x < (dx + dw) as f64
-            && pointer_pos.y >= dy as f64 && pointer_pos.y < (dy + dh) as f64;
-        if inside {
-            // X button (top-right 44x44).
-            let xx = dx + dw - 44;
-            if pointer_pos.x >= xx as f64 && pointer_pos.y < (dy + hh) as f64 {
-                state.customize.close();
-                pointer.button(state, &ButtonEvent {
-                    button, state: button_state, serial, time: event.time_msec(),
-                });
-                pointer.frame(state);
-                return;
-            }
-            // Sidebar items.
-            let si_h = td.sidebar_item_height;
-            let mut sy = dy + hh + 12;
-            for (i, _) in luma_customize::SIDEBAR_ITEMS.iter().enumerate() {
-                if pointer_pos.x >= dx as f64 && pointer_pos.x < (dx + sw) as f64
-                    && pointer_pos.y >= sy as f64 && pointer_pos.y < (sy + si_h) as f64
-                {
-                    state.customize.active_tab = luma_customize::SIDEBAR_ITEMS[i].1;
-                    pointer.button(state, &ButtonEvent {
-                        button, state: button_state, serial, time: event.time_msec(),
-                    });
-                    pointer.frame(state);
-                    return;
-                }
-                sy += si_h;
-            }
-        }
-        // Click inside dialog (but not on a specific control) — consume.
-        if inside {
-            pointer.button(state, &ButtonEvent {
-                button, state: button_state, serial, time: event.time_msec(),
-            });
-            pointer.frame(state);
-            return;
-        }
-        // Click OUTSIDE dialog — DO NOT close (spec: evitar perder sessão).
-        // But consume to prevent clicks going through.
-        pointer.button(state, &ButtonEvent {
-            button, state: button_state, serial, time: event.time_msec(),
-        });
-        pointer.frame(state);
-        return;
-    }
-
     // Personalização contextual: click no widget context menu.
     if button_state == ButtonState::Pressed && state.widget_context_menu.is_some() {
         let wcm = state.widget_context_menu.as_ref().unwrap();

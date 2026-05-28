@@ -1274,6 +1274,7 @@ name = "luma-customize"
 version = "0.1.0"
 dependencies = [
  "luma-theme",
+ "tracing",
 ]
 
 [[package]]
