@@ -3035,6 +3035,10 @@ dependencies = [
 [[package]]
 name = "libluma"
 version = "0.1.0"
+dependencies = [
+ "libcosmic",
+ "luma-theme",
+]
 
 [[package]]
 name = "libm"
@@ -3207,6 +3211,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "libcosmic",
+ "libluma",
  "luma-ipc",
  "luma-theme",
  "tokio",

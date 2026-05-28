@@ -6,4 +6,10 @@ description = "Design system Golden Hour dos apps Luma — theme cosmic + helper
 license = "GPL-3.0-or-later"
 
 [dependencies]
-# Próximos commits ligam luma-theme + libcosmic com feature mínima.
+# Fonte da verdade dos tokens — palette + clusters compartilhados
+# com o compositor. libluma só consome.
+luma-theme = { path = "../luma-theme" }
+# libcosmic com default-features = false pra evitar arrastar winit,
+# tokio, wayland nesta biblioteca de theme — runtime de app é
+# responsabilidade do consumidor. Compilador guia se faltar feature.
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false }

@@ -2,7 +2,6 @@ mod app;
 mod flags;
 mod ipc;
 mod pages;
-mod theme;
 
 use clap::Parser;
 
@@ -11,7 +10,7 @@ fn main() -> cosmic::iced::Result {
     let app_flags = flags::LumaConfigFlags::from_cli(cli);
     let settings = cosmic::app::Settings::default()
         .size(cosmic::iced::Size::new(800.0, 560.0))
-        .theme(theme::golden_hour());
+        .theme(libluma::golden_hour_theme());
     // 3c.4: single-instance via D-Bus (libcosmic). Já tem outra
     // janela aberta? args são entregues à instância existente pelo
     // `org.freedesktop.DbusActivation::ActivateAction`; o

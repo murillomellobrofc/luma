@@ -12,3 +12,7 @@
 //!
 //! O compositor Smithay NÃO consome libluma — ele renderiza no braço
 //! lendo o `luma_theme` direto.
+
+mod theme;
+
+pub use theme::golden_hour_theme;
