@@ -3113,6 +3113,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-ipc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "zvariant",
+]
+
+[[package]]
 name = "luma-theme"
 version = "0.1.0"
 dependencies = [

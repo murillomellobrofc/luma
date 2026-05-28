@@ -1,0 +1,13 @@
+[package]
+name = "luma-ipc"
+version = "0.1.0"
+edition = "2024"
+description = "Contratos D-Bus compartilhados entre compositor e app (DTOs + tipos de domínio)"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# zvariant direto em vez de zbus pra não arrastar todo o runtime
+# (tokio/async-io) dentro de um crate que é só DTO. zbus reexporta
+# o mesmo Type — derive funciona idêntico nas pontas.
+zvariant = "5"
