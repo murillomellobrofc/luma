@@ -12,6 +12,7 @@ license = "GPL-3.0-or-later"
 luma-theme = { path = "crates/luma-theme" }
 luma-widget = { path = "crates/luma-widget" }
 luma-customize = { path = "crates/luma-customize" }
+luma-ipc = { path = "crates/luma-ipc" }
 bitflags = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fontdue = "0.9"

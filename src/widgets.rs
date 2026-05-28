@@ -44,18 +44,20 @@ impl LabelWidget {
     }
 
     /// Fatia 2: constrói a partir do bloco config do layout.toml.
-    /// Espera `text = "..."`. Campo ausente ou tipo errado = erro.
-    /// `text_renderer` vem do boot via captura no builder do registro.
+    /// `text` opcional pra que o AddWidget do D-Bus (3c.1) consiga
+    /// criar uma label sem config — usuário edita depois. Tipo errado
+    /// continua erro.
     pub fn from_config(
         config: &toml::Table,
         text_renderer: Arc<TextRenderer>,
     ) -> Result<Self, ConfigError> {
-        let text = config
-            .get("text")
-            .ok_or_else(|| ConfigError("label: campo `text` ausente".into()))?
-            .as_str()
-            .ok_or_else(|| ConfigError("label: `text` precisa ser string".into()))?
-            .to_string();
+        let text = match config.get("text") {
+            Some(v) => v
+                .as_str()
+                .ok_or_else(|| ConfigError("label: `text` precisa ser string".into()))?
+                .to_string(),
+            None => "Etiqueta".to_string(),
+        };
         Ok(Self { text, text_renderer })
     }
 }
@@ -454,8 +456,7 @@ pub fn load_panel_config() -> PanelConfig {
 /// por placement. Caller (LumaState::new) consome o resultado.
 /// Entradas inválidas (tipo desconhecido, config errada) são puladas
 /// com warn — boot nunca derruba.
-pub fn load_all(text_renderer: Arc<TextRenderer>) -> WidgetLoadResult {
-    let registry = build_default_registry(text_renderer);
+pub fn load_all(registry: &WidgetRegistry) -> WidgetLoadResult {
     let entries = default_layout_path()
         .map(|p| load_layout(&p))
         .unwrap_or_default();

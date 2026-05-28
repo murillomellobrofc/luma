@@ -3075,6 +3075,7 @@ dependencies = [
  "libc",
  "libloading",
  "luma-customize",
+ "luma-ipc",
  "luma-theme",
  "luma-widget",
  "meval",

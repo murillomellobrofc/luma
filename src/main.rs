@@ -71,18 +71,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     data.state.socket_name = init_socket(&mut event_loop)?;
     info!("socket wayland: {}", data.state.socket_name);
 
-    // 3b: canal calloop entre a thread do servidor D-Bus e o loop
-    // principal. Receiver registrado aqui (ocioso até a 3c); sender
-    // entregue à thread que sobe o zbus.
+    // 3b/3c.1: canal calloop entre a thread do servidor D-Bus e o
+    // loop principal. Receiver registrado aqui despacha cada IpcCommand
+    // pro `LumaState`, e responde pelo oneshot do command.
     let (dbus_tx, dbus_rx) =
         smithay::reexports::calloop::channel::channel::<dbus_server::IpcCommand>();
     event_loop
         .handle()
-        .insert_source(dbus_rx, |_event, _, _data| {
-            // 3c em diante: despacha IpcCommand pro estado do compositor.
+        .insert_source(dbus_rx, |event, _, data| {
+            if let smithay::reexports::calloop::channel::Event::Msg(cmd) = event {
+                match cmd {
+                    dbus_server::IpcCommand::AddWidget {
+                        type_name,
+                        target,
+                        reply,
+                    } => {
+                        let result = data.state.add_widget(&type_name, target);
+                        // Reply pode falhar se o lado D-Bus desistiu —
+                        // não é fatal pro compositor, só log.
+                        if reply.send(result).is_err() {
+                            tracing::warn!(
+                                "D-Bus AddWidget: reply oneshot fechado antes da resposta"
+                            );
+                        }
+                    }
+                }
+            }
         })
         .map_err(|err| format!("registrar receiver D-Bus no calloop: {err}"))?;
-    dbus_server::spawn(dbus_tx);
+
+    // Catálogo estático (3c.1): clonado do registry pra entregar pra
+    // thread D-Bus. Sem registry (TextRenderer falhou) = catálogo vazio,
+    // ListAvailableWidgets ainda funciona mas devolve [].
+    let available: Vec<luma_ipc::WidgetInfo> = data
+        .state
+        .widget_registry
+        .as_ref()
+        .map(|r| {
+            r.available()
+                .map(|(type_name, meta)| luma_ipc::WidgetInfo {
+                    type_name: type_name.to_string(),
+                    display_name: meta.display_name.clone(),
+                    description: meta.description.clone(),
+                    icon_name: meta.icon_name.clone(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    dbus_server::spawn(dbus_tx, available);
 
     info!("luma pronto, entrando no loop principal");
 
