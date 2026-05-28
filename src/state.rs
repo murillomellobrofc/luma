@@ -94,6 +94,10 @@ pub struct LumaState {
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
     pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
+    /// Registry vivo dos tipos de widget — fonte da verdade do
+    /// ListAvailableWidgets/AddWidget (3c.1). `None` quando o
+    /// TextRenderer falhou em carregar (sem registry e sem widgets).
+    pub widget_registry: Option<crate::widgets::WidgetRegistry>,
     /// Rects dos widgets do painel (cacheados pelo render, usado pra
     /// hit-test de right-click). Paralelo a `widgets`.
     pub widget_rects:
@@ -749,11 +753,17 @@ impl LumaState {
         // H59 reativado: sistema de widgets liga no boot.
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
+        // Registry construído fora do `load_all` pra ficar vivo no
+        // state (3c.1): D-Bus precisa dele em runtime pro AddWidget.
+        let widget_registry_for_init: Option<crate::widgets::WidgetRegistry> =
+            widget_text_for_init
+                .as_ref()
+                .map(|tr| crate::widgets::build_default_registry(tr.clone()));
         let (widgets_for_init, desktop_widgets_pending): (
             Vec<Box<dyn luma_widget::Widget + Send>>,
             Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)>,
-        ) = if let Some(tr) = widget_text_for_init.as_ref() {
-            let result = crate::widgets::load_all(tr.clone());
+        ) = if let Some(registry) = widget_registry_for_init.as_ref() {
+            let result = crate::widgets::load_all(registry);
             (result.panel, result.desktop)
         } else {
             (Vec::new(), Vec::new())
@@ -790,6 +800,7 @@ impl LumaState {
             // Fatia 2 widgets: lista vinda do layout.toml. Vec vazio
             // se o arquivo não existir ou todas as entradas falharem.
             widget_text: widget_text_for_init,
+            widget_registry: widget_registry_for_init,
             // Fatia 3 widgets: 1 Instant por widget, todos zerados em
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
@@ -938,6 +949,55 @@ impl LumaState {
         }
 
         Ok(state)
+    }
+
+    /// Adiciona um widget em runtime (3c.1 — disparado pelo
+    /// `dev.luma.Compositor.AddWidget` via D-Bus). Constrói com config
+    /// vazia (defaults do builder); destino panel = empurra na fileira,
+    /// destino desktop = mapeia no `space` numa posição default.
+    /// Erro = registry indisponível, tipo desconhecido, ou builder
+    /// recusou. Caller (handler do calloop) propaga via oneshot.
+    pub fn add_widget(
+        &mut self,
+        type_name: &str,
+        target: luma_ipc::WidgetTarget,
+    ) -> Result<(), String> {
+        const DEFAULT_DESKTOP_X: i32 = 40;
+        const DEFAULT_DESKTOP_Y: i32 = 40;
+
+        let registry = self
+            .widget_registry
+            .as_ref()
+            .ok_or_else(|| "registry de widgets indisponível".to_string())?;
+
+        let widget = registry
+            .build(type_name, &toml::Table::new())
+            .map_err(|e| e.to_string())?;
+
+        match target {
+            luma_ipc::WidgetTarget::Panel => {
+                self.widgets.push(widget);
+                self.widget_last_ticks.push(Instant::now());
+            }
+            luma_ipc::WidgetTarget::Desktop => {
+                let item = std::sync::Arc::new(
+                    crate::space_item::DesktopWidgetItem::new(
+                        widget,
+                        DEFAULT_DESKTOP_X,
+                        DEFAULT_DESKTOP_Y,
+                    ),
+                );
+                self.space.map_element(
+                    crate::space_item::SpaceItem::DesktopWidget(item),
+                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((
+                        DEFAULT_DESKTOP_X,
+                        DEFAULT_DESKTOP_Y,
+                    )),
+                    false,
+                );
+            }
+        }
+        Ok(())
     }
 }
 
