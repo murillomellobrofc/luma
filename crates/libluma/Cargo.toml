@@ -1,0 +1,9 @@
+[package]
+name = "libluma"
+version = "0.1.0"
+edition = "2024"
+description = "Design system Golden Hour dos apps Luma — theme cosmic + helpers de cor + componentes compartilhados"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+# Próximos commits ligam luma-theme + libcosmic com feature mínima.
