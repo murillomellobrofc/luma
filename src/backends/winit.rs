@@ -7205,6 +7205,7 @@ pub fn init_winit(
                             let widget_gap = 8;
                             let mut widget_x = 12i32;
                             let scale = smithay::utils::Scale::from(1.0);
+                            data.state.widget_rects.clear();
                             for widget in data.state.widgets.iter() {
                                 let buf = widget.render(&ctx);
                                 let wloc: smithay::utils::Point<i32, smithay::utils::Physical> =
@@ -7218,8 +7219,94 @@ pub fn init_winit(
                                 ) {
                                     use smithay::backend::renderer::element::Element;
                                     let w = elem.geometry(scale).size.w;
+                                    let h = elem.geometry(scale).size.h;
+                                    data.state.widget_rects.push(
+                                        smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                                            smithay::utils::Point::from((widget_x, widget_y)),
+                                            smithay::utils::Size::from((w, h)),
+                                        ),
+                                    );
                                     widget_x += w + widget_gap;
                                     custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                            }
+                        }
+
+                        // Personalização contextual: render do widget context menu.
+                        if let Some(wcm) = data.state.widget_context_menu.as_ref() {
+                            if let Some(tr) = data.state.text.as_ref() {
+                                let t_wm = crate::theme::current().widget_menu.clone();
+                                let pad = t_wm.container_padding;
+                                let ih = t_wm.item_height;
+                                let iph = t_wm.item_padding_h;
+                                // Calcula largura (max label width + padding).
+                                let mut max_w = t_wm.min_width;
+                                let labels: Vec<(String, bool, bool, bool)> = wcm.items.iter().map(|item| {
+                                    match item {
+                                        luma_widget::ContextMenuItem::Action { label, enabled, destructive, .. } =>
+                                            (label.clone(), true, *enabled, *destructive),
+                                        luma_widget::ContextMenuItem::Separator =>
+                                            (String::new(), false, false, false),
+                                    }
+                                }).collect();
+                                for (label, is_action, _, _) in &labels {
+                                    if *is_action {
+                                        let (_, lw, _) = tr.rasterize_colored(label, t_wm.font_size, t_wm.item_text);
+                                        let w = iph * 2 + lw as i32;
+                                        if w > max_w { max_w = w; }
+                                    }
+                                }
+                                let menu_w = max_w + pad * 2;
+                                let n_items = labels.len();
+                                let menu_h = pad * 2 + n_items as i32 * ih;
+                                // Clamp na tela.
+                                let mx = wcm.origin.x.max(0).min(output_size_logical.w - menu_w);
+                                let my = wcm.origin.y.max(0).min(output_size_logical.h - menu_h);
+                                // Bg.
+                                let bg = crate::gfx::make_rounded_panel(menu_w, menu_h, t_wm.container_corner, t_wm.background);
+                                let bloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((mx, my)).to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, bloc.to_f64(), &bg, None, None, None, Kind::Unspecified) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Items.
+                                let mut iy = my + pad;
+                                for (i, (label, is_action, enabled, destructive)) in labels.iter().enumerate() {
+                                    if !is_action {
+                                        // Separator.
+                                        let sep = crate::gfx::make_rounded_panel(menu_w - pad * 2, 1, 0, t_wm.separator);
+                                        let sloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((mx + pad, iy + ih / 2)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, sloc.to_f64(), &sep, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    } else {
+                                        // Hover bg.
+                                        if data.state.widget_context_menu.as_ref().and_then(|m| m.hovered) == Some(i) && *enabled {
+                                            let hbg = crate::gfx::make_rounded_panel(menu_w - pad * 2, ih, t_wm.item_corner, t_wm.item_hover_bg);
+                                            let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((mx + pad, iy)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, hloc.to_f64(), &hbg, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        // Text.
+                                        let tc = if !enabled { t_wm.item_text_disabled }
+                                            else if *destructive { t_wm.destructive_text }
+                                            else { t_wm.item_text };
+                                        let (tpx, tw, th) = tr.rasterize_colored(label, t_wm.font_size, tc);
+                                        if tw > 0 && th > 0 {
+                                            let buf = MemoryRenderBuffer::from_slice(&tpx, smithay::backend::allocator::Fourcc::Argb8888, (tw as i32, th as i32), 1, Transform::Normal, None);
+                                            let tx = mx + pad + iph;
+                                            let ty = iy + (ih - th as i32) / 2;
+                                            let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty)).to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, tloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                                custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                    }
+                                    iy += ih;
                                 }
                             }
                         }

@@ -137,6 +137,31 @@ pub fn handle_motion_absolute<I: InputBackend>(
         state.notification_history_hover = new_hover;
     }
 
+    // Personalização contextual: hover do widget context menu.
+    if let Some(wcm) = state.widget_context_menu.as_mut() {
+        let t_wm = crate::theme::current().widget_menu.clone();
+        let pad = t_wm.container_padding;
+        let ih = t_wm.item_height;
+        let menu_w = t_wm.min_width + pad * 2;
+        let mx = wcm.origin.x;
+        let my = wcm.origin.y;
+        let mut iy = my + pad;
+        let mut new_hover = None;
+        for (i, item) in wcm.items.iter().enumerate() {
+            if matches!(item, luma_widget::ContextMenuItem::Action { enabled: true, .. }) {
+                let rect = smithay::utils::Rectangle::<i32, smithay::utils::Logical>::new(
+                    smithay::utils::Point::from((mx + pad, iy)),
+                    smithay::utils::Size::from((menu_w - pad * 2, ih)),
+                );
+                if rect.to_f64().contains(pos) {
+                    new_hover = Some(i);
+                }
+            }
+            iy += ih;
+        }
+        wcm.hovered = new_hover;
+    }
+
     // H54 P3: hover sobre QUALQUER toast pausa o timer de TODOS.
     // Quando cursor sai de todos os rects, retoma — acumula
     // paused_total e zera pause_started_at em cada entry.
@@ -550,6 +575,49 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         }
     }
 
+    // Personalização contextual: click no widget context menu.
+    if button_state == ButtonState::Pressed && state.widget_context_menu.is_some() {
+        let wcm = state.widget_context_menu.as_ref().unwrap();
+        if let Some(hover_idx) = wcm.hovered {
+            let action_id = match &wcm.items[hover_idx] {
+                luma_widget::ContextMenuItem::Action { action_id, enabled: true, .. } =>
+                    Some(action_id.clone()),
+                _ => None,
+            };
+            let widget_idx = wcm.widget_index;
+            let is_desktop = wcm.is_desktop;
+            state.widget_context_menu = None;
+            if let Some(aid) = action_id {
+                match aid.as_str() {
+                    "move_left" if !is_desktop && widget_idx > 0 => {
+                        state.widgets.swap(widget_idx, widget_idx - 1);
+                        state.widget_last_ticks.swap(widget_idx, widget_idx - 1);
+                    }
+                    "move_right" if !is_desktop && widget_idx + 1 < state.widgets.len() => {
+                        state.widgets.swap(widget_idx, widget_idx + 1);
+                        state.widget_last_ticks.swap(widget_idx, widget_idx + 1);
+                    }
+                    "remove" => {
+                        state.widget_remove_modal = Some(crate::state::WidgetRemoveModal {
+                            widget_index: widget_idx,
+                            is_desktop,
+                            widget_name: "Widget".to_string(),
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            // Click fora do menu: fecha.
+            state.widget_context_menu = None;
+        }
+        pointer.button(state, &ButtonEvent {
+            button, state: button_state, serial, time: event.time_msec(),
+        });
+        pointer.frame(state);
+        return;
+    }
+
     if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
         // H58: locked intercepta tudo. Primeiro click revela o auth
         // panel; click depois cai em no-op (campo de senha não recebe
@@ -564,6 +632,51 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             });
             pointer.frame(state);
             return;
+        }
+        // Personalização contextual: right-click num widget do painel.
+        // PRIORIDADE ALTA — antes de qualquer outro handler de taskbar.
+        if button == 0x111 && !state.widget_rects.is_empty() {
+            let widget_hit: Option<usize> = state
+                .widget_rects
+                .iter()
+                .position(|r| r.to_f64().contains(pointer_pos));
+            if let Some(idx) = widget_hit {
+                let n = state.widgets.len();
+                let mut items: Vec<luma_widget::ContextMenuItem> = Vec::new();
+                let custom = state.widgets[idx].context_menu_items();
+                if !custom.is_empty() {
+                    items.extend(custom);
+                    items.push(luma_widget::ContextMenuItem::Separator);
+                }
+                if idx > 0 {
+                    items.push(luma_widget::ContextMenuItem::action("Mover pra esquerda", "move_left"));
+                } else {
+                    items.push(luma_widget::ContextMenuItem::disabled("Mover pra esquerda", "move_left"));
+                }
+                if idx + 1 < n {
+                    items.push(luma_widget::ContextMenuItem::action("Mover pra direita", "move_right"));
+                } else {
+                    items.push(luma_widget::ContextMenuItem::disabled("Mover pra direita", "move_right"));
+                }
+                items.push(luma_widget::ContextMenuItem::Separator);
+                items.push(luma_widget::ContextMenuItem::destructive("Remover widget", "remove"));
+                let t_wm = crate::theme::current().widget_menu.clone();
+                let est_h = t_wm.container_padding * 2 + items.len() as i32 * t_wm.item_height;
+                let click_y = pointer_pos.y.round() as i32;
+                let out_h = state.space.output_geometry(state.primary_output())
+                    .map(|g| g.size.h).unwrap_or(800);
+                let menu_y = if click_y + est_h > out_h { (click_y - est_h).max(0) } else { click_y };
+                state.widget_context_menu = Some(crate::state::WidgetContextMenu {
+                    widget_index: idx, is_desktop: false, items,
+                    origin: smithay::utils::Point::from((pointer_pos.x.round() as i32, menu_y)),
+                    hovered: None,
+                });
+                pointer.button(state, &ButtonEvent {
+                    button, state: button_state, serial, time: event.time_msec(),
+                });
+                pointer.frame(state);
+                return;
+            }
         }
         // H54.P5: central de notificações — bell, panel toggle, DND,
         // clear all, item dismiss. Ordem de prioridade.
@@ -2142,6 +2255,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     l.set_rubber_band(Some(rb));
                 }
             }
+            // (widget right-click handler movido pra alta prioridade acima)
             // Personalização contextual: right-click no painel abre
             // menu do painel (estilo Mint). Itens desabilitados até
             // fatias 2 e 3.
