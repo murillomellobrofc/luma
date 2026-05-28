@@ -8,6 +8,7 @@ use cosmic::theme;
 use cosmic::widget::toaster::{Toast, ToastId, Toasts, toaster};
 use cosmic::widget::{button, column, dialog, icon, text, text_input};
 use cosmic::{Application, Element};
+use libluma::GoldenHour;
 use luma_ipc::{WidgetInfo, WidgetTarget};
 
 use crate::flags::{CliArgs, LumaConfigFlags};
@@ -20,23 +21,17 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(3);
 
 const DOT_SIZE: u16 = 10;
 
-/// Largura fixa da sidebar custom (estilo macOS System Settings).
 const SIDEBAR_WIDTH: u16 = 220;
-
-/// Quadradinho colorido à esquerda do item de sidebar.
 const SIDEBAR_ITEM_SQUARE: u16 = 26;
 const SIDEBAR_ITEM_SQUARE_RADIUS: u16 = 7;
 const SIDEBAR_ITEM_ICON_SIZE: u16 = 16;
 const SIDEBAR_ITEM_RADIUS: u16 = 8;
 const SIDEBAR_ITEM_HEIGHT: u16 = 42;
 
-/// Header de página: quadradão de ícone à esquerda do título.
 const PAGE_HEADER_SQUARE: u16 = 60;
 const PAGE_HEADER_SQUARE_RADIUS: u16 = 14;
 const PAGE_HEADER_ICON_SIZE: u16 = 32;
 
-/// Card de widget: quadradinho de ícone no topo (substitui o
-/// retângulo de screenshot do brief 3c.2).
 const CARD_ICON_SQUARE: u16 = 40;
 const CARD_ICON_SQUARE_RADIUS: u16 = 9;
 const CARD_ICON_SIZE: u16 = 22;
@@ -62,8 +57,6 @@ struct AddDialog {
     display_name: String,
 }
 
-/// Contexto de UI (3c.4) — Panel/Desktop pulam o mini-modal; Free
-/// abre. Distinto de `luma_ipc::WidgetTarget` (que só tem Panel/Desktop).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppContext {
     Panel,
@@ -80,9 +73,7 @@ pub enum Message {
     AddDialogCancel,
     AddResult(Result<(String, WidgetTarget), (String, String)>),
     CloseToast(ToastId),
-    /// Re-skin: clique num item da sidebar custom.
     SelectPage(Page),
-    /// Re-skin: usuário digitou no campo de busca da sidebar.
     SidebarSearchChanged(String),
 }
 
@@ -94,8 +85,11 @@ pub struct AppModel {
     add_dialog: Option<AddDialog>,
     toasts: Toasts<Message>,
     app_context: AppContext,
-    /// Re-skin: filtro da sidebar custom. Vazio = mostra tudo.
     sidebar_search: String,
+    /// Paleta Golden Hour pronta nos tipos do iced. Carregada uma vez
+    /// no `init` via `libluma::GoldenHour::load()` e segurada como
+    /// Copy pro view/helpers pegarem por valor.
+    gh: GoldenHour,
 }
 
 impl Application for AppModel {
@@ -125,6 +119,7 @@ impl Application for AppModel {
             toasts: Toasts::new(Message::CloseToast),
             app_context: AppContext::Free,
             sidebar_search: String::new(),
+            gh: GoldenHour::load(),
         };
         model.apply_cli_args(&flags.cli);
 
@@ -150,7 +145,6 @@ impl Application for AppModel {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        // Re-skin: layout macOS — sidebar custom + conteúdo.
         let layout = row![self.view_sidebar(), self.view_content()].spacing(0);
         toaster(&self.toasts, layout)
     }
@@ -180,13 +174,9 @@ impl Application for AppModel {
     }
 
     fn footer(&self) -> Option<Element<'_, Self::Message>> {
-        let colors = &luma_theme::current().colors;
         let dot_color = match &self.connection {
-            ConnectionState::Connected { .. } => iced_color(colors.hover_maximize.components()),
-            ConnectionState::Disconnected | ConnectionState::Probing => {
-                let [r, g, b, _] = colors.hover_minimize.components();
-                Color::from_rgba(r, g, b, 0.45)
-            }
+            ConnectionState::Connected { .. } => self.gh.sage,
+            ConnectionState::Disconnected | ConnectionState::Probing => self.gh.honey_dim,
         };
 
         let label = match &self.connection {
@@ -313,7 +303,7 @@ impl AppModel {
         };
     }
 
-    // ── Sidebar custom (re-skin) ────────────────────────────────────
+    // ── Sidebar custom ──────────────────────────────────────────────
 
     fn view_sidebar(&self) -> Element<'_, Message> {
         let spacing = theme::active().cosmic().spacing;
@@ -326,11 +316,11 @@ impl AppModel {
         let mut items_col = column::with_capacity(items.len()).spacing(spacing.space_xxxs);
         let query = self.sidebar_search.to_lowercase();
         for page in items {
-            let meta = section_meta(page);
+            let meta = self.section_meta(page);
             if !query.is_empty() && !meta.label.to_lowercase().contains(&query) {
                 continue;
             }
-            items_col = items_col.push(sidebar_item(page, meta, page == self.current_page));
+            items_col = items_col.push(self.sidebar_item(page, meta, page == self.current_page));
         }
 
         let inner = column::with_capacity(2)
@@ -346,11 +336,81 @@ impl AppModel {
             .into()
     }
 
+    fn sidebar_item(
+        &self,
+        page: Page,
+        meta: SectionMeta,
+        is_active: bool,
+    ) -> Element<'_, Message> {
+        let gh = self.gh;
+        let (square_bg, icon_color) = if is_active {
+            // Ativo: quadradinho honey + ícone coffee escuro (alto
+            // contraste sobre o fundo coral).
+            (gh.honey, gh.coffee)
+        } else {
+            // Inativo: quadradinho na cor da seção + ícone honey.
+            (meta.color, gh.honey)
+        };
+        let icon_square = container(
+            Element::<Message>::from(
+                icon::from_name(meta.icon_name).size(SIDEBAR_ITEM_ICON_SIZE),
+            ),
+        )
+        .width(SIDEBAR_ITEM_SQUARE)
+        .height(SIDEBAR_ITEM_SQUARE)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .class(theme::Container::custom(move |_| {
+            cosmic::iced::widget::container::Style {
+                background: Some(Background::Color(square_bg)),
+                border: Border {
+                    radius: f32::from(SIDEBAR_ITEM_SQUARE_RADIUS).into(),
+                    ..Default::default()
+                },
+                text_color: Some(icon_color),
+                icon_color: Some(icon_color),
+                ..Default::default()
+            }
+        }));
+
+        let label = text(meta.label).size(14);
+
+        let content = row![icon_square, label]
+            .spacing(11)
+            .align_y(Alignment::Center)
+            .padding([0, 10])
+            .width(Length::Fill);
+
+        let item_bg = if is_active { Some(gh.coral) } else { None };
+        let text_color = if is_active { Some(gh.cream) } else { None };
+        let wrapped = container(content)
+            .width(Length::Fill)
+            .height(SIDEBAR_ITEM_HEIGHT)
+            .class(theme::Container::custom(move |_| {
+                cosmic::iced::widget::container::Style {
+                    background: item_bg.map(Background::Color),
+                    border: Border {
+                        radius: f32::from(SIDEBAR_ITEM_RADIUS).into(),
+                        ..Default::default()
+                    },
+                    text_color,
+                    ..Default::default()
+                }
+            }));
+
+        button::custom(wrapped)
+            .padding(0)
+            .class(theme::Button::Text)
+            .width(Length::Fill)
+            .on_press(Message::SelectPage(page))
+            .into()
+    }
+
     // ── Conteúdo principal ──────────────────────────────────────────
 
     fn view_content(&self) -> Element<'_, Message> {
         let spacing = theme::active().cosmic().spacing;
-        let header = page_header(self.current_page);
+        let header = self.view_page_header();
         let body = match self.current_page {
             Page::Widgets => self.view_widgets_body(),
             Page::Wallpaper => placeholder_body("Em breve: galeria de wallpapers."),
@@ -369,6 +429,45 @@ impl AppModel {
         .into()
     }
 
+    fn view_page_header(&self) -> Element<'_, Message> {
+        let spacing = theme::active().cosmic().spacing;
+        let meta = self.section_meta(self.current_page);
+        let cream = self.gh.cream;
+        let bg = meta.color;
+
+        let icon_box = container(
+            Element::<Message>::from(
+                icon::from_name(meta.icon_name).size(PAGE_HEADER_ICON_SIZE),
+            ),
+        )
+        .width(PAGE_HEADER_SQUARE)
+        .height(PAGE_HEADER_SQUARE)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .class(theme::Container::custom(move |_| {
+            cosmic::iced::widget::container::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: f32::from(PAGE_HEADER_SQUARE_RADIUS).into(),
+                    ..Default::default()
+                },
+                text_color: Some(cream),
+                icon_color: Some(cream),
+                ..Default::default()
+            }
+        }));
+
+        let text_col = column::with_capacity(2)
+            .push(text::title3(meta.label))
+            .push(text::body(meta.description))
+            .spacing(spacing.space_xxxs);
+
+        row![icon_box, text_col]
+            .spacing(spacing.space_m)
+            .align_y(Alignment::Center)
+            .into()
+    }
+
     fn view_widgets_body(&self) -> Element<'_, Message> {
         let spacing = theme::active().cosmic().spacing;
         match &self.widgets_state {
@@ -384,238 +483,105 @@ impl AppModel {
             WidgetsState::Loaded(widgets) => {
                 let mut cards = row::with_capacity(widgets.len()).spacing(spacing.space_m);
                 for info in widgets {
-                    cards = cards.push(widget_card(info));
+                    cards = cards.push(self.widget_card(info));
                 }
                 cards.into()
             }
         }
     }
-}
 
-// ── Helpers visuais ────────────────────────────────────────────────
+    fn widget_card<'a>(&self, info: &'a WidgetInfo) -> Element<'a, Message> {
+        let spacing = theme::active().cosmic().spacing;
+        let cream = self.gh.cream;
 
-/// Metadata visual de cada seção da sidebar (cor + ícone + label).
-/// Em commit futuro pode virar membro de Page ou viver no theme.
-struct SectionMeta {
-    label: &'static str,
-    description: &'static str,
-    /// Cor base da seção (do palette luma-theme).
-    color: Color,
-    /// Nome do ícone freedesktop pra renderizar dentro do quadradinho.
-    icon_name: &'static str,
-}
+        // Cor do quadradinho deriva do tipo de widget — sage pra label,
+        // honey pra counter. Coerência com a cor que o widget terá no
+        // painel (registry futuro pode passar isso direto).
+        let square_color = match info.type_name.as_str() {
+            "counter" => self.gh.honey,
+            _ => self.gh.sage,
+        };
 
-fn section_meta(page: Page) -> SectionMeta {
-    let colors = &luma_theme::current().colors;
-    match page {
-        Page::Widgets => SectionMeta {
-            label: "Widgets",
-            description: "Adicione widgets ao painel ou ao desktop.",
-            // Coral (hover_close) — destaque principal.
-            color: iced_color(colors.hover_close.components()),
-            icon_name: "applications-science-symbolic",
-        },
-        Page::Wallpaper => SectionMeta {
-            label: "Wallpaper",
-            description: "Escolha a imagem de fundo do seu desktop.",
-            // Terracota — coral darkened, varia da cor de Widgets.
-            color: darken_color(iced_color(colors.hover_close.components()), 0.78),
-            icon_name: "preferences-desktop-wallpaper-symbolic",
-        },
-        Page::Preset => SectionMeta {
-            label: "Preset",
-            description: "Aplique um preset visual completo.",
-            // Honey (hover_minimize) — amarelo dourado, terceira cor da paleta.
-            color: iced_color(colors.hover_minimize.components()),
-            icon_name: "preferences-desktop-theme-symbolic",
-        },
-    }
-}
-
-fn sidebar_item<'a>(
-    page: Page,
-    meta: SectionMeta,
-    is_active: bool,
-) -> Element<'a, Message> {
-    let colors = &luma_theme::current().colors;
-    let coral = iced_color(colors.hover_close.components());
-    let honey = iced_color(colors.hover_minimize.components());
-    let coffee = iced_color(colors.window_bg_dark.components());
-
-    // Quadradinho do ícone: cor sólida (ou invertido pro item ativo).
-    let (square_bg, icon_color) = if is_active {
-        // Ativo: quadradinho honey, ícone coffee escuro (alto contraste sobre o coral).
-        (honey, coffee)
-    } else {
-        // Inativo: quadradinho na cor da seção, ícone honey claro.
-        (meta.color, honey)
-    };
-    let icon_square = container(
-        Element::<Message>::from(icon::from_name(meta.icon_name).size(SIDEBAR_ITEM_ICON_SIZE)),
-    )
-    .width(SIDEBAR_ITEM_SQUARE)
-    .height(SIDEBAR_ITEM_SQUARE)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .class(theme::Container::custom(move |_| {
-        cosmic::iced::widget::container::Style {
-            background: Some(Background::Color(square_bg)),
-            border: Border {
-                radius: f32::from(SIDEBAR_ITEM_SQUARE_RADIUS).into(),
-                ..Default::default()
-            },
-            text_color: Some(icon_color),
-            icon_color: Some(icon_color),
-            ..Default::default()
-        }
-    }));
-
-    let label = text(meta.label).size(14);
-
-    let content = row![icon_square, label]
-        .spacing(11)
-        .align_y(Alignment::Center)
-        .padding([0, 10])
-        .width(Length::Fill);
-
-    // Wrapper: muda fundo do item inteiro quando ativo.
-    let item_bg = if is_active { Some(coral) } else { None };
-    let text_color = if is_active {
-        Some(iced_color(colors.text_primary.components()))
-    } else {
-        None
-    };
-    let wrapped = container(content)
-        .width(Length::Fill)
-        .height(SIDEBAR_ITEM_HEIGHT)
+        let icon_box = container(
+            Element::<Message>::from(
+                icon::from_name(info.icon_name.as_str()).size(CARD_ICON_SIZE),
+            ),
+        )
+        .width(CARD_ICON_SQUARE)
+        .height(CARD_ICON_SQUARE)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
         .class(theme::Container::custom(move |_| {
             cosmic::iced::widget::container::Style {
-                background: item_bg.map(Background::Color),
+                background: Some(Background::Color(square_color)),
                 border: Border {
-                    radius: f32::from(SIDEBAR_ITEM_RADIUS).into(),
+                    radius: f32::from(CARD_ICON_SQUARE_RADIUS).into(),
                     ..Default::default()
                 },
-                text_color,
+                text_color: Some(cream),
+                icon_color: Some(cream),
                 ..Default::default()
             }
         }));
 
-    button::custom(wrapped)
-        .padding(0)
-        .class(theme::Button::Text)
-        .width(Length::Fill)
-        .on_press(Message::SelectPage(page))
-        .into()
+        let content = column::with_capacity(4)
+            .push(icon_box)
+            .push(text::title4(&info.display_name))
+            .push(text::body(&info.description))
+            .push(
+                button::suggested("Adicionar")
+                    .width(Length::Fill)
+                    .on_press(Message::OpenAddDialog {
+                        type_name: info.type_name.clone(),
+                        display_name: info.display_name.clone(),
+                    }),
+            )
+            .spacing(spacing.space_xs)
+            .align_x(Alignment::Start);
+
+        container(content)
+            .padding(spacing.space_s)
+            .width(CARD_WIDTH)
+            .class(theme::Container::Card)
+            .into()
+    }
+
+    fn section_meta(&self, page: Page) -> SectionMeta {
+        match page {
+            Page::Widgets => SectionMeta {
+                label: "Widgets",
+                description: "Adicione widgets ao painel ou ao desktop.",
+                color: self.gh.coral,
+                icon_name: "applications-science-symbolic",
+            },
+            Page::Wallpaper => SectionMeta {
+                label: "Wallpaper",
+                description: "Escolha a imagem de fundo do seu desktop.",
+                color: self.gh.terracota,
+                icon_name: "preferences-desktop-wallpaper-symbolic",
+            },
+            Page::Preset => SectionMeta {
+                label: "Preset",
+                description: "Aplique um preset visual completo.",
+                color: self.gh.honey,
+                icon_name: "preferences-desktop-theme-symbolic",
+            },
+        }
+    }
 }
 
-/// Header grande no topo de cada página (quadradão + título + descrição).
-fn page_header<'a>(page: Page) -> Element<'a, Message> {
-    let spacing = theme::active().cosmic().spacing;
-    let meta = section_meta(page);
-    let colors = &luma_theme::current().colors;
-    let cream = iced_color(colors.text_primary.components());
-
-    let icon_box = container(
-        Element::<Message>::from(icon::from_name(meta.icon_name).size(PAGE_HEADER_ICON_SIZE)),
-    )
-    .width(PAGE_HEADER_SQUARE)
-    .height(PAGE_HEADER_SQUARE)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .class(theme::Container::custom(move |_| {
-        cosmic::iced::widget::container::Style {
-            background: Some(Background::Color(meta.color)),
-            border: Border {
-                radius: f32::from(PAGE_HEADER_SQUARE_RADIUS).into(),
-                ..Default::default()
-            },
-            text_color: Some(cream),
-            icon_color: Some(cream),
-            ..Default::default()
-        }
-    }));
-
-    let text_col = column::with_capacity(2)
-        .push(text::title3(meta.label))
-        .push(text::body(meta.description))
-        .spacing(spacing.space_xxxs);
-
-    row![icon_box, text_col]
-        .spacing(spacing.space_m)
-        .align_y(Alignment::Center)
-        .into()
-}
-
-fn widget_card(info: &WidgetInfo) -> Element<'_, Message> {
-    let spacing = theme::active().cosmic().spacing;
-    let colors = &luma_theme::current().colors;
-    let cream = iced_color(colors.text_primary.components());
-
-    // Cor do quadradinho deriva do tipo de widget — local hoje, dia
-    // que o registry expor cor a gente lê de lá direto. Sage pra label,
-    // honey pra counter (mesma paleta dos hovers da janela).
-    let square_color = match info.type_name.as_str() {
-        "counter" => iced_color(colors.hover_minimize.components()),
-        // label e qualquer outro caem em sage (combina com "neutro").
-        _ => iced_color(colors.hover_maximize.components()),
-    };
-
-    let icon_box = container(
-        Element::<Message>::from(icon::from_name(info.icon_name.as_str()).size(CARD_ICON_SIZE)),
-    )
-    .width(CARD_ICON_SQUARE)
-    .height(CARD_ICON_SQUARE)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .class(theme::Container::custom(move |_| {
-        cosmic::iced::widget::container::Style {
-            background: Some(Background::Color(square_color)),
-            border: Border {
-                radius: f32::from(CARD_ICON_SQUARE_RADIUS).into(),
-                ..Default::default()
-            },
-            text_color: Some(cream),
-            icon_color: Some(cream),
-            ..Default::default()
-        }
-    }));
-
-    let content = column::with_capacity(4)
-        .push(icon_box)
-        .push(text::title4(&info.display_name))
-        .push(text::body(&info.description))
-        .push(
-            button::suggested("Adicionar")
-                .width(Length::Fill)
-                .on_press(Message::OpenAddDialog {
-                    type_name: info.type_name.clone(),
-                    display_name: info.display_name.clone(),
-                }),
-        )
-        .spacing(spacing.space_xs)
-        .align_x(Alignment::Start);
-
-    container(content)
-        .padding(spacing.space_s)
-        .width(CARD_WIDTH)
-        .class(theme::Container::Card)
-        .into()
+/// Metadata visual de cada seção (cor + ícone + label). Vive no
+/// luma-config até a libluma ganhar um padrão de "section" próprio.
+#[derive(Debug, Clone, Copy)]
+struct SectionMeta {
+    label: &'static str,
+    description: &'static str,
+    color: Color,
+    icon_name: &'static str,
 }
 
 fn placeholder_body<'a>(msg: &'a str) -> Element<'a, Message> {
     text(msg).size(15).into()
-}
-
-// ── Helpers de cor ─────────────────────────────────────────────────
-
-fn iced_color([r, g, b, a]: [f32; 4]) -> Color {
-    Color::from_rgba(r, g, b, a)
-}
-
-/// Multiplica RGB por `factor` (0..1) preservando o alpha. Usado pra
-/// derivar tons (terracota = coral darkened) sem hardcodar hex.
-fn darken_color(c: Color, factor: f32) -> Color {
-    Color { r: c.r * factor, g: c.g * factor, b: c.b * factor, a: c.a }
 }
 
 fn target_label(t: WidgetTarget) -> &'static str {
