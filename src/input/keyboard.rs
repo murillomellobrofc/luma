@@ -90,6 +90,11 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     // disparam shortcut sem cair no fluxo do lock e sem chegar em
     // cliente nenhum (nada tem foco durante lock).
     let mut lock_whitelist_action: Option<KeyAction> = None;
+    // Personalização contextual: Esc fecha o widget context menu.
+    let widget_menu_open = state.widget_context_menu.is_some();
+    let widget_modal_open = state.widget_remove_modal.is_some();
+    let mut close_widget_menu = false;
+    let mut close_widget_modal = false;
     // H54.P5: painel da central de notificações aberto intercepta Esc.
     let notification_panel_open = match state.notifications.lock() {
         Ok(g) => g.panel_open,
@@ -158,6 +163,15 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                     }
                 }
                 return FilterResult::Intercept(());
+            }
+            // Personalização contextual: Esc fecha widget menu/modal.
+            if (widget_menu_open || widget_modal_open) && key_state == KeyState::Pressed {
+                let sym = handle.modified_sym();
+                if sym == Keysym::Escape {
+                    if widget_modal_open { close_widget_modal = true; }
+                    else { close_widget_menu = true; }
+                    return FilterResult::Intercept(());
+                }
             }
             if notification_panel_open && key_state == KeyState::Pressed {
                 let sym = handle.modified_sym();
@@ -381,6 +395,14 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     }
     // H58 fatia 6: whitelist (brilho/volume/mídia) durante lock — aplica
     // a action diretamente, sem passar pelo input() do cliente.
+    if close_widget_menu {
+        state.widget_context_menu = None;
+        return;
+    }
+    if close_widget_modal {
+        state.widget_remove_modal = None;
+        return;
+    }
     if let Some(action) = lock_whitelist_action {
         apply(state, action);
         return;

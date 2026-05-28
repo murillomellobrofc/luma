@@ -94,6 +94,14 @@ pub struct LumaState {
     /// os builders do registro). Carga separada de `text` pra evitar
     /// refactor amplo — fatias futuras consolidam.
     pub widget_text: Option<std::sync::Arc<crate::text::TextRenderer>>,
+    /// Rects dos widgets do painel (cacheados pelo render, usado pra
+    /// hit-test de right-click). Paralelo a `widgets`.
+    pub widget_rects:
+        Vec<smithay::utils::Rectangle<i32, smithay::utils::Logical>>,
+    /// Menu de contexto de widget aberto.
+    pub widget_context_menu: Option<WidgetContextMenu>,
+    /// Modal de confirmação de remoção de widget.
+    pub widget_remove_modal: Option<WidgetRemoveModal>,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
     /// 0.94 + linha âmbar 2px no topo. Substituirá o `menu` legacy.
@@ -364,6 +372,25 @@ pub struct LumaState {
         smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
         smithay::utils::Point<i32, smithay::utils::Logical>,
     )>,
+}
+
+/// Menu de contexto ativo de um widget (personalização contextual).
+pub struct WidgetContextMenu {
+    /// Índice do widget no Vec (painel) ou id no Space (desktop).
+    pub widget_index: usize,
+    pub is_desktop: bool,
+    /// Items montados (custom do widget + base).
+    pub items: Vec<luma_widget::ContextMenuItem>,
+    /// Posição do menu na tela.
+    pub origin: smithay::utils::Point<i32, smithay::utils::Logical>,
+    pub hovered: Option<usize>,
+}
+
+/// Modal de confirmação de remoção de widget.
+pub struct WidgetRemoveModal {
+    pub widget_index: usize,
+    pub is_desktop: bool,
+    pub widget_name: String,
 }
 
 pub struct CalloopData {
@@ -765,6 +792,9 @@ impl LumaState {
             // Instant::now() — o primeiro tick acontece quando o
             // intervalo do widget vencer pela primeira vez.
             widget_last_ticks: vec![Instant::now(); widgets_for_init.len()],
+            widget_rects: Vec::new(),
+            widget_context_menu: None,
+            widget_remove_modal: None,
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
