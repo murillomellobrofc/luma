@@ -7,6 +7,7 @@ mod backends;
 mod bluetooth;
 mod context_menu;
 mod cursor;
+mod dbus_server;
 mod decoration;
 mod desktop_icons;
 mod gfx;
@@ -69,6 +70,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     data.state.socket_name = init_socket(&mut event_loop)?;
     info!("socket wayland: {}", data.state.socket_name);
+
+    // 3b: canal calloop entre a thread do servidor D-Bus e o loop
+    // principal. Receiver registrado aqui (ocioso até a 3c); sender
+    // entregue à thread que sobe o zbus.
+    let (dbus_tx, dbus_rx) =
+        smithay::reexports::calloop::channel::channel::<dbus_server::IpcCommand>();
+    event_loop
+        .handle()
+        .insert_source(dbus_rx, |_event, _, _data| {
+            // 3c em diante: despacha IpcCommand pro estado do compositor.
+        })
+        .map_err(|err| format!("registrar receiver D-Bus no calloop: {err}"))?;
+    dbus_server::spawn(dbus_tx);
+
     info!("luma pronto, entrando no loop principal");
 
     event_loop.run(None, &mut data, |data| {
