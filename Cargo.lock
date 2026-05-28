@@ -1250,6 +1250,7 @@ dependencies = [
  "image",
  "libc",
  "libloading",
+ "luma-customize",
  "luma-theme",
  "luma-widget",
  "meval",
@@ -1266,6 +1267,13 @@ dependencies = [
  "walkdir",
  "xcursor",
  "zbus",
+]
+
+[[package]]
+name = "luma-customize"
+version = "0.1.0"
+dependencies = [
+ "luma-theme",
 ]
 
 [[package]]

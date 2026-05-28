@@ -7311,6 +7311,128 @@ pub fn init_winit(
                             }
                         }
 
+                        // Diálogo de personalização (overlay 720×520 centralizado).
+                        if data.state.customize.open {
+                            if let Some(tr) = data.state.text.as_ref() {
+                                let td = crate::theme::current().dialog.clone();
+                                let dw = luma_customize::DIALOG_W;
+                                let dh = luma_customize::DIALOG_H;
+                                let dx = (output_size_logical.w - dw) / 2;
+                                let dy = (output_size_logical.h - dh) / 2;
+                                // Dim backdrop.
+                                let dim = crate::gfx::make_rounded_panel(
+                                    output_size_logical.w, output_size_logical.h, 0,
+                                    smithay::backend::renderer::Color32F::new(0.0, 0.0, 0.0, 0.4),
+                                );
+                                let dloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((0, 0)).to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, dloc.to_f64(), &dim, None, None, None, Kind::Unspecified) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Dialog bg.
+                                let dbg = crate::gfx::make_rounded_panel(dw, dh, td.corner, td.background);
+                                let dbloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, dy)).to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, dbloc.to_f64(), &dbg, None, None, None, Kind::Unspecified) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Header bar.
+                                let hh = luma_customize::HEADER_H;
+                                let hbg = crate::gfx::make_rounded_panel(dw, hh, 0, td.header_bg);
+                                let hloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, dy)).to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, hloc.to_f64(), &hbg, None, None, None, Kind::Unspecified) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Header title.
+                                let (tpx, tw, th) = tr.rasterize_colored("Personalizar Luma", td.header_text_size, td.header_text);
+                                if tw > 0 && th > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(&tpx, smithay::backend::allocator::Fourcc::Argb8888, (tw as i32, th as i32), 1, Transform::Normal, None);
+                                    let tx = dx + 20;
+                                    let ty = dy + (hh - th as i32) / 2;
+                                    let tloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((tx, ty)).to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, tloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Close X button.
+                                let close_color = if data.state.customize.close_hover { td.close_icon_hover } else { td.close_icon };
+                                let (xpx, xw, xh) = tr.rasterize_colored("✕", 18.0, close_color);
+                                if xw > 0 && xh > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(&xpx, smithay::backend::allocator::Fourcc::Argb8888, (xw as i32, xh as i32), 1, Transform::Normal, None);
+                                    let xx = dx + dw - 44;
+                                    let xy = dy + (hh - xh as i32) / 2;
+                                    let xloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((xx, xy)).to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, xloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                                // Sidebar.
+                                let sw = luma_customize::SIDEBAR_W;
+                                let sbg = crate::gfx::make_rounded_panel(sw, dh - hh, 0, td.sidebar_bg);
+                                let sloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, dy + hh)).to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, sloc.to_f64(), &sbg, None, None, None, Kind::Unspecified) {
+                                    custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // Sidebar items.
+                                let si_h = td.sidebar_item_height;
+                                let mut sy = dy + hh + 12;
+                                for (i, (label, tab)) in luma_customize::SIDEBAR_ITEMS.iter().enumerate() {
+                                    let is_active = data.state.customize.active_tab == *tab;
+                                    let is_hover = data.state.customize.sidebar_hover == Some(i);
+                                    if is_active {
+                                        // Active indicator (left border).
+                                        let ind = crate::gfx::make_rounded_panel(3, si_h, 0, td.sidebar_item_border_active);
+                                        let iloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx, sy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, iloc.to_f64(), &ind, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                        // Active bg.
+                                        let abg = crate::gfx::make_rounded_panel(sw - 8, si_h, 6, td.sidebar_item_bg_active);
+                                        let aloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((dx + 4, sy)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, aloc.to_f64(), &abg, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    let tc = if is_active { td.sidebar_item_text_active } else { td.sidebar_item_text };
+                                    let (lpx, lw, lh) = tr.rasterize_colored(label, 14.0, tc);
+                                    if lw > 0 && lh > 0 {
+                                        let buf = MemoryRenderBuffer::from_slice(&lpx, smithay::backend::allocator::Fourcc::Argb8888, (lw as i32, lh as i32), 1, Transform::Normal, None);
+                                        let lx = dx + td.sidebar_item_padding_h;
+                                        let ly = sy + (si_h - lh as i32) / 2;
+                                        let lloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                            smithay::utils::Point::<i32, smithay::utils::Logical>::from((lx, ly)).to_physical_precise_round(1.0);
+                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, lloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                            custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                        }
+                                    }
+                                    sy += si_h;
+                                }
+                                // Content area placeholder.
+                                let content_label = match data.state.customize.active_tab {
+                                    luma_customize::Tab::Widgets => "Aba Widgets — em construção",
+                                    luma_customize::Tab::Wallpaper => "Wallpaper — em breve",
+                                    luma_customize::Tab::Preset => "Preset — em breve",
+                                };
+                                let (cpx, cw, ch) = tr.rasterize_colored(content_label, td.content_text_size, td.content_text);
+                                if cw > 0 && ch > 0 {
+                                    let buf = MemoryRenderBuffer::from_slice(&cpx, smithay::backend::allocator::Fourcc::Argb8888, (cw as i32, ch as i32), 1, Transform::Normal, None);
+                                    let cx = dx + sw + 24;
+                                    let cy = dy + hh + 24;
+                                    let cloc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                        smithay::utils::Point::<i32, smithay::utils::Logical>::from((cx, cy)).to_physical_precise_round(1.0);
+                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(renderer, cloc.to_f64(), &buf, None, None, None, Kind::Unspecified) {
+                                        custom_elements.insert(0, LumaRenderElement::Memory(elem));
+                                    }
+                                }
+                            }
+                        }
+
                         // H58 fatia 5: observer do outbox PAM. Quando
                         // a thread termina, atualiza state e (em
                         // sucesso) destrava.

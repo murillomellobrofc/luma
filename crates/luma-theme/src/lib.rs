@@ -141,6 +141,7 @@ pub struct Theme {
     pub lock: LockTokens,
     /// Menu de contexto de widget (personalização contextual Mint).
     pub widget_menu: WidgetMenuTokens,
+    pub dialog: DialogTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1061,6 +1062,7 @@ impl Default for Theme {
             wifi_popup: WifiPopupTokens::default(),
             lock: LockTokens::default(),
             widget_menu: WidgetMenuTokens::default(),
+            dialog: DialogTokens::default(),
         }
     }
 }
@@ -1530,6 +1532,56 @@ impl Default for WidgetMenuTokens {
             modal_cancel_text: hex_color("#E89B3D", 1.0),
             modal_confirm_bg: hex_color("#E07A5F", 1.0),
             modal_confirm_text: hex_color("#1F1611", 1.0),
+        }
+    }
+}
+
+/// Tokens do diálogo de personalização (overlay 720×520).
+#[derive(Debug, Clone)]
+pub struct DialogTokens {
+    pub background: Color32F,
+    pub border: Color32F,
+    pub corner: i32,
+    pub header_bg: Color32F,
+    pub header_border: Color32F,
+    pub header_text: Color32F,
+    pub header_text_size: f32,
+    pub close_icon: Color32F,
+    pub close_icon_hover: Color32F,
+    pub sidebar_bg: Color32F,
+    pub sidebar_border: Color32F,
+    pub sidebar_item_text: Color32F,
+    pub sidebar_item_text_active: Color32F,
+    pub sidebar_item_bg_active: Color32F,
+    pub sidebar_item_border_active: Color32F,
+    pub sidebar_item_height: i32,
+    pub sidebar_item_padding_h: i32,
+    pub content_text: Color32F,
+    pub content_text_size: f32,
+}
+
+impl Default for DialogTokens {
+    fn default() -> Self {
+        Self {
+            background: hex_color("#1F1611", 0.98),
+            border: hex_color("#3D2520", 0.6),
+            corner: 10,
+            header_bg: hex_color("#1A120D", 1.0),
+            header_border: hex_color("#3D2520", 0.5),
+            header_text: hex_color("#E89B3D", 1.0),
+            header_text_size: 16.0,
+            close_icon: hex_color("#E07A5F", 1.0),
+            close_icon_hover: hex_color("#F09A82", 1.0),
+            sidebar_bg: hex_color("#170F0B", 1.0),
+            sidebar_border: hex_color("#3D2520", 0.5),
+            sidebar_item_text: hex_color("#E89B3D", 1.0),
+            sidebar_item_text_active: hex_color("#FBF6EE", 1.0),
+            sidebar_item_bg_active: hex_color("#A7C796", 0.15),
+            sidebar_item_border_active: hex_color("#E07A5F", 1.0),
+            sidebar_item_height: 44,
+            sidebar_item_padding_h: 12,
+            content_text: hex_color("#9A8B7E", 1.0),
+            content_text_size: 14.0,
         }
     }
 }
@@ -3460,6 +3512,7 @@ impl ThemeFile {
             wifi_popup: default.wifi_popup.clone(),
             lock: default.lock.clone(),
             widget_menu: default.widget_menu.clone(),
+            dialog: default.dialog.clone(),
         }
     }
 }
