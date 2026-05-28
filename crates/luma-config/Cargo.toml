@@ -1,0 +1,15 @@
+[package]
+name = "luma-config"
+version = "0.1.0"
+edition = "2024"
+description = "App nativo de configuração do Luma (cliente Wayland, libcosmic)"
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "luma-config"
+path = "src/main.rs"
+
+[dependencies]
+luma-theme = { path = "../luma-theme" }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", features = ["winit", "tokio", "single-instance", "desktop", "xdg-portal"] }
+tokio = { version = "1", features = ["sync", "rt", "process"] }
