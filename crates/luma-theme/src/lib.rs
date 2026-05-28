@@ -139,6 +139,8 @@ pub struct Theme {
     /// Tela de bloqueio (lock screen). Fundo Golden Hour + relógio
     /// + (na fatia 4+) avatar/saudação/campo de senha. H58.
     pub lock: LockTokens,
+    /// Menu de contexto de widget (personalização contextual Mint).
+    pub widget_menu: WidgetMenuTokens,
 }
 
 /// Cores nomeadas da paleta Golden Hour + tokens de feedback (hover/glow).
@@ -1058,6 +1060,7 @@ impl Default for Theme {
             battery_popup: BatteryPopupTokens::default(),
             wifi_popup: WifiPopupTokens::default(),
             lock: LockTokens::default(),
+            widget_menu: WidgetMenuTokens::default(),
         }
     }
 }
@@ -1446,6 +1449,87 @@ impl Default for LockTokens {
             notif_show_body: false,
             notif_body_color: hex_color("#C9BDB0", 1.0),
             notif_body_size: 12.0,
+        }
+    }
+}
+
+/// Tokens de menu de contexto de widget (personalização contextual Mint).
+/// Cores semânticas Golden Hour, dimensões PCD-friendly (≥44px).
+#[derive(Debug, Clone)]
+pub struct WidgetMenuTokens {
+    pub background: Color32F,
+    pub border: Color32F,
+    pub item_text: Color32F,
+    pub item_text_disabled: Color32F,
+    pub item_hover_bg: Color32F,
+    pub separator: Color32F,
+    pub destructive_text: Color32F,
+    pub focus_border: Color32F,
+    pub min_width: i32,
+    pub item_height: i32,
+    pub item_padding_v: i32,
+    pub item_padding_h: i32,
+    pub icon_label_gap: i32,
+    pub container_corner: i32,
+    pub item_corner: i32,
+    pub container_padding: i32,
+    pub font_size: f32,
+    pub icon_size: i32,
+    /// Modal de remoção.
+    pub modal_bg: Color32F,
+    pub modal_border: Color32F,
+    pub modal_title_size: f32,
+    pub modal_body_size: f32,
+    pub modal_body_color: Color32F,
+    pub modal_padding: i32,
+    pub modal_corner: i32,
+    pub modal_btn_height: i32,
+    pub modal_cancel_bg: Color32F,
+    pub modal_cancel_border: Color32F,
+    pub modal_cancel_text: Color32F,
+    pub modal_confirm_bg: Color32F,
+    pub modal_confirm_text: Color32F,
+}
+
+impl Default for WidgetMenuTokens {
+    fn default() -> Self {
+        Self {
+            // Coffee deep.
+            background: hex_color("#1F1611", 0.96),
+            border: hex_color("#3D2520", 0.6),
+            // Honey.
+            item_text: hex_color("#E89B3D", 1.0),
+            item_text_disabled: hex_color("#9A8B7E", 0.6),
+            // Sage suave.
+            item_hover_bg: hex_color("#A7C796", 0.15),
+            separator: hex_color("#3D2520", 0.5),
+            // Coral.
+            destructive_text: hex_color("#E07A5F", 1.0),
+            focus_border: hex_color("#E07A5F", 1.0),
+            min_width: 240,
+            item_height: 44,
+            item_padding_v: 12,
+            item_padding_h: 16,
+            icon_label_gap: 14,
+            container_corner: 8,
+            item_corner: 6,
+            container_padding: 6,
+            font_size: 14.0,
+            icon_size: 18,
+            // Modal.
+            modal_bg: hex_color("#1F1611", 0.98),
+            modal_border: hex_color("#3D2520", 0.5),
+            modal_title_size: 16.0,
+            modal_body_size: 14.0,
+            modal_body_color: hex_color("#9A8B7E", 1.0),
+            modal_padding: 22,
+            modal_corner: 12,
+            modal_btn_height: 44,
+            modal_cancel_bg: hex_color("#1F1611", 0.0),
+            modal_cancel_border: hex_color("#E89B3D", 1.0),
+            modal_cancel_text: hex_color("#E89B3D", 1.0),
+            modal_confirm_bg: hex_color("#E07A5F", 1.0),
+            modal_confirm_text: hex_color("#1F1611", 1.0),
         }
     }
 }
@@ -3375,6 +3459,7 @@ impl ThemeFile {
             battery_popup: default.battery_popup.clone(),
             wifi_popup: default.wifi_popup.clone(),
             lock: default.lock.clone(),
+            widget_menu: default.widget_menu.clone(),
         }
     }
 }

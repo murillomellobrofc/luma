@@ -51,6 +51,49 @@ pub struct RenderCtx<'a> {
 /// Sem cache, sem dirty tracking: a luma-bar redesenha tudo todo
 /// frame (loop contínuo, ~60fps). O `tick()` só precisa marcar o
 /// estado novo, o `render()` do frame seguinte materializa.
+/// Item de menu de contexto de widget. O widget define os dados
+/// (label, enabled, destructive); o compositor renderiza + hit-test.
+/// Mesmo padrão da trait: interface aqui, render no crate principal.
+#[derive(Debug, Clone)]
+pub enum ContextMenuItem {
+    /// Item clicável com label e action id.
+    Action {
+        label: String,
+        action_id: String,
+        enabled: bool,
+        destructive: bool,
+    },
+    /// Linha separadora visual.
+    Separator,
+}
+
+impl ContextMenuItem {
+    pub fn action(label: impl Into<String>, action_id: impl Into<String>) -> Self {
+        Self::Action {
+            label: label.into(),
+            action_id: action_id.into(),
+            enabled: true,
+            destructive: false,
+        }
+    }
+    pub fn disabled(label: impl Into<String>, action_id: impl Into<String>) -> Self {
+        Self::Action {
+            label: label.into(),
+            action_id: action_id.into(),
+            enabled: false,
+            destructive: false,
+        }
+    }
+    pub fn destructive(label: impl Into<String>, action_id: impl Into<String>) -> Self {
+        Self::Action {
+            label: label.into(),
+            action_id: action_id.into(),
+            enabled: true,
+            destructive: true,
+        }
+    }
+}
+
 pub trait Widget {
     fn render(&self, ctx: &RenderCtx) -> MemoryRenderBuffer;
 
@@ -63,4 +106,11 @@ pub trait Widget {
     /// Chamado quando o intervalo do widget vence. O widget atualiza
     /// o próprio estado aqui. O render do frame seguinte reflete.
     fn tick(&mut self) {}
+
+    /// Itens custom de menu de contexto. Padrão vazio. Widgets que
+    /// querem expor configuração ou ações especiais sobrescrevem.
+    /// O compositor adiciona itens base (Mover, Remover) depois.
+    fn context_menu_items(&self) -> Vec<ContextMenuItem> {
+        Vec::new()
+    }
 }
