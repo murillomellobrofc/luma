@@ -1,0 +1,9 @@
+[package]
+name = "luma-customize"
+version = "0.1.0"
+edition = "2024"
+description = "Diálogo de personalização do Luma (overlay custom_element)"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+luma-theme = { path = "../luma-theme" }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/luma-theme", "crates/luma-widget"]
+members = ["crates/luma-theme", "crates/luma-widget", "crates/luma-customize"]
 
 [package]
 name = "luma"
@@ -11,6 +11,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 luma-theme = { path = "crates/luma-theme" }
 luma-widget = { path = "crates/luma-widget" }
+luma-customize = { path = "crates/luma-customize" }
 bitflags = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fontdue = "0.9"

@@ -102,6 +102,8 @@ pub struct LumaState {
     pub widget_context_menu: Option<WidgetContextMenu>,
     /// Modal de confirmação de remoção de widget.
     pub widget_remove_modal: Option<WidgetRemoveModal>,
+    /// Diálogo de personalização (overlay custom_element).
+    pub customize: luma_customize::CustomizeDialog,
     pub menu_open: bool,
     /// Camada fullscreen do menu híbrido (H32.10.2): backdrop Coffee
     /// 0.94 + linha âmbar 2px no topo. Substituirá o `menu` legacy.
@@ -795,6 +797,7 @@ impl LumaState {
             widget_rects: Vec::new(),
             widget_context_menu: None,
             widget_remove_modal: None,
+            customize: luma_customize::CustomizeDialog::new(),
             widgets: widgets_for_init,
             menu_open: false,
             menu_fullscreen: crate::menu::render::FullscreenLayer::new(),
