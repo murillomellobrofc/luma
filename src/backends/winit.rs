@@ -7195,7 +7195,7 @@ pub fn init_winit(
                         // horizontal acumulando a largura. Origem
                         // mantida no x=12 da fatia 1 — quem define
                         // posicionamento de verdade é o modo de edição.
-                        if !data.state.widgets.is_empty() {
+                        if !data.state.widgets.is_empty() && !data.state.menu_open {
                             let widget_h = (taskbar_h as u32).saturating_sub(8).max(24);
                             let ctx = luma_widget::RenderCtx {
                                 host: luma_widget::WidgetHost::Panel { height: widget_h },
