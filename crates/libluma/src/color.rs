@@ -1,0 +1,71 @@
+//! Paleta Golden Hour pronta nos tipos do cosmic/iced. Lê os tokens
+//! do `luma-theme` (fonte da verdade compartilhada com o compositor)
+//! e devolve `Color`s já normalizadas pra uso direto nos widgets.
+//!
+//! API estável a partir do dia que o segundo app Luma consumir.
+//! Crescer adicionando campos, nunca quebrando os existentes.
+
+use cosmic::iced::Color;
+
+/// Paleta Golden Hour completa. Construir uma vez no `init()` do app
+/// e segurar como field — `Copy`, dá pra passar pra helpers à vontade.
+#[derive(Debug, Clone, Copy)]
+pub struct GoldenHour {
+    /// Coffee — bg principal escuro (`window_bg_dark`, #1F1611).
+    pub coffee: Color,
+    /// Coffee mais profundo, base da taskbar (`taskbar_bg_bottom`).
+    pub coffee_deep: Color,
+    /// Surface coffee, fundo de blocos sobre o bg (`applet_bg`).
+    pub coffee_surface: Color,
+    /// Coral — accent principal e destrutivo (`hover_close`, #D97757).
+    pub coral: Color,
+    /// Terracota — coral darkened (0.78), variação derivada.
+    pub terracota: Color,
+    /// Honey — text tint do theme (`hover_minimize`, #F5D5A8).
+    pub honey: Color,
+    /// Honey @ alpha 0.45, pra texto secundário ou estados inativos.
+    pub honey_dim: Color,
+    /// Sage — verde Golden Hour (`hover_maximize`, #6B8E7F).
+    pub sage: Color,
+    /// Cream — texto principal de alto contraste (`text_primary`).
+    pub cream: Color,
+    /// Amber — destaque secundário (`accent_amber`, #E89B3D).
+    pub amber: Color,
+}
+
+impl GoldenHour {
+    /// Carrega a paleta lendo os tokens atuais do `luma-theme`.
+    /// Idempotente — `luma_theme::init()` é seguro de chamar várias vezes.
+    pub fn load() -> Self {
+        luma_theme::init();
+        let c = &luma_theme::current().colors;
+        let honey = to_color(c.hover_minimize.components());
+        let coral = to_color(c.hover_close.components());
+        Self {
+            coffee: to_color(c.window_bg_dark.components()),
+            coffee_deep: to_color(c.taskbar_bg_bottom.components()),
+            coffee_surface: to_color(c.applet_bg.components()),
+            coral,
+            terracota: darken(coral, 0.78),
+            honey,
+            honey_dim: with_alpha(honey, 0.45),
+            sage: to_color(c.hover_maximize.components()),
+            cream: to_color(c.text_primary.components()),
+            amber: to_color(c.accent_amber.components()),
+        }
+    }
+}
+
+fn to_color([r, g, b, a]: [f32; 4]) -> Color {
+    Color::from_rgba(r, g, b, a)
+}
+
+/// Multiplica RGB por `factor` (0..1) preservando alpha. Usado pra
+/// derivar tons (terracota = coral darkened) sem hardcodar hex.
+fn darken(c: Color, factor: f32) -> Color {
+    Color { r: c.r * factor, g: c.g * factor, b: c.b * factor, a: c.a }
+}
+
+fn with_alpha(c: Color, alpha: f32) -> Color {
+    Color { a: alpha, ..c }
+}
