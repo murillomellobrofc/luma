@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/luma-theme", "crates/luma-widget", "crates/luma-customize"]
+members = ["crates/luma-theme", "crates/luma-widget", "crates/luma-customize", "crates/luma-config"]
 
 [package]
 name = "luma"
