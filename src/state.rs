@@ -717,12 +717,7 @@ impl LumaState {
         // por host. Panel vai pra fileira do painel; desktop é mapeado
         // como SpaceItem::DesktopWidget logo depois do struct ser
         // construído (precisa do state.space inicializado).
-        // Widgets desativados por enquanto — código fica, nada carrega.
-        // Pra reativar: descomentar o bloco abaixo.
-        let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> = None;
-        let widgets_for_init: Vec<Box<dyn luma_widget::Widget + Send>> = Vec::new();
-        let desktop_widgets_pending: Vec<(Box<dyn luma_widget::Widget + Send>, i32, i32)> = Vec::new();
-        /*
+        // H59 reativado: sistema de widgets liga no boot.
         let widget_text_for_init: Option<std::sync::Arc<crate::text::TextRenderer>> =
             crate::text::TextRenderer::load().map(std::sync::Arc::new);
         let (widgets_for_init, desktop_widgets_pending): (
@@ -734,7 +729,6 @@ impl LumaState {
         } else {
             (Vec::new(), Vec::new())
         };
-        */
         let mut state = Self {
             start_time: Instant::now(),
             display_handle: dh,
