@@ -3101,6 +3101,7 @@ dependencies = [
  "libcosmic",
  "luma-theme",
  "tokio",
+ "zbus",
 ]
 
 [[package]]

@@ -3,21 +3,36 @@ use cosmic::iced::widget;
 use cosmic::widget::nav_bar;
 use cosmic::{Application, Element};
 
+use crate::ipc;
 use crate::pages::Page;
 
 const APP_ID: &str = "dev.luma.Config";
 
+/// Estado da conexão D-Bus com o compositor (3b).
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum ConnectionState {
+    /// Estado inicial — Ping disparado, aguardando resposta.
+    Probing,
+    /// Conectado; guardamos a string de versão devolvida pelo Ping.
+    Connected { version: String },
+    /// Compositor não respondeu ao Ping (não tá no ar, ou bus error).
+    Disconnected,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
-    #[allow(dead_code)]
-    // Placeholder até as mensagens reais (seleção de página, toggles, etc.) entrarem.
-    None,
+    /// Resultado do `Ping` inicial. `Ok(version)` em sucesso; `Err(msg)`
+    /// com a descrição do erro em falha (zbus::Error não é Clone).
+    PingResult(Result<String, String>),
 }
 
 pub struct AppModel {
     core: Core,
     nav: nav_bar::Model,
     current_page: Page,
+    #[allow(dead_code)] // 3b sub-iii usa pra renderizar indicador.
+    connection: ConnectionState,
 }
 
 impl Application for AppModel {
@@ -57,8 +72,17 @@ impl Application for AppModel {
             core,
             nav,
             current_page: Page::Widgets,
+            connection: ConnectionState::Probing,
         };
-        (model, Task::none())
+
+        let task = cosmic::task::future(async {
+            let result = ipc::connect_and_ping()
+                .await
+                .map_err(|err| err.to_string());
+            Message::PingResult(result)
+        });
+
+        (model, task)
     }
 
     fn nav_model(&self) -> Option<&nav_bar::Model> {
@@ -86,7 +110,14 @@ impl Application for AppModel {
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
         match message {
-            Message::None => {}
+            Message::PingResult(Ok(version)) => {
+                eprintln!("[luma-config] conectado ao compositor: {version}");
+                self.connection = ConnectionState::Connected { version };
+            }
+            Message::PingResult(Err(err)) => {
+                eprintln!("[luma-config] compositor não respondeu ao Ping: {err}");
+                self.connection = ConnectionState::Disconnected;
+            }
         }
         Task::none()
     }

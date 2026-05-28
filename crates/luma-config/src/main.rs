@@ -1,4 +1,5 @@
 mod app;
+mod ipc;
 mod pages;
 mod theme;
 
