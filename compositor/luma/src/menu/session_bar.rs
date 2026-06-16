@@ -90,9 +90,9 @@ impl SessionBar {
         );
 
         // 5 ícones SVG (H32.10.14). Lock = inline path SVG. Os
-        // outros 4 vêm de arquivos. `CARGO_MANIFEST_DIR` resolve em
-        // tempo de compilação pro path absoluto do crate root.
-        const ICONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/branding/icons");
+        // outros 4 vêm de arquivos. Path relativo ao CWD (raiz do
+        // workspace no `cargo run`), igual aos demais assets do tema.
+        const ICONS_DIR: &str = "assets/branding/icons";
         let icon_size = s.button_size as u32;
         // Lock agora é arquivo (icon-bloquear.svg, design final Honey
         // preenchido com keyhole contrastado). Inline serve só de
