@@ -10,9 +10,9 @@ name = "luma-config"
 path = "src/main.rs"
 
 [dependencies]
-luma-theme = { path = "../luma-theme" }
-luma-ipc = { path = "../luma-ipc" }
-libluma = { path = "../libluma" }
+luma-theme = { path = "../../libs/luma-theme" }
+luma-ipc = { path = "../../libs/luma-ipc" }
+libluma = { path = "../../libs/libluma" }
 libcosmic = { git = "https://github.com/pop-os/libcosmic", features = ["winit", "tokio", "single-instance", "desktop", "xdg-portal"] }
 tokio = { version = "1", features = ["sync", "rt", "process", "time"] }
 # 3b.IPC: cliente D-Bus pra conversar com o compositor. Usa só o

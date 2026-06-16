@@ -1,71 +1,13 @@
 [workspace]
-members = ["crates/luma-theme", "crates/luma-widget", "crates/luma-customize", "crates/luma-config", "crates/luma-ipc", "crates/libluma"]
-
-[package]
-name = "luma"
-version = "0.3.0"
-edition = "2024"
-description = "Wayland compositor e ambiente gráfico do Lumina OS"
-license = "GPL-3.0-or-later"
-
-[dependencies]
-luma-theme = { path = "crates/luma-theme" }
-luma-widget = { path = "crates/luma-widget" }
-luma-customize = { path = "crates/luma-customize" }
-luma-ipc = { path = "crates/luma-ipc" }
-bitflags = "2"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-fontdue = "0.9"
-fuzzy-matcher = "0.3"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-meval = "0.2"
-# Carregamento dos 4 SVGs da session bar (H32.10.14). usvg parse, resvg
-# rasteriza, tiny-skia faz a pixmap RGBA premultiplicada.
-resvg = { version = "0.44", default-features = false }
-tiny-skia = { version = "0.11", default-features = false, features = ["std"] }
-usvg = { version = "0.44", default-features = false }
-serde = { version = "1", features = ["derive"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
-# Modo de edição: read-write preservando comentários/formatação no
-# layout.toml. toml_edit é o que o cargo usa por baixo do toml; só
-# entrou no luma-bar (não no luma-theme) porque só aqui precisa.
-toml_edit = "0.22"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-urlencoding = "2"
-walkdir = "2"
-xcursor = "0.3"
-# H54.P6: libcanberra carregada via dlopen em runtime. Não precisa de
-# dev headers no build; se a .so não estiver presente, sound engine
-# cai em silent fail (per spec).
-libloading = "0.8"
-# H58: PAM via dlopen runtime (libpam.so.0). Sem dev headers
-# necessários. libc usada pra malloc/strdup pras respostas
-# de conversation (PAM espera ponteiros que ele mesmo libera).
-libc = "0.2"
-# H47b.sni: cliente D-Bus blocking pra StatusNotifierWatcher (thread
-# dedicada). 3b.IPC: servidor D-Bus async tokio pro app luma-config.
-# Defaults = async-io + blocking-api; +"tokio" pra rodar o servidor
-# numa runtime current_thread tokio na thread de IPC.
-zbus = { version = "5", features = ["tokio"] }
-# 3b.IPC: runtime tokio só pra thread do servidor D-Bus. current_thread
-# basta — net+time pelo zbus, sync pra futuros oneshots vindos do calloop.
-tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
-
-[dependencies.smithay]
-git = "https://github.com/Smithay/smithay.git"
-default-features = false
-features = [
-    "backend_winit",
-    "backend_drm",
-    "backend_gbm",
-    "backend_libinput",
-    "backend_udev",
-    "backend_session_libseat",
-    "renderer_gl",
-    "wayland_frontend",
-    "desktop",
-    "xwayland",
+resolver = "3"
+members = [
+    "compositor/luma",
+    "libs/libluma",
+    "libs/luma-theme",
+    "libs/luma-widget",
+    "libs/luma-ipc",
+    "libs/luma-customize",
+    "apps/luma-config",
 ]
 
 [profile.dev]
@@ -75,6 +17,7 @@ opt-level = 1
 lto = "thin"
 
 # Fork local do smithay pra patch do winit backend (multi-window). H35.
-# Mantém URL no Smithay dep acima; patch substitui pelo path local.
+# Mantém URL no Smithay dep dos crates; patch substitui pelo path local.
+# Path relativo à raiz do workspace (vendor/ continua na raiz).
 [patch.'https://github.com/Smithay/smithay.git']
 smithay = { path = "vendor/smithay" }
