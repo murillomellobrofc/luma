@@ -26,6 +26,11 @@ fn main() -> iced::Result {
     iced::application(app::State::new, app::update, app::view)
         .title("Configurações do Luma")
         .theme(app::theme)
+        // M2: decoração padrão do iced DESLIGADA — a barra de título é a
+        // moldura Golden Hour custom (libluma::title_bar). Cantos retos
+        // por ora (transparência/cantos no Wayland fica pra depois; o
+        // próprio compositor do Luma pode arredondar as janelas dos apps).
+        .decorations(false)
         .window_size(iced::Size::new(800.0, 560.0))
         .run()
 }
