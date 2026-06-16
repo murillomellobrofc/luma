@@ -2,15 +2,15 @@
 //!
 //! Re-exporta os tipos compositor-free do `luma-tokens` (camada
 //! semântica accent/background/surface/text) e adiciona o que é
-//! específico do lado-app: a conversão pros tipos de cor do
-//! cosmic/iced e as constantes de spacing, tipografia e alvo de toque
-//! PCD que os componentes consomem.
+//! específico do lado-app: a conversão pros tipos de cor do iced e as
+//! constantes de spacing, tipografia e alvo de toque PCD que os
+//! componentes consomem.
 //!
 //! As cores não têm hex aqui — nascem no `luma-tokens` (default Golden
 //! Hour + override do `luma.toml`). Spacing/tipografia/PCD são valores
 //! de layout, então vivem em código (constantes).
 
-use cosmic::iced::Color;
+use iced::Color;
 
 pub use luma_tokens::{Color as TokenColor, Palette, Semantic};
 
@@ -26,9 +26,9 @@ pub fn semantic_default() -> Semantic {
     Semantic::from_palette(&Palette::GOLDEN_HOUR)
 }
 
-/// Token de cor do `luma-tokens` → `Color` do cosmic/iced. É assim que
-/// os componentes consomem um token de cor.
-pub fn to_cosmic(c: TokenColor) -> Color {
+/// Token de cor do `luma-tokens` → `Color` do iced. É assim que os
+/// componentes consomem um token de cor.
+pub fn to_iced(c: TokenColor) -> Color {
     let [r, g, b, a] = c.components();
     Color::from_rgba(r, g, b, a)
 }

@@ -10,7 +10,6 @@ license = "GPL-3.0-or-later"
 # semântica), lida do luma.toml. libluma consome SÓ isto — sem
 # luma-theme, logo sem smithay/GL no grafo de build do app.
 luma-tokens = { path = "../luma-tokens" }
-# libcosmic com default-features = false pra evitar arrastar winit,
-# tokio, wayland nesta biblioteca de theme — runtime de app é
-# responsabilidade do consumidor. Compilador guia se faltar feature.
-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false }
+# Migração M1: iced puro no lugar do libcosmic, pra controle total do
+# visual. libluma constrói Elements iced (tile, helpers de cor/theme).
+iced = "0.14"

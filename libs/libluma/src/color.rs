@@ -5,7 +5,7 @@
 //! API estável a partir do dia que o segundo app Luma consumir.
 //! Crescer adicionando campos, nunca quebrando os existentes.
 
-use cosmic::iced::Color;
+use iced::Color;
 
 /// Paleta Golden Hour completa. Construir uma vez no `init()` do app
 /// e segurar como field — `Copy`, dá pra passar pra helpers à vontade.
