@@ -33,6 +33,8 @@ pub struct GoldenHour {
     pub amber: Color,
     /// Neutro quente (cinza-café, #9C8B79) — hue da seção Sistema.
     pub warm_neutral: Color,
+    /// Chrome de janela (#1B1714) — fundo da barra de título custom.
+    pub chrome: Color,
 }
 
 impl GoldenHour {
@@ -54,6 +56,7 @@ impl GoldenHour {
             cream: to_color(p.cream.components()),
             amber: to_color(p.amber.components()),
             warm_neutral: to_color(p.warm_neutral.components()),
+            chrome: to_color(p.chrome.components()),
         }
     }
 }

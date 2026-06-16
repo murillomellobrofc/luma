@@ -15,7 +15,14 @@ libluma = { path = "../../libs/libluma" }
 # Migração M1: iced puro no lugar do libcosmic. Sem luma-theme aqui
 # tampouco — o app pega cor/theme via libluma (tokens), então o grafo
 # fica zero-cosmic e zero-smithay.
-iced = "0.14"
+# `linux-theme-detection` (default) removido: puxa o `mundy`, que faz um
+# call de portal D-Bus (zbus) no boot; com o compositor forçando
+# zbus/tokio no workspace, esse call panica sob iced (sem runtime tokio).
+# Theme próprio (Golden Hour), detecção de sistema dispensável. Mesma
+# lista do libluma (unificação de features).
+iced = { version = "0.14", default-features = false, features = [
+    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland",
+] }
 # Camada D-Bus (cliente; ipc.rs intacto, religado à GUI em 2c). Backend
 # async-io (default do zbus) — sem cosmic não há runtime tokio, e iced já
 # usa zbus via portal com async-io; forçar tokio aqui panica no boot.

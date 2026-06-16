@@ -18,9 +18,11 @@
 mod color;
 pub mod components;
 mod theme;
+pub mod title_bar;
 pub mod tokens;
 
 pub use color::GoldenHour;
 pub use components::category_tile;
 pub use theme::golden_hour_theme;
+pub use title_bar::{TitleBarMessage, title_bar};
 pub use tokens::Semantic;

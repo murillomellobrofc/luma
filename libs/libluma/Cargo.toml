@@ -11,5 +11,12 @@ license = "GPL-3.0-or-later"
 # luma-theme, logo sem smithay/GL no grafo de build do app.
 luma-tokens = { path = "../luma-tokens" }
 # Migração M1: iced puro no lugar do libcosmic, pra controle total do
-# visual. libluma constrói Elements iced (tile, helpers de cor/theme).
-iced = "0.14"
+# visual. libluma constrói Elements iced (tile, title bar, cor/theme).
+# `linux-theme-detection` (default) é REMOVIDO: ele puxa o `mundy`, que
+# lê o color-scheme do sistema via portal D-Bus (zbus) no boot — e como
+# o compositor força zbus/tokio no workspace, esse call panica sob iced.
+# Usamos o theme Golden Hour próprio, então detecção de tema é dispensável.
+# Precisa casar com o luma-config (unificação de features).
+iced = { version = "0.14", default-features = false, features = [
+    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland",
+] }
