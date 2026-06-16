@@ -19,9 +19,11 @@
 //! via `luma-theme` direto.
 
 mod color;
+pub mod components;
 mod theme;
 pub mod tokens;
 
 pub use color::GoldenHour;
+pub use components::category_tile;
 pub use theme::golden_hour_theme;
 pub use tokens::Semantic;

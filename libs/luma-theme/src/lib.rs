@@ -3547,6 +3547,9 @@ impl ColorTokensFile {
             cream: self.text_primary.as_deref(),
             amber: self.accent_amber.as_deref(),
             cream_dim: self.text_secondary.as_deref(),
+            // warm_neutral é token app-only (libluma); o compositor não
+            // tem esse role, então não há override aqui.
+            warm_neutral: None,
         });
         ColorTokens {
             taskbar_bg_top: parse_with(

@@ -20,6 +20,12 @@ pub fn semantic() -> Semantic {
     Semantic::load()
 }
 
+/// Semântica do default Golden Hour, SEM ler o `luma.toml` — pros
+/// componentes pegarem `surface`/`text` sem custo de IO por frame.
+pub fn semantic_default() -> Semantic {
+    Semantic::from_palette(&Palette::GOLDEN_HOUR)
+}
+
 /// Token de cor do `luma-tokens` → `Color` do cosmic/iced. É assim que
 /// os componentes consomem um token de cor.
 pub fn to_cosmic(c: TokenColor) -> Color {
