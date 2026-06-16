@@ -504,7 +504,7 @@ impl AppModel {
 
     fn view_widgets_body(&self) -> Element<'_, Message> {
         let spacing = theme::active().cosmic().spacing;
-        match &self.widgets_state {
+        let body: Element<'_, Message> = match &self.widgets_state {
             WidgetsState::Loading => text("Carregando catálogo…").size(15).into(),
             WidgetsState::Disconnected => {
                 text("Conecte o compositor pra ver os widgets disponíveis.")
@@ -521,7 +521,41 @@ impl AppModel {
                 }
                 cards.into()
             }
-        }
+        };
+        // 2b.1 (prova do CategoryTile): uns tiles soltos numa linha, só
+        // pra enxergar o componente. NÃO é a grade nem a taxonomia (2b.2).
+        let gh = self.gh;
+        let tiles = row::with_capacity(4)
+            .spacing(spacing.space_m)
+            .push(libluma::category_tile::<Message>(
+                "Tema e cores",
+                "applications-graphics-symbolic",
+                gh.amber,
+                true,
+            ))
+            .push(libluma::category_tile::<Message>(
+                "Acessibilidade",
+                "preferences-desktop-accessibility-symbolic",
+                gh.sage,
+                true,
+            ))
+            .push(libluma::category_tile::<Message>(
+                "Privacidade",
+                "security-high-symbolic",
+                gh.coral,
+                true,
+            ))
+            .push(libluma::category_tile::<Message>(
+                "Barra de tarefas",
+                "preferences-system-symbolic",
+                gh.warm_neutral,
+                false,
+            ));
+        column::with_capacity(2)
+            .spacing(spacing.space_l)
+            .push(tiles)
+            .push(body)
+            .into()
     }
 
     fn widget_card<'a>(&self, info: &'a WidgetInfo) -> Element<'a, Message> {

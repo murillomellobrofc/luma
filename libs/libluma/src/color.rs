@@ -31,11 +31,13 @@ pub struct GoldenHour {
     pub cream: Color,
     /// Amber — destaque secundário (`accent_amber`, #E89B3D).
     pub amber: Color,
+    /// Neutro quente (cinza-café, #9C8B79) — hue da seção Sistema.
+    pub warm_neutral: Color,
 }
 
 impl GoldenHour {
-    /// Carrega a paleta lendo os tokens atuais do `luma-theme`.
-    /// Idempotente — `luma_theme::init()` é seguro de chamar várias vezes.
+    /// Carrega a paleta resolvendo os tokens do `luma-tokens` (default
+    /// Golden Hour + overrides do `luma.toml`).
     pub fn load() -> Self {
         let p = luma_tokens::Palette::load();
         let honey = to_color(p.honey.components());
@@ -51,6 +53,7 @@ impl GoldenHour {
             sage: to_color(p.sage.components()),
             cream: to_color(p.cream.components()),
             amber: to_color(p.amber.components()),
+            warm_neutral: to_color(p.warm_neutral.components()),
         }
     }
 }

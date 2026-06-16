@@ -74,6 +74,18 @@ impl Color {
         self.a
     }
 
+    /// Clareia em direção ao branco por `f` (0..1), preservando alpha.
+    /// Derivação (não hex novo): `coffee.lighten(0.14)` dá o `surface`
+    /// elevado (~1.5:1 de contraste contra o coffee), pro card flutuar.
+    pub fn lighten(self, f: f32) -> Color {
+        Color {
+            r: self.r + (1.0 - self.r) * f,
+            g: self.g + (1.0 - self.g) * f,
+            b: self.b + (1.0 - self.b) * f,
+            a: self.a,
+        }
+    }
+
     /// `[r, g, b, a]` — mesmo formato do `Color32F::components()`, pra
     /// as pontas converterem sem nomear tipos uma da outra.
     pub fn components(&self) -> [f32; 4] {
@@ -139,6 +151,10 @@ pub struct Palette {
     pub amber: Color,
     /// `text_secondary` — cream apagado (#A89D92).
     pub cream_dim: Color,
+    /// Neutro quente (cinza-café, #9C8B79). Hue da seção estrutural
+    /// "Sistema". Único valor de cor novo do 2b.1 — não existia primitivo
+    /// neutro quente; mora aqui, na fonte única, nunca no libluma.
+    pub warm_neutral: Color,
 }
 
 impl Palette {
@@ -153,6 +169,7 @@ impl Palette {
         cream: Color::rgb8(0xFB, 0xF6, 0xEE),
         amber: Color::rgb8(0xE8, 0x9B, 0x3D),
         cream_dim: Color::rgb8(0xA8, 0x9D, 0x92),
+        warm_neutral: Color::rgb8(0x9C, 0x8B, 0x79),
     };
 
     /// Aplica overrides hex sobre a paleta default. Hex inválido cai
@@ -171,6 +188,7 @@ impl Palette {
             cream: over(ov.cream, d.cream),
             amber: over(ov.amber, d.amber),
             cream_dim: over(ov.cream_dim, d.cream_dim),
+            warm_neutral: over(ov.warm_neutral, d.warm_neutral),
         }
     }
 
@@ -192,6 +210,7 @@ impl Palette {
             cream: c.text_primary.as_deref(),
             amber: c.accent_amber.as_deref(),
             cream_dim: c.text_secondary.as_deref(),
+            warm_neutral: c.warm_neutral.as_deref(),
         })
     }
 }
@@ -212,6 +231,7 @@ pub struct PaletteOverrides<'a> {
     pub cream: Option<&'a str>,
     pub amber: Option<&'a str>,
     pub cream_dim: Option<&'a str>,
+    pub warm_neutral: Option<&'a str>,
 }
 
 // ─── Semantic ─────────────────────────────────────────────────────────
@@ -224,7 +244,8 @@ pub struct Semantic {
     pub accent: Color,
     /// Fundo principal ← `coffee`.
     pub background: Color,
-    /// Superfície de blocos sobre o fundo ← `coffee_surface`.
+    /// Superfície de cards/tiles sobre o fundo — `coffee` clareado pra
+    /// ~1.5:1 de contraste com o `background`, pro card flutuar.
     pub surface: Color,
     /// Texto primário ← `cream`.
     pub text: Color,
@@ -238,7 +259,10 @@ impl Semantic {
         Self {
             accent: p.amber,
             background: p.coffee,
-            surface: p.coffee_surface,
+            // surface = coffee clareado (~1.5:1 vs background) — elevação
+            // pro card flutuar. Derivado, não hex novo. (coffee_surface
+            // segue sendo o applet_bg do compositor, role separado.)
+            surface: p.coffee.lighten(0.14),
             text: p.cream,
             text_secondary: p.cream_dim,
         }
@@ -270,6 +294,7 @@ struct RawColors {
     hover_close: Option<String>,
     text_primary: Option<String>,
     text_secondary: Option<String>,
+    warm_neutral: Option<String>,
 }
 
 /// `$XDG_CONFIG_HOME/luma/luma.toml` ou `~/.config/luma/luma.toml`.
