@@ -1,6 +1,6 @@
 //! Paleta Golden Hour pronta nos tipos do cosmic/iced. Lê os tokens
-//! do `luma-theme` (fonte da verdade compartilhada com o compositor)
-//! e devolve `Color`s já normalizadas pra uso direto nos widgets.
+//! do `luma-tokens` (fonte compositor-free, a mesma que o `luma-theme`
+//! consome) e devolve `Color`s já normalizadas pra uso direto nos widgets.
 //!
 //! API estável a partir do dia que o segundo app Luma consumir.
 //! Crescer adicionando campos, nunca quebrando os existentes.
@@ -37,21 +37,20 @@ impl GoldenHour {
     /// Carrega a paleta lendo os tokens atuais do `luma-theme`.
     /// Idempotente — `luma_theme::init()` é seguro de chamar várias vezes.
     pub fn load() -> Self {
-        luma_theme::init();
-        let c = &luma_theme::current().colors;
-        let honey = to_color(c.hover_minimize.components());
-        let coral = to_color(c.hover_close.components());
+        let p = luma_tokens::Palette::load();
+        let honey = to_color(p.honey.components());
+        let coral = to_color(p.coral.components());
         Self {
-            coffee: to_color(c.window_bg_dark.components()),
-            coffee_deep: to_color(c.taskbar_bg_bottom.components()),
-            coffee_surface: to_color(c.applet_bg.components()),
+            coffee: to_color(p.coffee.components()),
+            coffee_deep: to_color(p.coffee_deep.components()),
+            coffee_surface: to_color(p.coffee_surface.components()),
             coral,
             terracota: darken(coral, 0.78),
             honey,
             honey_dim: with_alpha(honey, 0.45),
-            sage: to_color(c.hover_maximize.components()),
-            cream: to_color(c.text_primary.components()),
-            amber: to_color(c.accent_amber.components()),
+            sage: to_color(p.sage.components()),
+            cream: to_color(p.cream.components()),
+            amber: to_color(p.amber.components()),
         }
     }
 }

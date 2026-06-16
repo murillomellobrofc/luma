@@ -1,0 +1,10 @@
+[package]
+name = "luma-tokens"
+version = "0.1.0"
+edition = "2024"
+description = "Tokens compositor-free do Luma — tipo de cor, paleta Golden Hour e camada semântica, lidos do luma.toml. Sem dependência de compositor (smithay)."
+license = "GPL-3.0-or-later"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }

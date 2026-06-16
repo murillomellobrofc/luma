@@ -6,6 +6,9 @@ description = "Tema Golden Hour do Luma — Color tokens, defaults, carregamento
 license = "GPL-3.0-or-later"
 
 [dependencies]
+# Fonte única dos valores da paleta Golden Hour (compositor-free). O
+# luma-theme adiciona a casca Color32F/smithay por cima destes tokens.
+luma-tokens = { path = "../luma-tokens" }
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tracing = "0.1"

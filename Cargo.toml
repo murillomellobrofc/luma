@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "compositor/luma",
     "libs/libluma",
+    "libs/luma-tokens",
     "libs/luma-theme",
     "libs/luma-widget",
     "libs/luma-ipc",
