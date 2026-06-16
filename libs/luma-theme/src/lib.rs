@@ -1718,23 +1718,27 @@ impl ColorTokens {
     /// Paleta Golden Hour: Coffee #1F1611, Coral #D97757, Amber #E89B3D,
     /// Cream #FBF6EE, Sage #6B8E7F, Honey #F5D5A8.
     fn golden_hour() -> Self {
+        // Os 9 valores da paleta nomeada vêm do luma-tokens (fonte
+        // única dos hex). Demais cores de componente — mesmo quando
+        // coincidem num hex — seguem inline, são roles distintos.
+        let p = luma_tokens::Palette::GOLDEN_HOUR;
         Self {
             taskbar_bg_top: hex_color("#1F1611", 0.94),
-            taskbar_bg_bottom: hex_color("#0F0A07", 0.97),
-            applet_bg: hex_color("#2A1F1A", 1.0),
+            taskbar_bg_bottom: c32(p.coffee_deep),
+            applet_bg: c32(p.coffee_surface),
             applet_bg_hover: hex_color("#3D2520", 1.0),
             applet_bg_active: hex_color("#3D2520", 1.0),
-            accent_amber: hex_color("#E89B3D", 1.0),
+            accent_amber: c32(p.amber),
             // H33.taskbar.2: alpha do top accent subiu de 0.25 → 0.5.
             accent_amber_alpha_top: 0.5,
             accent_amber_glow: 3,
-            hover_minimize: hex_color("#F5D5A8", 1.0),
-            hover_maximize: hex_color("#6B8E7F", 1.0),
-            hover_close: hex_color("#D97757", 1.0),
+            hover_minimize: c32(p.honey),
+            hover_maximize: c32(p.sage),
+            hover_close: c32(p.coral),
             hover_glow_radius: 4,
             hover_glow_opacity: 0.4,
-            text_primary: hex_color("#FBF6EE", 1.0),
-            text_secondary: hex_color("#A89D92", 1.0),
+            text_primary: c32(p.cream),
+            text_secondary: c32(p.cream_dim),
             text_inactive_opacity: 0.70,
             text_minimized_opacity: 0.40,
             window_control_icon_light: hex_color("#FBF6EE", 1.0),
@@ -1744,7 +1748,7 @@ impl ColorTokens {
             // H32.6 — decoração de janela
             window_header_bg_dark: hex_color("#2A1F1A", 1.0),
             window_header_bg_light: hex_color("#E8DDD0", 1.0),
-            window_bg_dark: hex_color("#1F1611", 1.0),
+            window_bg_dark: c32(p.coffee),
             window_bg_light: hex_color("#FBF6EE", 1.0),
             window_border_focused: hex_color("#E89B3D", 1.0),
             window_border_focused_alpha: 0.7,
@@ -3531,6 +3535,19 @@ impl ColorTokensFile {
                 None => base,
             }
         };
+        // Os 8 valores nomeados da paleta resolvem no luma-tokens
+        // (default + override hex), fonte única. taskbar_bg_bottom segue
+        // no parse_with por ter override de alpha próprio.
+        let pal = luma_tokens::Palette::resolve(&luma_tokens::PaletteOverrides {
+            coffee: self.window_bg_dark.as_deref(),
+            coffee_surface: self.applet_bg.as_deref(),
+            coral: self.hover_close.as_deref(),
+            honey: self.hover_minimize.as_deref(),
+            sage: self.hover_maximize.as_deref(),
+            cream: self.text_primary.as_deref(),
+            amber: self.accent_amber.as_deref(),
+            cream_dim: self.text_secondary.as_deref(),
+        });
         ColorTokens {
             taskbar_bg_top: parse_with(
                 self.taskbar_bg_top,
@@ -3542,11 +3559,7 @@ impl ColorTokensFile {
                 self.taskbar_bg_bottom_alpha,
                 def.taskbar_bg_bottom,
             ),
-            applet_bg: self
-                .applet_bg
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.applet_bg),
+            applet_bg: c32(pal.coffee_surface),
             applet_bg_hover: self
                 .applet_bg_hover
                 .as_deref()
@@ -3557,42 +3570,18 @@ impl ColorTokensFile {
                 .as_deref()
                 .and_then(parse_color)
                 .unwrap_or(def.applet_bg_active),
-            accent_amber: self
-                .accent_amber
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.accent_amber),
+            accent_amber: c32(pal.amber),
             accent_amber_alpha_top: self
                 .accent_amber_alpha_top
                 .unwrap_or(def.accent_amber_alpha_top),
             accent_amber_glow: self.accent_amber_glow.unwrap_or(def.accent_amber_glow),
-            hover_minimize: self
-                .hover_minimize
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.hover_minimize),
-            hover_maximize: self
-                .hover_maximize
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.hover_maximize),
-            hover_close: self
-                .hover_close
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.hover_close),
+            hover_minimize: c32(pal.honey),
+            hover_maximize: c32(pal.sage),
+            hover_close: c32(pal.coral),
             hover_glow_radius: self.hover_glow_radius.unwrap_or(def.hover_glow_radius),
             hover_glow_opacity: self.hover_glow_opacity.unwrap_or(def.hover_glow_opacity),
-            text_primary: self
-                .text_primary
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.text_primary),
-            text_secondary: self
-                .text_secondary
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.text_secondary),
+            text_primary: c32(pal.cream),
+            text_secondary: c32(pal.cream_dim),
             text_inactive_opacity: self
                 .text_inactive_opacity
                 .unwrap_or(def.text_inactive_opacity),
@@ -3626,11 +3615,7 @@ impl ColorTokensFile {
                 .as_deref()
                 .and_then(parse_color)
                 .unwrap_or(def.window_header_bg_light),
-            window_bg_dark: self
-                .window_bg_dark
-                .as_deref()
-                .and_then(parse_color)
-                .unwrap_or(def.window_bg_dark),
+            window_bg_dark: c32(pal.coffee),
             window_bg_light: self
                 .window_bg_light
                 .as_deref()
@@ -4078,6 +4063,13 @@ fn with_alpha(c: Color32F, alpha: f32) -> Color32F {
 fn hex_color(hex: &str, alpha: f32) -> Color32F {
     let base = parse_color(hex).expect("hex literal default inválido");
     with_alpha(base, alpha)
+}
+
+/// Converte uma cor da paleta compositor-free (`luma-tokens`) pro
+/// `Color32F` do smithay. Os VALORES da paleta Golden Hour moram no
+/// `luma-tokens`; o luma-theme só veste a casca de renderer aqui.
+fn c32(c: luma_tokens::Color) -> Color32F {
+    Color32F::new(c.r(), c.g(), c.b(), c.a())
 }
 
 /// Parse string "#RRGGBB" ou "#RRGGBBAA" pra Color32F. Inválido vira `None`.

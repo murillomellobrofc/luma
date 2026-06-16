@@ -3037,7 +3037,7 @@ name = "libluma"
 version = "0.1.0"
 dependencies = [
  "libcosmic",
- "luma-theme",
+ "luma-tokens",
 ]
 
 [[package]]
@@ -3238,10 +3238,19 @@ dependencies = [
 name = "luma-theme"
 version = "0.1.0"
 dependencies = [
+ "luma-tokens",
  "serde",
  "smithay",
  "toml 0.8.23",
  "tracing",
+]
+
+[[package]]
+name = "luma-tokens"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "toml 0.8.23",
 ]
 
 [[package]]

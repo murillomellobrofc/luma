@@ -96,6 +96,10 @@ pub struct AppModel {
     /// no `init` via `libluma::GoldenHour::load()` e segurada como
     /// Copy pro view/helpers pegarem por valor.
     gh: GoldenHour,
+    /// 2a (prova do fio de tokens): cor de accent do título da página,
+    /// vinda da camada semântica do `libluma` (token, não valor local).
+    /// Fio: luma.toml → luma-theme/luma-tokens → libluma → render.
+    accent: Color,
 }
 
 impl Application for AppModel {
@@ -126,6 +130,7 @@ impl Application for AppModel {
             app_context: AppContext::Free,
             sidebar_search: String::new(),
             gh: GoldenHour::load(),
+            accent: libluma::tokens::to_cosmic(libluma::tokens::semantic().accent),
         };
         model.apply_cli_args(&flags.cli);
 
@@ -474,9 +479,20 @@ impl AppModel {
             }
         }));
 
-        // Brief: título 22px peso 500 honey; descrição 13px honey_dim.
+        // 2a: o título da página pega a cor de accent da camada
+        // semântica do libluma (token), em vez da cor default do tema.
+        // É a prova visível do fio de tokens ponta a ponta.
+        let accent = self.accent;
+        let title = container(text(meta.label).size(22).font(font::semibold()))
+            .class(theme::Container::custom(move |_| {
+                cosmic::iced::widget::container::Style {
+                    text_color: Some(accent),
+                    ..Default::default()
+                }
+            }));
+        // Descrição 13px honey_dim (brief).
         let text_col = column::with_capacity(2)
-            .push(text(meta.label).size(22).font(font::semibold()))
+            .push(title)
             .push(dim_text(meta.description, 13, self.gh.honey_dim))
             .spacing(spacing.space_xxxs);
 

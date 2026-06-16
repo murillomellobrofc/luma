@@ -6,9 +6,10 @@ description = "Design system Golden Hour dos apps Luma — theme cosmic + helper
 license = "GPL-3.0-or-later"
 
 [dependencies]
-# Fonte da verdade dos tokens — palette + clusters compartilhados
-# com o compositor. libluma só consome.
-luma-theme = { path = "../luma-theme" }
+# Fonte compositor-free dos tokens (paleta Golden Hour + camada
+# semântica), lida do luma.toml. libluma consome SÓ isto — sem
+# luma-theme, logo sem smithay/GL no grafo de build do app.
+luma-tokens = { path = "../luma-tokens" }
 # libcosmic com default-features = false pra evitar arrastar winit,
 # tokio, wayland nesta biblioteca de theme — runtime de app é
 # responsabilidade do consumidor. Compilador guia se faltar feature.
