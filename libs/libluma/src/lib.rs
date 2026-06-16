@@ -21,6 +21,6 @@ mod theme;
 pub mod tokens;
 
 pub use color::GoldenHour;
-pub use components::category_tile;
+pub use components::{GridItem, GridSection, category_grid, category_tile};
 pub use theme::golden_hour_theme;
 pub use tokens::Semantic;

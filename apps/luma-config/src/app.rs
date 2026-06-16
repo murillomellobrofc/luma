@@ -1,25 +1,27 @@
 //! App iced do luma-config — padrão Elm (State / Message / update / view).
 //!
-//! **Frameless**: o Luma decora as janelas dos apps dele server-side (o
-//! header oficial Golden Hour é desenhado pelo compositor), então o app
-//! NÃO desenha barra própria — o corpo começa direto no conteúdo. O
-//! título da janela é setado no `main` e o compositor lê pra desenhar o
-//! header. A grade (2b.2) e a navegação/D-Bus (2c) ainda não entraram.
+//! **Frameless** (o Luma decora server-side). 2b.2: a landing é a
+//! `CategoryGrid` renderizando a taxonomia (5 seções), com uma barra de
+//! busca estática no topo. O dado da taxonomia mora aqui (é a estrutura
+//! deste app); o `libluma` fornece só o componente. Navegação ao clicar
+//! (2c), busca funcional (2e) e ícones de verdade (2b.3) ainda não entram.
 
-use iced::widget::{column, container, row, text};
-use iced::{Element, Length, Task, Theme};
-use libluma::GoldenHour;
+use iced::widget::{column, container, text};
+use iced::{Background, Border, Element, Length, Task, Theme};
+use libluma::{GoldenHour, GridItem, GridSection};
 
-/// Estado do app. Por ora só a paleta Golden Hour resolvida (tokens).
+/// Estado do app: paleta + taxonomia (construída uma vez, com as hues
+/// resolvidas dos tokens). A view empresta `&taxonomy` pra grade.
 pub struct State {
     gh: GoldenHour,
+    taxonomy: Vec<GridSection<'static>>,
 }
 
 impl State {
     pub fn new() -> Self {
-        Self {
-            gh: GoldenHour::load(),
-        }
+        let gh = GoldenHour::load();
+        let taxonomy = build_taxonomy(&gh);
+        Self { gh, taxonomy }
     }
 }
 
@@ -38,26 +40,95 @@ pub fn theme(_state: &State) -> Theme {
 
 pub fn view(state: &State) -> Element<'_, Message> {
     let gh = state.gh;
+    let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().surface);
 
-    // Sem barra própria: o corpo começa direto. O header é do compositor.
-    let heading = text("Configurações do Luma").size(24).color(gh.cream);
-    let sub = text("Esqueleto iced — app frameless, header é do compositor.")
-        .size(13)
-        .color(gh.honey_dim);
+    // Barra de busca estática (só visual; comportamento é 2e).
+    let search = container(
+        text("Buscar configurações…")
+            .size(14)
+            .color(gh.honey_dim),
+    )
+    .padding([10, 14])
+    .width(Length::Fill)
+    .style(move |_theme| container::Style {
+        background: Some(Background::Color(surface)),
+        border: Border {
+            radius: 12.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 
-    let tiles = row(vec![
-        libluma::category_tile::<Message>("Tema e cores", "", gh.amber, true),
-        libluma::category_tile::<Message>("Acessibilidade", "", gh.sage, true),
-        libluma::category_tile::<Message>("Privacidade", "", gh.coral, true),
-        libluma::category_tile::<Message>("Barra de tarefas", "", gh.warm_neutral, false),
-    ])
-    .spacing(12);
+    // A grade da taxonomia (responsiva; rola se passar da altura).
+    let grid = container(libluma::category_grid::<Message>(&state.taxonomy))
+        .width(Length::Fill)
+        .height(Length::Fill);
 
-    let content = column(vec![heading.into(), sub.into(), tiles.into()]).spacing(24);
+    let content = column(vec![search.into(), grid.into()]).spacing(20);
 
     container(content)
         .padding(24)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+/// Taxonomia travada (2b.2). Hues resolvidas da paleta Golden Hour.
+/// Enabled hoje: Widgets e Wallpaper; o resto entra como "Em breve".
+fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static>> {
+    let item = |label: &'static str, enabled: bool| GridItem {
+        label,
+        icon: "", // glifo é 2b.3
+        enabled,
+    };
+    vec![
+        GridSection {
+            label: "Aparência",
+            hue: gh.amber,
+            items: vec![
+                item("Tema e cores", false),
+                item("Fontes", false),
+                item("Wallpaper", true),
+                item("Barra de tarefas", false),
+                item("Widgets", true),
+            ],
+        },
+        GridSection {
+            label: "Acessibilidade",
+            hue: gh.sage,
+            items: vec![
+                item("Alvos de toque", false),
+                item("Contraste", false),
+                item("Sino visual", false),
+                item("Movimento", false),
+            ],
+        },
+        GridSection {
+            label: "Privacidade",
+            hue: gh.coral,
+            items: vec![
+                item("Permissões de tela", false),
+                item("Câmera e microfone", false),
+                item("Área de transferência", false),
+                item("Telemetria", false),
+            ],
+        },
+        GridSection {
+            label: "Preferências",
+            hue: gh.honey,
+            items: vec![
+                item("Notificações", false),
+                item("Área de trabalho", false),
+                item("Tela de bloqueio", false),
+            ],
+        },
+        GridSection {
+            label: "Sistema",
+            hue: gh.warm_neutral,
+            items: vec![
+                item("Sobre", false),
+                item("Restaurar padrões", false),
+            ],
+        },
+    ]
 }

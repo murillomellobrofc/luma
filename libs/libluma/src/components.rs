@@ -1,36 +1,45 @@
-//! Componentes visuais compartilhados dos apps Luma — agora em **iced
-//! puro** (migração M1).
+//! Componentes visuais compartilhados dos apps Luma (iced puro).
 //!
-//! [`category_tile`]: tile estilo Mint, dirigido por dados.
+//! - [`category_tile`]: tile estilo Cinnamon (quadrado de ícone neutro +
+//!   label). 2b.2: quadrado virou `surface` neutro (sem o tint embarrado).
+//! - [`category_grid`]: seções rotuladas + grade responsiva de tiles, que
+//!   reflui pela largura. Dirigido por dados (a taxonomia mora no app).
 
-use iced::widget::{column, container, text};
+use iced::widget::{column, container, responsive, row, scrollable, text};
 use iced::{Alignment, Background, Border, Color, Element, Length};
 
 use crate::tokens;
 
-/// Lado do quadrado de ícone tintado (px).
-const ICON_SQUARE: f32 = 46.0;
-/// Largura do tile — folgada e >= `hit_target_min` (44).
-const TILE_WIDTH: f32 = 96.0;
+/// Lado do quadrado de ícone (px).
+const ICON_SQUARE: f32 = 52.0;
+/// Largura fixa do tile (>= `hit_target_min` 44; casa com a coluna).
+const TILE_WIDTH: f32 = 104.0;
+/// Largura mínima de coluna pro cálculo de quantas colunas cabem.
+const TILE_MIN_COL: f32 = 116.0;
+/// Espaçamento entre tiles (e entre linhas da grade).
+const GRID_GAP: f32 = 14.0;
+/// Espaçamento entre seções.
+const SECTION_GAP: f32 = 26.0;
 /// Opacidade do conteúdo no estado "em breve".
 const DISABLED_DIM: f32 = 0.45;
 
-/// `CategoryTile` estilo Mint, em iced: quadrado de ícone tintado na hue
-/// da seção + label embaixo, sobre um card `surface` que flutua no canvas.
+// ─── CategoryTile ─────────────────────────────────────────────────────
+
+/// Tile estilo Cinnamon: quadrado de ícone **neutro** (`surface`, flutua
+/// sobre o canvas) + label embaixo. Sem card em volta e sem tint de hue
+/// (a hue da seção aparece no label da seção; volta no tile com o glifo
+/// na 2b.3). `enabled = false` => conteúdo dim + "Em breve".
 ///
-/// Dirigido por dados — recebe só o que varia:
-/// - `label`: texto embaixo (o chamador já manda em sentence case).
-/// - `_icon_name`: reservado — o glifo é polish deferido (quadrado fica
-///   só tintado por ora).
-/// - `hue`: cor da seção (amber/sage/coral/honey/warm_neutral).
-/// - `enabled`: `false` => conteúdo dim ~0.45 + selo "Em breve".
+/// - `label`: texto embaixo (sentence case).
+/// - `_icon_name`: reservado — glifo é 2b.3 (quadrado fica vazio por ora).
+/// - `_hue`: reservado — cor da seção, usada pelo glifo na 2b.3.
+/// - `enabled`: estado.
 ///
-/// `surface`/`text` vêm dos tokens (default Golden Hour). A largura do
-/// tile é o alvo de toque (>= 44); ligar o clique é 2c.
+/// A largura do tile é o alvo de toque (>= 44); ligar o clique é 2c.
 pub fn category_tile<'a, Msg: 'a>(
     label: &'a str,
     _icon_name: &'a str,
-    hue: Color,
+    _hue: Color,
     enabled: bool,
 ) -> Element<'a, Msg> {
     let sem = tokens::semantic_default();
@@ -38,23 +47,23 @@ pub fn category_tile<'a, Msg: 'a>(
     let text_color = tokens::to_iced(sem.text);
 
     let dim = if enabled { 1.0 } else { DISABLED_DIM };
-    let hue_bg = Color {
-        a: 0.18 * dim,
-        ..hue
+    let square_color = Color {
+        a: surface.a * dim,
+        ..surface
     };
     let label_color = Color {
         a: text_color.a * dim,
         ..text_color
     };
 
-    // Quadrado de ícone tintado (glifo deferido — vazio por ora).
+    // Quadrado neutro (surface) — flutua sobre o canvas. Glifo é 2b.3.
     let square = container(text(""))
         .width(Length::Fixed(ICON_SQUARE))
         .height(Length::Fixed(ICON_SQUARE))
         .style(move |_theme| container::Style {
-            background: Some(Background::Color(hue_bg)),
+            background: Some(Background::Color(square_color)),
             border: Border {
-                radius: 12.0.into(),
+                radius: 14.0.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -62,26 +71,98 @@ pub fn category_tile<'a, Msg: 'a>(
 
     let mut items: Vec<Element<'a, Msg>> = vec![
         square.into(),
-        text(label).size(13.0).color(label_color).into(),
+        text(label)
+            .size(13.0)
+            .color(label_color)
+            .width(Length::Fill)
+            .center()
+            .into(),
     ];
     if !enabled {
-        items.push(text("Em breve").size(10.0).color(label_color).into());
+        items.push(
+            text("Em breve")
+                .size(10.0)
+                .color(label_color)
+                .width(Length::Fill)
+                .center()
+                .into(),
+        );
     }
 
     let col = column(items)
-        .spacing(4)
-        .align_x(Alignment::Center);
+        .spacing(6)
+        .align_x(Alignment::Center)
+        .width(Length::Fixed(TILE_WIDTH));
 
-    container(col)
-        .padding(8)
-        .center_x(Length::Fixed(TILE_WIDTH))
+    container(col).padding(4).into()
+}
+
+// ─── CategoryGrid ─────────────────────────────────────────────────────
+
+/// Um item (categoria) da grade. Dado dirigido pelo app.
+pub struct GridItem<'a> {
+    pub label: &'a str,
+    pub icon: &'a str,
+    pub enabled: bool,
+}
+
+/// Uma seção da grade: label + hue + categorias.
+pub struct GridSection<'a> {
+    pub label: &'a str,
+    pub hue: Color,
+    pub items: Vec<GridItem<'a>>,
+}
+
+/// Grade estilo Cinnamon: cada seção com label (+ dot na hue) e uma grade
+/// de [`category_tile`] que reflui pela largura disponível (colunas
+/// calculadas a partir de `TILE_MIN_COL`, não fixas). Rola se passar da
+/// altura. Recebe a taxonomia por referência.
+pub fn category_grid<'a, Msg: 'static>(sections: &'a [GridSection<'a>]) -> Element<'a, Msg> {
+    responsive(move |size| {
+        let cols = (((size.width + GRID_GAP) / (TILE_MIN_COL + GRID_GAP)).floor() as usize).max(1);
+        let section_views: Vec<Element<'a, Msg>> =
+            sections.iter().map(|s| section_view::<Msg>(s, cols)).collect();
+        let body = column(section_views).spacing(SECTION_GAP);
+        scrollable(body)
+            .height(Length::Fixed(size.height))
+            .into()
+    })
+    .into()
+}
+
+fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Element<'a, Msg> {
+    let cream = tokens::to_iced(tokens::semantic_default().text);
+    let hue = s.hue;
+
+    // Dot na hue da seção + label.
+    let dot = container(text(""))
+        .width(Length::Fixed(8.0))
+        .height(Length::Fixed(8.0))
         .style(move |_theme| container::Style {
-            background: Some(Background::Color(surface)),
+            background: Some(Background::Color(hue)),
             border: Border {
-                radius: 14.0.into(),
+                radius: 4.0.into(),
                 ..Default::default()
             },
             ..Default::default()
+        });
+    let header = row(vec![dot.into(), text(s.label).size(16.0).color(cream).into()])
+        .spacing(8)
+        .align_y(Alignment::Center);
+
+    // Grade: linhas de `cols` tiles.
+    let tile_rows: Vec<Element<'a, Msg>> = s
+        .items
+        .chunks(cols)
+        .map(|chunk| {
+            let tiles: Vec<Element<'a, Msg>> = chunk
+                .iter()
+                .map(|it| category_tile::<Msg>(it.label, it.icon, hue, it.enabled))
+                .collect();
+            row(tiles).spacing(GRID_GAP).into()
         })
-        .into()
+        .collect();
+    let grid = column(tile_rows).spacing(GRID_GAP);
+
+    column(vec![header.into(), grid.into()]).spacing(12).into()
 }
