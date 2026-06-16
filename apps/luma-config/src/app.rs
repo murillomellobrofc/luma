@@ -6,8 +6,8 @@
 //! deste app); o `libluma` fornece só o componente. Navegação ao clicar
 //! (2c), busca funcional (2e) e ícones de verdade (2b.3) ainda não entram.
 
-use iced::widget::{column, container, text};
-use iced::{Background, Border, Element, Length, Task, Theme};
+use iced::widget::{column, container, responsive, scrollable, text};
+use iced::{Background, Border, Element, Length, Padding, Task, Theme};
 use libluma::{GoldenHour, GridItem, GridSection};
 
 /// Estado do app: paleta + taxonomia (construída uma vez, com as hues
@@ -42,35 +42,50 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let gh = state.gh;
     let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().surface);
 
-    // Barra de busca estática (só visual; comportamento é 2e).
-    let search = container(
-        text("Buscar configurações…")
-            .size(14)
-            .color(gh.honey_dim),
-    )
-    .padding([10, 14])
-    .width(Length::Fill)
-    .style(move |_theme| container::Style {
-        background: Some(Background::Color(surface)),
-        border: Border {
-            radius: 12.0.into(),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    responsive(move |size| {
+        // Largura confortável do conteúdo (chute ~860px). Abaixo disso
+        // enche; no cap, para e centraliza. `side` = metade do excesso
+        // (margem dos dois lados), com mínimo pra não colar nas bordas.
+        const MIN_PAD: f32 = 32.0;
+        const MAX_W: f32 = 860.0;
+        let content_w = (size.width - 2.0 * MIN_PAD).clamp(0.0, MAX_W);
+        let side = ((size.width - content_w) / 2.0).max(MIN_PAD);
+        let cols = libluma::columns_for(content_w);
 
-    // A grade da taxonomia (responsiva; rola se passar da altura).
-    let grid = container(libluma::category_grid::<Message>(&state.taxonomy))
-        .width(Length::Fill)
-        .height(Length::Fill);
+        // Barra de busca estática (só visual; 2e). Entra DENTRO do
+        // container centralizado, alinhada com a grade.
+        let search = container(text("Buscar configurações…").size(14).color(gh.honey_dim))
+            .padding([10, 14])
+            .width(Length::Fill)
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 12.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
 
-    let content = column(vec![search.into(), grid.into()]).spacing(20);
+        let grid = libluma::category_grid::<Message>(&state.taxonomy, cols);
 
-    container(content)
-        .padding(24)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        let content = column(vec![search.into(), grid.into()])
+            .spacing(20)
+            .width(Length::Fill);
+
+        // Conteúdo centralizado via padding lateral (= side): a largura
+        // interna fica content_w, o resto sobra de margem dos dois lados.
+        let centered = container(content)
+            .padding(Padding::from([24.0, side]))
+            .width(Length::Fill);
+
+        // O scrollable é a JANELA INTEIRA (barra na borda direita),
+        // estilizado em Golden Hour. Rola só quando passa da altura.
+        scrollable(centered)
+            .height(Length::Fixed(size.height))
+            .style(libluma::scrollbar_style())
+            .into()
+    })
+    .into()
 }
 
 /// Taxonomia travada (2b.2). Hues resolvidas da paleta Golden Hour.

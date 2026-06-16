@@ -5,8 +5,8 @@
 //! - [`category_grid`]: seções rotuladas + grade responsiva de tiles, que
 //!   reflui pela largura. Dirigido por dados (a taxonomia mora no app).
 
-use iced::widget::{column, container, responsive, row, scrollable, text};
-use iced::{Alignment, Background, Border, Color, Element, Length};
+use iced::widget::{column, container, row, scrollable, text};
+use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
 
 use crate::tokens;
 
@@ -113,21 +113,70 @@ pub struct GridSection<'a> {
     pub items: Vec<GridItem<'a>>,
 }
 
+/// Quantas colunas de tile cabem numa largura (min 1). O app calcula isso
+/// a partir da largura do conteúdo e passa pra [`category_grid`] — assim a
+/// reflow e a centralização saem do mesmo cálculo, sem `responsive`
+/// aninhado.
+pub fn columns_for(width: f32) -> usize {
+    (((width + GRID_GAP) / (TILE_MIN_COL + GRID_GAP)).floor() as usize).max(1)
+}
+
 /// Grade estilo Cinnamon: cada seção com label (+ dot na hue) e uma grade
-/// de [`category_tile`] que reflui pela largura disponível (colunas
-/// calculadas a partir de `TILE_MIN_COL`, não fixas). Rola se passar da
-/// altura. Recebe a taxonomia por referência.
-pub fn category_grid<'a, Msg: 'static>(sections: &'a [GridSection<'a>]) -> Element<'a, Msg> {
-    responsive(move |size| {
-        let cols = (((size.width + GRID_GAP) / (TILE_MIN_COL + GRID_GAP)).floor() as usize).max(1);
-        let section_views: Vec<Element<'a, Msg>> =
-            sections.iter().map(|s| section_view::<Msg>(s, cols)).collect();
-        let body = column(section_views).spacing(SECTION_GAP);
-        scrollable(body)
-            .height(Length::Fixed(size.height))
-            .into()
-    })
-    .into()
+/// de [`category_tile`] em `cols` colunas. **Não rola por dentro** — quem
+/// rola é a janela inteira (o app envolve isto num `scrollable`, com a
+/// barra na borda direita). Reflui porque `cols` vem de [`columns_for`].
+pub fn category_grid<'a, Msg: 'static>(
+    sections: &'a [GridSection<'a>],
+    cols: usize,
+) -> Element<'a, Msg> {
+    let cols = cols.max(1);
+    let section_views: Vec<Element<'a, Msg>> =
+        sections.iter().map(|s| section_view::<Msg>(s, cols)).collect();
+    column(section_views).spacing(SECTION_GAP).into()
+}
+
+/// Estilo Golden Hour da barra de rolagem (pro `.style(...)` de um
+/// `scrollable`): fina, trilho invisível, puxador em `warm_neutral`,
+/// âmbar no hover/drag. Tokens do `libluma`, não o cinza padrão do iced.
+pub fn scrollbar_style() -> impl Fn(&iced::Theme, scrollable::Status) -> scrollable::Style {
+    let p = luma_tokens::Palette::GOLDEN_HOUR;
+    let neutral = tokens::to_iced(p.warm_neutral);
+    let amber = tokens::to_iced(p.amber);
+    move |_theme, status| {
+        let active = matches!(
+            status,
+            scrollable::Status::Hovered {
+                is_vertical_scrollbar_hovered: true,
+                ..
+            } | scrollable::Status::Dragged {
+                is_vertical_scrollbar_dragged: true,
+                ..
+            }
+        );
+        let rail = scrollable::Rail {
+            background: None,
+            border: Border::default(),
+            scroller: scrollable::Scroller {
+                background: Background::Color(if active { amber } else { neutral }),
+                border: Border {
+                    radius: 4.0.into(),
+                    ..Default::default()
+                },
+            },
+        };
+        scrollable::Style {
+            container: container::Style::default(),
+            vertical_rail: rail,
+            horizontal_rail: rail,
+            gap: None,
+            auto_scroll: scrollable::AutoScroll {
+                background: Background::Color(Color::TRANSPARENT),
+                border: Border::default(),
+                shadow: Shadow::default(),
+                icon: neutral,
+            },
+        }
+    }
 }
 
 fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Element<'a, Msg> {
