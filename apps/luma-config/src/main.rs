@@ -30,6 +30,10 @@ fn main() -> iced::Result {
         // App frameless: SEM decoração própria. O Luma decora as janelas
         // dos apps dele server-side (header oficial Golden Hour). Deixamos
         // a decoração ligada pra o compositor desenhar o header.
-        .window_size(iced::Size::new(800.0, 560.0))
+        // Largura default > que o cap de 860 do corpo, pra o conteúdo
+        // centralizar com margem dos dois lados (em vez de encher e
+        // sobrar deserto de um lado só). Altura onde a taxonomia já passa
+        // um pouco, pra a barra de rolagem aparecer no uso normal.
+        .window_size(iced::Size::new(1080.0, 640.0))
         .run()
 }
