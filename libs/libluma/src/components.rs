@@ -11,7 +11,9 @@ use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
 use crate::tokens;
 
 /// Lado do quadrado de ícone (px).
-const ICON_SQUARE: f32 = 52.0;
+const ICON_SQUARE: f32 = 56.0;
+/// Tamanho do ícone dentro do quadrado (mais presença, menos espaço morto).
+const ICON_GLYPH: f32 = 30.0;
 /// Largura fixa do tile (>= `hit_target_min` 44; casa com a coluna).
 const TILE_WIDTH: f32 = 104.0;
 /// Largura mínima de coluna pro cálculo de quantas colunas cabem.
@@ -19,7 +21,7 @@ const TILE_MIN_COL: f32 = 116.0;
 /// Espaçamento entre tiles (e entre linhas da grade).
 const GRID_GAP: f32 = 14.0;
 /// Espaçamento entre seções.
-const SECTION_GAP: f32 = 26.0;
+const SECTION_GAP: f32 = 22.0;
 /// Opacidade do conteúdo no estado "em breve".
 const DISABLED_DIM: f32 = 0.45;
 
@@ -64,8 +66,8 @@ pub fn category_tile<'a, Msg: 'a>(
     // Quadrado neutro (surface) com o ícone do pack tingido na hue da seção.
     let square = container(
         svg(icon)
-            .width(Length::Fixed(26.0))
-            .height(Length::Fixed(26.0))
+            .width(Length::Fixed(ICON_GLYPH))
+            .height(Length::Fixed(ICON_GLYPH))
             .style(move |_theme, _status| svg::Style {
                 color: Some(icon_color),
             }),
