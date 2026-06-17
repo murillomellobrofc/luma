@@ -21,7 +21,7 @@ libluma = { path = "../../libs/libluma" }
 # Theme próprio (Golden Hour), detecção de sistema dispensável. Mesma
 # lista do libluma (unificação de features).
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland", "svg",
 ] }
 # Camada D-Bus (cliente; ipc.rs intacto, religado à GUI em 2c). Backend
 # async-io (default do zbus) — sem cosmic não há runtime tokio, e iced já

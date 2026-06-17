@@ -6,7 +6,7 @@
 //! deste app); o `libluma` fornece só o componente. Navegação ao clicar
 //! (2c), busca funcional (2e) e ícones de verdade (2b.3) ainda não entram.
 
-use iced::widget::{column, container, responsive, scrollable, text};
+use iced::widget::{column, container, responsive, scrollable, svg, text};
 use iced::{Background, Border, Element, Length, Padding, Task, Theme};
 use libluma::{GoldenHour, GridItem, GridSection};
 
@@ -88,61 +88,68 @@ pub fn view(state: &State) -> Element<'_, Message> {
     .into()
 }
 
-/// Taxonomia travada (2b.2). Hues resolvidas da paleta Golden Hour.
-/// Enabled hoje: Widgets e Wallpaper; o resto entra como "Em breve".
+/// Taxonomia travada. Hues resolvidas da paleta Golden Hour; cada
+/// categoria mapeia pro seu ícone do pack (`assets/icons/<nome>.svg`,
+/// monocromático `currentColor`). O `libluma` recebe o handle e tinge na
+/// hue da seção. Enabled hoje: Widgets e Wallpaper.
 fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static>> {
-    let item = |label: &'static str, enabled: bool| GridItem {
-        label,
-        icon: "", // glifo é 2b.3
-        enabled,
-    };
+    // Handle de svg do pack (bundlado via include_bytes — sem dor de path).
+    macro_rules! icon {
+        ($name:literal) => {
+            svg::Handle::from_memory(
+                include_bytes!(concat!("../assets/icons/", $name, ".svg")).as_slice(),
+            )
+        };
+    }
+    let item =
+        |label: &'static str, icon: svg::Handle, enabled: bool| GridItem { label, icon, enabled };
     vec![
         GridSection {
             label: "Aparência",
             hue: gh.amber,
             items: vec![
-                item("Tema e cores", false),
-                item("Fontes", false),
-                item("Wallpaper", true),
-                item("Barra de tarefas", false),
-                item("Widgets", true),
+                item("Tema e cores", icon!("tema-e-cores"), false),
+                item("Fontes", icon!("fontes"), false),
+                item("Wallpaper", icon!("wallpaper"), true),
+                item("Barra de tarefas", icon!("barra-de-tarefas"), false),
+                item("Widgets", icon!("widgets"), true),
             ],
         },
         GridSection {
             label: "Acessibilidade",
             hue: gh.sage,
             items: vec![
-                item("Alvos de toque", false),
-                item("Contraste", false),
-                item("Sino visual", false),
-                item("Movimento", false),
+                item("Alvos de toque", icon!("alvos-de-toque"), false),
+                item("Contraste", icon!("contraste"), false),
+                item("Sino visual", icon!("sino-visual"), false),
+                item("Movimento", icon!("movimento"), false),
             ],
         },
         GridSection {
             label: "Privacidade",
             hue: gh.coral,
             items: vec![
-                item("Permissões de tela", false),
-                item("Câmera e microfone", false),
-                item("Área de transferência", false),
-                item("Telemetria", false),
+                item("Permissões de tela", icon!("permissoes-de-tela"), false),
+                item("Câmera e microfone", icon!("camera-e-microfone"), false),
+                item("Área de transferência", icon!("area-de-transferencia"), false),
+                item("Telemetria", icon!("telemetria"), false),
             ],
         },
         GridSection {
             label: "Preferências",
             hue: gh.honey,
             items: vec![
-                item("Notificações", false),
-                item("Área de trabalho", false),
-                item("Tela de bloqueio", false),
+                item("Notificações", icon!("notificacoes"), false),
+                item("Área de trabalho", icon!("area-de-trabalho"), false),
+                item("Tela de bloqueio", icon!("tela-de-bloqueio"), false),
             ],
         },
         GridSection {
             label: "Sistema",
             hue: gh.warm_neutral,
             items: vec![
-                item("Sobre", false),
-                item("Restaurar padrões", false),
+                item("Sobre", icon!("sobre"), false),
+                item("Restaurar padrões", icon!("restaurar-padroes"), false),
             ],
         },
     ]

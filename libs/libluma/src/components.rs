@@ -5,7 +5,7 @@
 //! - [`category_grid`]: seções rotuladas + grade responsiva de tiles, que
 //!   reflui pela largura. Dirigido por dados (a taxonomia mora no app).
 
-use iced::widget::{column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, svg, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
 
 use crate::tokens;
@@ -26,20 +26,21 @@ const DISABLED_DIM: f32 = 0.45;
 // ─── CategoryTile ─────────────────────────────────────────────────────
 
 /// Tile estilo Cinnamon: quadrado de ícone **neutro** (`surface`, flutua
-/// sobre o canvas) + label embaixo. Sem card em volta e sem tint de hue
-/// (a hue da seção aparece no label da seção; volta no tile com o glifo
-/// na 2b.3). `enabled = false` => conteúdo dim + "Em breve".
+/// sobre o canvas) com o **ícone do pack na hue da seção** centralizado —
+/// o "color sings": o quadrado é neutro, a cor canta no glifo. + label
+/// embaixo. `enabled = false` => conteúdo (ícone + label) dim + "Em breve".
 ///
 /// - `label`: texto embaixo (sentence case).
-/// - `_icon_name`: reservado — glifo é 2b.3 (quadrado fica vazio por ora).
-/// - `_hue`: reservado — cor da seção, usada pelo glifo na 2b.3.
+/// - `icon`: handle de svg do ícone — vem da taxonomia do app; o `libluma`
+///   não guarda os arquivos, só recebe o handle e tinge.
+/// - `hue`: cor da seção — tinge o ícone via `svg::Style { color }`.
 /// - `enabled`: estado.
 ///
 /// A largura do tile é o alvo de toque (>= 44); ligar o clique é 2c.
 pub fn category_tile<'a, Msg: 'a>(
     label: &'a str,
-    _icon_name: &'a str,
-    _hue: Color,
+    icon: svg::Handle,
+    hue: Color,
     enabled: bool,
 ) -> Element<'a, Msg> {
     let sem = tokens::semantic_default();
@@ -51,23 +52,34 @@ pub fn category_tile<'a, Msg: 'a>(
         a: surface.a * dim,
         ..surface
     };
+    let icon_color = Color {
+        a: hue.a * dim,
+        ..hue
+    };
     let label_color = Color {
         a: text_color.a * dim,
         ..text_color
     };
 
-    // Quadrado neutro (surface) — flutua sobre o canvas. Glifo é 2b.3.
-    let square = container(text(""))
-        .width(Length::Fixed(ICON_SQUARE))
-        .height(Length::Fixed(ICON_SQUARE))
-        .style(move |_theme| container::Style {
-            background: Some(Background::Color(square_color)),
-            border: Border {
-                radius: 14.0.into(),
-                ..Default::default()
-            },
+    // Quadrado neutro (surface) com o ícone do pack tingido na hue da seção.
+    let square = container(
+        svg(icon)
+            .width(Length::Fixed(26.0))
+            .height(Length::Fixed(26.0))
+            .style(move |_theme, _status| svg::Style {
+                color: Some(icon_color),
+            }),
+    )
+    .center_x(Length::Fixed(ICON_SQUARE))
+    .center_y(Length::Fixed(ICON_SQUARE))
+    .style(move |_theme| container::Style {
+        background: Some(Background::Color(square_color)),
+        border: Border {
+            radius: 14.0.into(),
             ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
 
     let mut items: Vec<Element<'a, Msg>> = vec![
         square.into(),
@@ -102,7 +114,8 @@ pub fn category_tile<'a, Msg: 'a>(
 /// Um item (categoria) da grade. Dado dirigido pelo app.
 pub struct GridItem<'a> {
     pub label: &'a str,
-    pub icon: &'a str,
+    /// Handle de svg do ícone (o app é dono dos arquivos; o libluma só tinge).
+    pub icon: svg::Handle,
     pub enabled: bool,
 }
 
@@ -206,7 +219,7 @@ fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Elemen
         .map(|chunk| {
             let tiles: Vec<Element<'a, Msg>> = chunk
                 .iter()
-                .map(|it| category_tile::<Msg>(it.label, it.icon, hue, it.enabled))
+                .map(|it| category_tile::<Msg>(it.label, it.icon.clone(), hue, it.enabled))
                 .collect();
             row(tiles).spacing(GRID_GAP).into()
         })
