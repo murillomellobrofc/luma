@@ -18,5 +18,5 @@ luma-tokens = { path = "../luma-tokens" }
 # Usamos o theme Golden Hour próprio, então detecção de tema é dispensável.
 # Precisa casar com o luma-config (unificação de features).
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland", "svg",
 ] }
