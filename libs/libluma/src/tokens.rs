@@ -54,6 +54,10 @@ pub const SPACE_XL: u16 = 24;
 /// Família de display (títulos grandes) — espelha o uso do compositor
 /// (clock/calendário em Fraunces).
 pub const FONT_DISPLAY: &str = "Fraunces";
+/// Bytes da fonte de display (Fraunces variável, OFL) bundlada no libluma.
+/// O app registra via `.font(libluma::tokens::DISPLAY_FONT_BYTES)` no boot
+/// do iced pra o [`FONT_DISPLAY`] renderizar de verdade.
+pub const DISPLAY_FONT_BYTES: &[u8] = include_bytes!("../assets/fraunces.ttf");
 /// Família de UI (títulos/labels) — espelha `title_font_family` (Manrope).
 pub const FONT_UI: &str = "Manrope";
 

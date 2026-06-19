@@ -35,5 +35,7 @@ fn main() -> iced::Result {
         // sobrar deserto de um lado só). Altura onde a taxonomia já passa
         // um pouco, pra a barra de rolagem aparecer no uso normal.
         .window_size(iced::Size::new(1080.0, 640.0))
+        // Fonte de display Golden Hour (Fraunces) pro título das páginas.
+        .font(libluma::tokens::DISPLAY_FONT_BYTES)
         .run()
 }
