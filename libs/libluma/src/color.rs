@@ -19,7 +19,8 @@ pub struct GoldenHour {
     pub coffee_surface: Color,
     /// Coral — accent principal e destrutivo (`hover_close`, #D97757).
     pub coral: Color,
-    /// Terracota — coral darkened (0.78), variação derivada.
+    /// Terracota (#D98E5E) — hue da seção "Dispositivos" (2f). Primitivo do
+    /// `luma-tokens` (não mais derivado de coral).
     pub terracota: Color,
     /// Honey — text tint do theme (`hover_minimize`, #F5D5A8).
     pub honey: Color,
@@ -49,7 +50,7 @@ impl GoldenHour {
             coffee_deep: to_color(p.coffee_deep.components()),
             coffee_surface: to_color(p.coffee_surface.components()),
             coral,
-            terracota: darken(coral, 0.78),
+            terracota: to_color(p.terracota.components()),
             honey,
             honey_dim: with_alpha(honey, 0.45),
             sage: to_color(p.sage.components()),
@@ -63,12 +64,6 @@ impl GoldenHour {
 
 fn to_color([r, g, b, a]: [f32; 4]) -> Color {
     Color::from_rgba(r, g, b, a)
-}
-
-/// Multiplica RGB por `factor` (0..1) preservando alpha. Usado pra
-/// derivar tons (terracota = coral darkened) sem hardcodar hex.
-fn darken(c: Color, factor: f32) -> Color {
-    Color { r: c.r * factor, g: c.g * factor, b: c.b * factor, a: c.a }
 }
 
 fn with_alpha(c: Color, alpha: f32) -> Color {

@@ -1,7 +1,7 @@
 //! App iced do luma-config — padrão Elm (State / Message / update / view).
 //!
 //! **Frameless** (o Luma decora server-side). 2b.2: a landing é a
-//! `CategoryGrid` renderizando a taxonomia (5 seções), com uma barra de
+//! `CategoryGrid` renderizando a taxonomia (6 seções), com uma barra de
 //! busca estática no topo. O dado da taxonomia mora aqui (é a estrutura
 //! deste app); o `libluma` fornece só o componente. Navegação ao clicar
 //! (2c), busca funcional (2e) e ícones de verdade (2b.3) ainda não entram.
@@ -548,6 +548,22 @@ fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
                 item("Notificações", icon!("notificacoes"), false),
                 item("Área de trabalho", icon!("area-de-trabalho"), false),
                 item("Tela de bloqueio", icon!("tela-de-bloqueio"), false),
+            ],
+        },
+        GridSection {
+            // 2f: abre a taxonomia pra 6 seções — um DE não fecha sem casa
+            // pra Tela/Som/Mouse/Teclado/Energia. Tudo "em breve" por agora
+            // (páginas vêm depois, uma de cada vez). Rede e Impressoras ainda
+            // não entram.
+            label: "Dispositivos",
+            hue: gh.terracota,
+            items: vec![
+                item("Tela", icon!("tela"), false),
+                item("Som", icon!("som"), false),
+                item("Mouse e touchpad", icon!("mouse"), false),
+                item("Teclado", icon!("teclado"), false),
+                item("Energia", icon!("energia"), false),
+                item("Bluetooth", icon!("bluetooth"), false),
             ],
         },
         GridSection {
