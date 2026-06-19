@@ -36,13 +36,18 @@ pub struct GoldenHour {
     pub warm_neutral: Color,
     /// Chrome de janela (#1B1714) — fundo da barra de título custom.
     pub chrome: Color,
+    /// Surface dos cards/tiles (#3E3632 normal; HC sobrescreve). HC (parte 1).
+    pub surface: Color,
+    /// Borda forte: transparente no normal, #FFF6EA no HC. HC (parte 1).
+    pub border: Color,
 }
 
 impl GoldenHour {
-    /// Carrega a paleta resolvendo os tokens do `luma-tokens` (default
-    /// Golden Hour + overrides do `luma.toml`).
+    /// Carrega a paleta resolvendo os tokens do `luma-tokens`, respeitando o
+    /// modo de contraste ([`crate::tokens::high_contrast`]): HC ignora o
+    /// `luma.toml` e usa a paleta HC; normal carrega os overrides.
     pub fn load() -> Self {
-        let p = luma_tokens::Palette::load();
+        let p = luma_tokens::Palette::resolve_contrast(crate::tokens::high_contrast());
         let honey = to_color(p.honey.components());
         let coral = to_color(p.coral.components());
         Self {
@@ -58,6 +63,8 @@ impl GoldenHour {
             amber: to_color(p.amber.components()),
             warm_neutral: to_color(p.warm_neutral.components()),
             chrome: to_color(p.chrome.components()),
+            surface: to_color(p.surface.components()),
+            border: to_color(p.border.components()),
         }
     }
 }

@@ -14,16 +14,28 @@ use iced::Color;
 
 pub use luma_tokens::{Color as TokenColor, Palette, Semantic};
 
-/// Paleta semântica resolvida do `luma.toml` (default Golden Hour +
-/// overrides). Construir uma vez no `init()` do app e segurar.
-pub fn semantic() -> Semantic {
-    Semantic::load()
+/// **Alto contraste ativo?** (HC, parte 1). ÚNICO ponto de decisão do
+/// modo de contraste — `semantic_default`, o `GoldenHour` e o theme leem
+/// daqui, então tudo vira junto. **Parte 1 não wira**: retorna `false`
+/// (Golden Hour normal). Pra testar a paleta HC, force `true` aqui,
+/// rebuilda e suba o app — tudo aparece em HC. Parte 2 troca este corpo
+/// pelo flag real (D-Bus/persistido).
+pub fn high_contrast() -> bool {
+    false
 }
 
-/// Semântica do default Golden Hour, SEM ler o `luma.toml` — pros
-/// componentes pegarem `surface`/`text` sem custo de IO por frame.
+/// Paleta semântica resolvida do `luma.toml` (default Golden Hour +
+/// overrides), respeitando o [`high_contrast`]. Construir uma vez no
+/// `init()` do app e segurar.
+pub fn semantic() -> Semantic {
+    Semantic::resolve_contrast(high_contrast())
+}
+
+/// Semântica SEM ler o `luma.toml` (consts) — pros componentes pegarem
+/// `surface`/`text`/`border` sem custo de IO por frame. Respeita o
+/// [`high_contrast`]: HC on => paleta HC; off => Golden Hour.
 pub fn semantic_default() -> Semantic {
-    Semantic::from_palette(&Palette::GOLDEN_HOUR)
+    Semantic::from_palette(&Palette::for_contrast(high_contrast()))
 }
 
 /// Token de cor do `luma-tokens` → `Color` do iced. É assim que os

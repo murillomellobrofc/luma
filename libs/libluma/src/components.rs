@@ -24,6 +24,11 @@ const GRID_GAP: f32 = 14.0;
 const SECTION_GAP: f32 = 22.0;
 /// Opacidade do conteúdo no estado "em breve".
 const DISABLED_DIM: f32 = 0.45;
+/// Largura da borda dos cards/tiles. A cor (`semantic.border`) é
+/// transparente no Golden Hour (borda invisível, normal inalterado) e forte
+/// no alto contraste — é ela que separa a forma quando surface ~= fundo.
+/// HC (parte 1).
+const BORDER_WIDTH: f32 = 1.5;
 
 // ─── CategoryTile ─────────────────────────────────────────────────────
 
@@ -63,8 +68,14 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
         a: text_color.a * dim,
         ..text_color
     };
+    let border_base = tokens::to_iced(sem.border);
+    let border_color = Color {
+        a: border_base.a * dim,
+        ..border_base
+    };
 
     // Quadrado neutro (surface) com o ícone do pack tingido na hue da seção.
+    // Borda forte no HC (transparente no normal).
     let square = container(
         svg(icon)
             .width(Length::Fixed(ICON_GLYPH))
@@ -79,7 +90,8 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
         background: Some(Background::Color(square_color)),
         border: Border {
             radius: 14.0.into(),
-            ..Default::default()
+            width: BORDER_WIDTH,
+            color: border_color,
         },
         ..Default::default()
     });
@@ -197,7 +209,7 @@ pub fn category_grid_filtered<'a, Msg: Clone + 'static>(
 /// `scrollable`): fina, trilho invisível, puxador em `warm_neutral`,
 /// âmbar no hover/drag. Tokens do `libluma`, não o cinza padrão do iced.
 pub fn scrollbar_style() -> impl Fn(&iced::Theme, scrollable::Status) -> scrollable::Style {
-    let p = luma_tokens::Palette::GOLDEN_HOUR;
+    let p = luma_tokens::Palette::for_contrast(tokens::high_contrast());
     let neutral = tokens::to_iced(p.warm_neutral);
     let amber = tokens::to_iced(p.amber);
     move |_theme, status| {
@@ -297,11 +309,12 @@ fn section_chrome<'a, Msg: Clone + 'static>(
 /// texto secundário, e o título da categoria no display (Fraunces).
 /// Reusável por qualquer app Luma.
 pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element<'a, Msg> {
-    let p = luma_tokens::Palette::GOLDEN_HOUR;
+    let p = luma_tokens::Palette::for_contrast(tokens::high_contrast());
     let amber = tokens::to_iced(p.amber);
-    let surface = tokens::to_iced(tokens::semantic_default().surface);
+    let surface = tokens::to_iced(p.surface);
     let cream = tokens::to_iced(p.cream);
     let secondary = tokens::to_iced(p.cream_dim);
+    let border = tokens::to_iced(p.border);
 
     let back = mouse_area(
         container(text("←").size(22.0).color(amber))
@@ -311,7 +324,8 @@ pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element
                 background: Some(Background::Color(surface)),
                 border: Border {
                     radius: 12.0.into(),
-                    ..Default::default()
+                    width: BORDER_WIDTH,
+                    color: border,
                 },
                 ..Default::default()
             }),
@@ -374,7 +388,7 @@ pub fn settings_group<'a, Msg: 'a>(
 ) -> Element<'a, Msg> {
     let sem = tokens::semantic_default();
     let surface = tokens::to_iced(sem.surface);
-    let secondary = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.cream_dim);
+    let secondary = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).cream_dim);
     let divider = Color {
         a: 0.08,
         ..tokens::to_iced(sem.text)
@@ -403,6 +417,7 @@ pub fn settings_group<'a, Msg: 'a>(
         }
     }
 
+    let border = tokens::to_iced(sem.border);
     let box_ = container(column(stacked).width(Length::Fill))
         .width(Length::Fill)
         .padding(Padding::from([4.0, 0.0]))
@@ -410,7 +425,8 @@ pub fn settings_group<'a, Msg: 'a>(
             background: Some(Background::Color(surface)),
             border: Border {
                 radius: GROUP_RADIUS.into(),
-                ..Default::default()
+                width: BORDER_WIDTH,
+                color: border,
             },
             ..Default::default()
         });
@@ -436,7 +452,7 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
     on_toggle: impl Fn(bool) -> Msg + 'a,
 ) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
-    let amber = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.amber);
+    let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
     let off = Color { a: 0.22, ..cream };
 
     let tog = toggler(value)
@@ -492,8 +508,8 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
     on_release: Option<Msg>,
 ) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
-    let secondary = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.cream_dim);
-    let amber = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.amber);
+    let secondary = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).cream_dim);
+    let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
     let track = Color { a: 0.18, ..cream };
 
     let sld = slider(range, value, on_change)
@@ -543,7 +559,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
 /// (cursor de mão) e emite `on_press` — pra abrir um sub-detalhe depois.
 pub fn nav_row<'a, Msg: Clone + 'a>(label: &'a str, on_press: Msg) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
-    let secondary = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.cream_dim);
+    let secondary = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).cream_dim);
 
     let inner = row(vec![
         text(label)

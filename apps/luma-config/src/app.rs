@@ -309,7 +309,10 @@ pub fn theme(_state: &State) -> Theme {
 
 pub fn view(state: &State) -> Element<'_, Message> {
     let gh = state.gh;
-    let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().surface);
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    // Borda forte (HC): transparente no normal, #FFF6EA no alto contraste.
+    let border = libluma::tokens::to_iced(sem.border);
 
     responsive(move |size| {
         // Largura confortável do conteúdo (chute ~860px). Abaixo disso
@@ -337,10 +340,12 @@ pub fn view(state: &State) -> Element<'_, Message> {
                         let focused = matches!(status, text_input::Status::Focused { .. });
                         text_input::Style {
                             background: Background::Color(surface),
+                            // Foco = âmbar; senão a borda forte do HC
+                            // (transparente no normal, então invisível lá).
                             border: Border {
                                 radius: 12.0.into(),
-                                width: if focused { 1.5 } else { 0.0 },
-                                color: amber,
+                                width: 1.5,
+                                color: if focused { amber } else { border },
                             },
                             icon: cream,
                             placeholder: honey_dim,

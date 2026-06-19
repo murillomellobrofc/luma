@@ -163,6 +163,15 @@ pub struct Palette {
     /// um tom só abaixo do canvas. Token novo do M2 (moldura Golden
     /// Hour); mora aqui, na fonte única, nunca hardcoded no libluma.
     pub chrome: Color,
+    /// Surface dos cards/tiles (role semântico). No Golden Hour é o
+    /// `coffee` clareado (#3E3632), agora explícito pra o alto contraste
+    /// poder sobrescrever direto (no HC ele é quase = ao fundo de
+    /// propósito; quem separa a forma é a `border`). HC (parte 1).
+    pub surface: Color,
+    /// Borda forte dos cards/tiles. **Transparente no Golden Hour** (a
+    /// estética normal não tem borda), forte no alto contraste (#FFF6EA) —
+    /// é ela que separa a forma quando surface ~= fundo. HC (parte 1).
+    pub border: Color,
 }
 
 impl Palette {
@@ -180,7 +189,55 @@ impl Palette {
         warm_neutral: Color::rgb8(0x9C, 0x8B, 0x79),
         terracota: Color::rgb8(0xD9, 0x8E, 0x5E),
         chrome: Color::rgb8(0x1B, 0x17, 0x14),
+        // surface = coffee.lighten(0.14), agora explícito. border
+        // transparente: estética normal não tem borda forte.
+        surface: Color::rgb8(0x3E, 0x36, 0x32),
+        border: Color::new(0.0, 0.0, 0.0, 0.0),
     };
+
+    /// Paleta de **alto contraste** aprovada (HC, parte 1). Conjunto
+    /// paralelo ao [`GOLDEN_HOUR`]: mesma estrutura, valores HC. Fundo quase
+    /// preto, texto branco-quente, borda forte presente, acentos vivos.
+    /// Ratios verificados AAA (texto ≥7:1, acentos ≥4.5:1, mirando alto)
+    /// contra os DOIS fundos (bg + surface). Zero hex solto: tudo aqui.
+    pub const HIGH_CONTRAST: Palette = Palette {
+        coffee: Color::rgb8(0x0C, 0x0A, 0x08),       // fundo quase preto
+        coffee_deep: Color::rgb8(0x06, 0x04, 0x02),  // estrutural mais fundo
+        coffee_surface: Color::rgb8(0x17, 0x12, 0x0E),
+        coral: Color::rgb8(0xFF, 0x8A, 0x72),
+        honey: Color::rgb8(0xFF, 0xD5, 0x6B),
+        sage: Color::rgb8(0x93, 0xDC, 0xA6),
+        cream: Color::rgb8(0xFF, 0xF8, 0xF0),        // texto branco-quente
+        amber: Color::rgb8(0xFF, 0xC2, 0x4D),
+        cream_dim: Color::rgb8(0xE6, 0xD7, 0xC5),    // texto secundário
+        warm_neutral: Color::rgb8(0xC7, 0xB3, 0x9A), // hue Sistema (HC)
+        terracota: Color::rgb8(0xF2, 0xA8, 0x75),
+        chrome: Color::rgb8(0x0A, 0x08, 0x06),
+        surface: Color::rgb8(0x17, 0x12, 0x0E),
+        border: Color::rgb8(0xFF, 0xF6, 0xEA),       // borda forte presente
+    };
+
+    /// Escolhe a paleta por flag de alto contraste, SEM IO (consts). HC on
+    /// => todo role vem da [`HIGH_CONTRAST`], ignorando preset/override (o
+    /// HC é override independente). Default off => Golden Hour. HC (parte 1).
+    pub const fn for_contrast(high_contrast: bool) -> Palette {
+        if high_contrast {
+            Palette::HIGH_CONTRAST
+        } else {
+            Palette::GOLDEN_HOUR
+        }
+    }
+
+    /// Como [`for_contrast`], mas no caminho normal respeita o `luma.toml`
+    /// ([`load`]); no HC ignora tudo e usa a paleta HC aprovada (o alto
+    /// contraste ganha de qualquer override). HC (parte 1).
+    pub fn resolve_contrast(high_contrast: bool) -> Palette {
+        if high_contrast {
+            Palette::HIGH_CONTRAST
+        } else {
+            Palette::load()
+        }
+    }
 
     /// Aplica overrides hex sobre a paleta default. Hex inválido cai
     /// no default (mesma regra do `luma-theme`).
@@ -201,6 +258,10 @@ impl Palette {
             warm_neutral: over(ov.warm_neutral, d.warm_neutral),
             terracota: over(ov.terracota, d.terracota),
             chrome: over(ov.chrome, d.chrome),
+            // surface/border não são overridáveis por luma.toml (parte 1):
+            // surface é derivado e border é função do modo de contraste.
+            surface: d.surface,
+            border: d.border,
         }
     }
 
@@ -267,6 +328,9 @@ pub struct Semantic {
     pub text: Color,
     /// Texto secundário ← `cream_dim`.
     pub text_secondary: Color,
+    /// Borda forte dos cards/tiles ← `border`. Transparente no Golden Hour
+    /// (sem borda), forte no HC. HC (parte 1).
+    pub border: Color,
 }
 
 impl Semantic {
@@ -275,18 +339,22 @@ impl Semantic {
         Self {
             accent: p.amber,
             background: p.coffee,
-            // surface = coffee clareado (~1.5:1 vs background) — elevação
-            // pro card flutuar. Derivado, não hex novo. (coffee_surface
-            // segue sendo o applet_bg do compositor, role separado.)
-            surface: p.coffee.lighten(0.14),
+            surface: p.surface,
             text: p.cream,
             text_secondary: p.cream_dim,
+            border: p.border,
         }
     }
 
     /// Atalho: paleta resolvida do `luma.toml` → semântica.
     pub fn load() -> Self {
         Self::from_palette(&Palette::load())
+    }
+
+    /// Semântica escolhida por flag de alto contraste (parte 1). HC on =>
+    /// paleta HC; off => `luma.toml`/Golden Hour.
+    pub fn resolve_contrast(high_contrast: bool) -> Self {
+        Self::from_palette(&Palette::resolve_contrast(high_contrast))
     }
 }
 
