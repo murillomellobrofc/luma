@@ -15,7 +15,9 @@ use iced::{Color, Theme};
 /// - primary ← amber (`accent_amber`)
 /// - success ← sage; danger ← coral
 pub fn golden_hour_theme() -> Theme {
-    let p = luma_tokens::Palette::load();
+    // Respeita o modo de contraste (HC, parte 1): HC => paleta HC (fundo
+    // quase preto, texto branco-quente); normal => luma.toml/Golden Hour.
+    let p = luma_tokens::Palette::resolve_contrast(crate::tokens::high_contrast());
     Theme::custom(
         "Golden Hour".to_string(),
         Palette {
