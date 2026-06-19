@@ -18,6 +18,9 @@ pub struct State {
     taxonomy: Vec<GridSection<'static, Message>>,
     view: View,
     touch: TouchTargets,
+    contrast: Contrast,
+    motion: Motion,
+    bell: VisualBell,
 }
 
 /// Tela visível: a grade (landing) ou a página de uma categoria.
@@ -49,6 +52,50 @@ impl Default for TouchTargets {
     }
 }
 
+/// Estado local da página **Contraste** (2d.2).
+#[derive(Debug, Clone, Copy, Default)]
+struct Contrast {
+    high_contrast: bool,
+    reduce_transparency: bool,
+}
+
+/// Estado local da página **Movimento** (2d.2). `anim_speed` em %
+/// (100 = normal).
+#[derive(Debug, Clone, Copy)]
+struct Motion {
+    reduce_motion: bool,
+    anim_speed: f32,
+}
+
+impl Default for Motion {
+    fn default() -> Self {
+        Self {
+            reduce_motion: false,
+            anim_speed: 100.0,
+        }
+    }
+}
+
+/// Estado local da página **Sino visual** (2d.2). `photosafe` (modo seguro
+/// pra fotossensibilidade) vem **ligado** por padrão — flash suave, sem
+/// estrobo. `flash_intensity` em %.
+#[derive(Debug, Clone, Copy)]
+struct VisualBell {
+    enabled: bool,
+    photosafe: bool,
+    flash_intensity: f32,
+}
+
+impl Default for VisualBell {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            photosafe: true,
+            flash_intensity: 60.0,
+        }
+    }
+}
+
 impl State {
     pub fn new() -> Self {
         let gh = GoldenHour::load();
@@ -58,6 +105,9 @@ impl State {
             taxonomy,
             view: View::Grid,
             touch: TouchTargets::default(),
+            contrast: Contrast::default(),
+            motion: Motion::default(),
+            bell: VisualBell::default(),
         }
     }
 }
@@ -73,6 +123,16 @@ pub enum Message {
     TouchLarger(bool),
     TouchMinSize(f32),
     TouchHighlightFocus(bool),
+    // Página Contraste (2d.2).
+    ContrastHigh(bool),
+    ContrastReduceTransparency(bool),
+    // Página Movimento (2d.2).
+    MotionReduce(bool),
+    MotionAnimSpeed(f32),
+    // Página Sino visual (2d.2).
+    BellEnabled(bool),
+    BellPhotosafe(bool),
+    BellFlashIntensity(f32),
 }
 
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
@@ -82,6 +142,13 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::TouchLarger(v) => state.touch.larger = v,
         Message::TouchMinSize(v) => state.touch.min_size = v,
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
+        Message::ContrastHigh(v) => state.contrast.high_contrast = v,
+        Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
+        Message::MotionReduce(v) => state.motion.reduce_motion = v,
+        Message::MotionAnimSpeed(v) => state.motion.anim_speed = v,
+        Message::BellEnabled(v) => state.bell.enabled = v,
+        Message::BellPhotosafe(v) => state.bell.photosafe = v,
+        Message::BellFlashIntensity(v) => state.bell.flash_intensity = v,
     }
     Task::none()
 }
@@ -134,6 +201,9 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 let header = libluma::page_header(label, Message::Back);
                 let body: Element<'_, Message> = match label {
                     "Alvos de toque" => touch_targets_page(state.touch),
+                    "Contraste" => contrast_page(state.contrast),
+                    "Movimento" => motion_page(state.motion),
+                    "Sino visual" => visual_bell_page(state.bell),
                     _ => text("Conteúdo em breve")
                         .size(14)
                         .color(gh.honey_dim)
@@ -185,10 +255,69 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
     )
 }
 
+/// Página da categoria **Contraste** (2d.2). Estado local.
+fn contrast_page(c: Contrast) -> Element<'static, Message> {
+    libluma::settings_group(
+        None,
+        vec![
+            libluma::toggle_row("Alto contraste", c.high_contrast, Message::ContrastHigh),
+            libluma::toggle_row(
+                "Reduzir transparência",
+                c.reduce_transparency,
+                Message::ContrastReduceTransparency,
+            ),
+        ],
+    )
+}
+
+/// Página da categoria **Movimento** (2d.2). Velocidade das animações em %
+/// (100 = normal). Estado local.
+fn motion_page(m: Motion) -> Element<'static, Message> {
+    libluma::settings_group(
+        None,
+        vec![
+            libluma::toggle_row("Reduzir movimento", m.reduce_motion, Message::MotionReduce),
+            libluma::slider_row(
+                "Velocidade das animações",
+                m.anim_speed,
+                0.0..=200.0,
+                25.0,
+                "%",
+                Message::MotionAnimSpeed,
+            ),
+        ],
+    )
+}
+
+/// Página da categoria **Sino visual** (2d.2). Flash da tela no lugar do
+/// som; modo seguro pra fotossensibilidade ligado por padrão. Estado local.
+fn visual_bell_page(b: VisualBell) -> Element<'static, Message> {
+    libluma::settings_group(
+        None,
+        vec![
+            libluma::toggle_row("Sino visual", b.enabled, Message::BellEnabled),
+            libluma::toggle_row(
+                "Modo seguro para fotossensibilidade",
+                b.photosafe,
+                Message::BellPhotosafe,
+            ),
+            libluma::slider_row(
+                "Intensidade do flash",
+                b.flash_intensity,
+                0.0..=100.0,
+                10.0,
+                "%",
+                Message::BellFlashIntensity,
+            ),
+        ],
+    )
+}
+
 /// Taxonomia travada. Hues resolvidas da paleta Golden Hour; cada
 /// categoria mapeia pro seu ícone do pack (`assets/icons/<nome>.svg`,
 /// monocromático `currentColor`). O `libluma` recebe o handle e tinge na
-/// hue da seção. Enabled hoje: Widgets, Wallpaper e Alvos de toque.
+/// hue da seção. Enabled hoje: Widgets, Wallpaper e a seção Acessibilidade
+/// inteira (Alvos de toque, Contraste, Sino visual, Movimento).
 fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
     // Handle de svg do pack (bundlado via include_bytes — sem dor de path).
     macro_rules! icon {
@@ -227,9 +356,9 @@ fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
             hue: gh.sage,
             items: vec![
                 item("Alvos de toque", icon!("alvos-de-toque"), true),
-                item("Contraste", icon!("contraste"), false),
-                item("Sino visual", icon!("sino-visual"), false),
-                item("Movimento", icon!("movimento"), false),
+                item("Contraste", icon!("contraste"), true),
+                item("Sino visual", icon!("sino-visual"), true),
+                item("Movimento", icon!("movimento"), true),
             ],
         },
         GridSection {
