@@ -122,6 +122,16 @@ impl CompositorService {
             Err(_) => error!("D-Bus: lock de notificações envenenado ao setar sino visual"),
         }
     }
+
+    /// Gatilho de teste do sino visual (3a): injeta uma notificação fake,
+    /// que passa pelo caminho normal de alerta. Se o sino visual estiver
+    /// ligado, a tela pisca. Existe porque, rodando aninhado sob um DE dono
+    /// das notificações (ex.: Plasma), `notify-send` não chega no Luma —
+    /// sem isso não dá pra ver a piscada ao vivo. Dispara por busctl.
+    async fn emit_test_bell(&self) {
+        crate::notifications::inject_test_notification(&self.notifications);
+        info!("D-Bus: EmitTestBell — notificação de teste injetada");
+    }
 }
 
 /// Sobe o servidor numa thread dedicada. Não-bloqueante. `available`

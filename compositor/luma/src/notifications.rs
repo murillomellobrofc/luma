@@ -830,6 +830,16 @@ fn run(
     }
 }
 
+/// Injeta uma notificação fake em runtime — gatilho de teste do sino
+/// visual (3a), chamado pelo método D-Bus `EmitTestBell`. Passa pelo
+/// caminho normal de alerta: a próxima frame (render contínuo) processa o
+/// `alert_pending` e, se `flash_enabled` estiver ligado, pisca. Mostra um
+/// toast junto (esperado). Sem isso, sob um DE que é dono das
+/// notificações (ex.: Plasma), não há como disparar o sino do Luma ao vivo.
+pub fn inject_test_notification(slot: &NotificationsSlot) {
+    inject_fake(slot, 0);
+}
+
 fn inject_fake(slot: &NotificationsSlot, idx: usize) {
     let icons = [
         "applications-internet",
