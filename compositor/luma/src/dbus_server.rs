@@ -15,6 +15,7 @@ use smithay::reexports::calloop::channel::Sender;
 use std::thread;
 use tracing::{error, info};
 use zbus::interface;
+use zbus::object_server::SignalEmitter;
 
 /// Bus name e interface name são iguais (padrão fdo, ex: NetworkManager).
 const BUS_NAME: &str = "dev.luma.Compositor";
@@ -185,6 +186,45 @@ impl CompositorService {
         persist_accessibility(&self.notifications);
     }
 
+    /// Estado do **alto contraste** (HC parte 2).
+    async fn high_contrast(&self) -> bool {
+        match self.notifications.lock() {
+            Ok(g) => g.high_contrast,
+            Err(_) => false,
+        }
+    }
+
+    /// Liga/desliga o **alto contraste** (HC parte 2). Memória + disco +
+    /// **emite o sinal de mudança** pros apps re-resolverem a aparência ao
+    /// vivo. É a primeira config que muda a APARÊNCIA, daí o sinal — esse
+    /// canal vai servir a fase de personalização inteira. (A chrome do
+    /// próprio compositor re-resolver pra HC fica pra um passo de polish.)
+    async fn set_high_contrast(
+        &self,
+        enabled: bool,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.high_contrast = enabled;
+            info!("D-Bus: alto contraste = {enabled}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar alto contraste");
+        }
+        persist_accessibility(&self.notifications);
+        if let Err(err) = emitter.high_contrast_changed(enabled).await {
+            error!("D-Bus: falha ao emitir sinal de alto contraste: {err}");
+        }
+    }
+
+    /// **Sinal de mudança** do alto contraste (HC parte 2). Emitido pelo
+    /// `set_high_contrast`; os apps escutam via `Subscription` e re-resolvem
+    /// os tokens. Sem corpo — o macro gera o emit.
+    #[zbus(signal)]
+    async fn high_contrast_changed(
+        emitter: &SignalEmitter<'_>,
+        enabled: bool,
+    ) -> zbus::Result<()>;
+
     /// Gatilho de teste do sino visual (3a): injeta uma notificação fake,
     /// que passa pelo caminho normal de alerta. Se o sino visual estiver
     /// ligado, a tela pisca. Existe porque, rodando aninhado sob um DE dono
@@ -207,6 +247,7 @@ fn persist_accessibility(notifications: &NotificationsSlot) {
             photosafe_enabled: g.flash_photosafe,
             flash_intensity: g.flash_intensity,
             reduce_motion: g.reduce_motion,
+            high_contrast: g.high_contrast,
         },
         Err(_) => {
             error!("D-Bus: lock envenenado ao persistir acessibilidade");

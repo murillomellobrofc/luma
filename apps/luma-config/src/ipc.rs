@@ -40,6 +40,16 @@ pub trait Compositor {
     /// Reduzir movimento (3d).
     async fn reduce_motion(&self) -> zbus::Result<bool>;
     async fn set_reduce_motion(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Alto contraste (HC parte 2): get/set + o **sinal de mudança** que o
+    /// app escuta pra re-resolver a aparência ao vivo.
+    async fn high_contrast(&self) -> zbus::Result<bool>;
+    async fn set_high_contrast(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Sinal emitido pelo compositor quando o alto contraste muda. Gera
+    /// `receive_high_contrast_changed()` (stream) + o tipo de args.
+    #[zbus(signal)]
+    fn high_contrast_changed(&self, enabled: bool) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -148,4 +158,43 @@ pub async fn write_reduce_motion(conn: zbus::Connection, enabled: bool) -> Resul
         .set_reduce_motion(enabled)
         .await
         .map_err(|e| e.to_string())
+}
+
+// ─── Alto contraste (HC parte 2) ──────────────────────────────────────
+
+/// Lê o alto contraste do compositor (boot + read-on-open).
+pub async fn read_high_contrast(conn: zbus::Connection) -> Result<bool, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.high_contrast().await.map_err(|e| e.to_string())
+}
+
+/// Escreve o alto contraste (toggle). O re-render NÃO vem daqui — vem do
+/// sinal de mudança (fonte única). Só dispara o set.
+pub async fn write_high_contrast(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_high_contrast(enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// **Stream do sinal** `high_contrast_changed` (HC parte 2) — o canal de
+/// propagação de mudança de aparência. Conecta uma vez, assina o sinal, e
+/// emite o novo `bool` a cada mudança. A `Subscription` do iced roda este
+/// stream e re-resolve o tema. Conexão própria (Arc por dentro): o stream
+/// é self-contained.
+pub async fn high_contrast_signal_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = bool>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_high_contrast_changed().await?;
+    Ok(signals.filter_map(|sig| async move {
+        // O accessor do arg é um método que devolve &bool; deref pra copiar.
+        sig.args().ok().map(|a| *a.enabled())
+    }))
 }
