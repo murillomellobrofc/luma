@@ -6105,12 +6105,16 @@ pub fn init_winit(
                                 }
                             }
                         }
-                        // Snapshot da lista visible.
-                        let mut visible_snap: Vec<crate::notifications::NotificationEntry> =
-                            match data.state.notifications.lock() {
-                                Ok(g) => g.visible.clone(),
-                                Err(_) => Vec::new(),
-                            };
+                        // Snapshot da lista visible + o flag reduce_motion
+                        // (3d), lidos no mesmo lock. Convenção: o render checa
+                        // reduce_motion antes de animar (slide-in/reflow).
+                        let (mut visible_snap, reduce_motion): (
+                            Vec<crate::notifications::NotificationEntry>,
+                            bool,
+                        ) = match data.state.notifications.lock() {
+                            Ok(g) => (g.visible.clone(), g.reduce_motion),
+                            Err(_) => (Vec::new(), false),
+                        };
                         if !visible_snap.is_empty() {
                             let t_n = crate::theme::current().notifications.clone();
                             // Helper local pra rasterizar texto.
@@ -6312,12 +6316,14 @@ pub fn init_winit(
                                     entry.entered_at.elapsed().as_millis() as u64;
                                 let entry_anim = crate::notifications::ENTRY_ANIM_MS;
                                 let exit_anim = crate::notifications::EXIT_ANIM_MS;
-                                let in_progress = if entered_ms < entry_anim {
+                                // 3d: reduce_motion pula o slide-in/fade-in —
+                                // o toast aparece seco (progresso = 1 já).
+                                let in_progress = if reduce_motion || entered_ms >= entry_anim {
+                                    1.0
+                                } else {
                                     crate::notifications::ease_out_cubic(
                                         entered_ms as f32 / entry_anim as f32,
                                     )
-                                } else {
-                                    1.0
                                 };
                                 let exit_progress = entry
                                     .closing_since
@@ -6364,7 +6370,9 @@ pub fn init_winit(
                                         // Interp.
                                         let anim_ms =
                                             entry.anim_started_at.elapsed().as_millis() as u64;
-                                        let p = if reflow_anim == 0 {
+                                        // 3d: reduce_motion snapa o reflow do
+                                        // empilhamento (sem interpolar o Y).
+                                        let p = if reduce_motion || reflow_anim == 0 {
                                             1.0
                                         } else {
                                             crate::notifications::ease_out_cubic(

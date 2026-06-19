@@ -38,6 +38,10 @@ pub struct Accessibility {
     pub photosafe_enabled: bool,
     /// Intensidade do flash em % (3c, 0–100). Escala a força da piscada.
     pub flash_intensity: u8,
+    /// Reduzir movimento (3d). Ligado = animações/transições do Luma ficam
+    /// instantâneas (sem deslizar/interpolar). Convenção: TODA animação
+    /// checa este flag antes de animar. Default OFF.
+    pub reduce_motion: bool,
 }
 
 impl Default for Accessibility {
@@ -50,6 +54,7 @@ impl Default for Accessibility {
             visual_bell_enabled: false,
             photosafe_enabled: true,
             flash_intensity: 60,
+            reduce_motion: false,
         }
     }
 }

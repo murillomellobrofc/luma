@@ -201,6 +201,13 @@ pub struct NotificationsState {
     /// Intensidade do flash em % (3c, 0–100). Escala o peak alpha: 60% é o
     /// baseline (= peak do token). Persistido. Default 60.
     pub flash_intensity: u8,
+    /// **Reduzir movimento** (3d) — flag GLOBAL de acessibilidade de
+    /// movimento. Mora aqui (no blob de a11y compartilhado) pra persistir
+    /// via `persist_accessibility` e ser lido cross-thread pelo render.
+    /// CONVENÇÃO TRANCADA: toda animação/transição do Luma checa este flag
+    /// antes de animar — ligado = instantânea (sem deslizar/interpolar).
+    /// Persistido. Default OFF.
+    pub reduce_motion: bool,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -481,6 +488,7 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         flash_enabled: t_n.flash_enabled_default,
         flash_photosafe: true,
         flash_intensity: 60,
+        reduce_motion: false,
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,

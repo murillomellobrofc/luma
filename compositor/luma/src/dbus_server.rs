@@ -165,6 +165,26 @@ impl CompositorService {
         persist_accessibility(&self.notifications);
     }
 
+    /// Estado do **reduzir movimento** (3d). `true` = animações instantâneas.
+    async fn reduce_motion(&self) -> bool {
+        match self.notifications.lock() {
+            Ok(g) => g.reduce_motion,
+            Err(_) => false,
+        }
+    }
+
+    /// Liga/desliga o **reduzir movimento** (3d). Memória + disco. O render
+    /// checa esse flag pra pular/instantaneizar as animações.
+    async fn set_reduce_motion(&self, enabled: bool) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.reduce_motion = enabled;
+            info!("D-Bus: reduzir movimento = {enabled}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar reduzir movimento");
+        }
+        persist_accessibility(&self.notifications);
+    }
+
     /// Gatilho de teste do sino visual (3a): injeta uma notificação fake,
     /// que passa pelo caminho normal de alerta. Se o sino visual estiver
     /// ligado, a tela pisca. Existe porque, rodando aninhado sob um DE dono
@@ -186,6 +206,7 @@ fn persist_accessibility(notifications: &NotificationsSlot) {
             visual_bell_enabled: g.flash_enabled,
             photosafe_enabled: g.flash_photosafe,
             flash_intensity: g.flash_intensity,
+            reduce_motion: g.reduce_motion,
         },
         Err(_) => {
             error!("D-Bus: lock envenenado ao persistir acessibilidade");

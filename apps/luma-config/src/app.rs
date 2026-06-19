@@ -161,9 +161,13 @@ pub enum Message {
     // Página Contraste (2d.2).
     ContrastHigh(bool),
     ContrastReduceTransparency(bool),
-    // Página Movimento (2d.2).
+    // Página Movimento (2d.2 + 3d).
     MotionReduce(bool),
     MotionAnimSpeed(f32),
+    /// Reduzir movimento lido do compositor ao abrir a página (3d).
+    MotionReduceLoaded(Result<bool, String>),
+    /// Resultado de escrever o reduzir movimento (3d); reverte se falhar.
+    MotionReduceWritten(bool, Result<(), String>),
     // Página Sino visual (2d.2).
     BellEnabled(bool),
     BellPhotosafe(bool),
@@ -174,16 +178,23 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::OpenCategory(label) => {
             state.view = View::Category(label);
-            // Ao abrir o Sino visual, lê o estado REAL do compositor pra
-            // o toggle iniciar certo (não com um default chutado). 3a.
-            if label == "Sino visual" {
-                if let Some(conn) = &state.conn {
-                    // Lê os 3 settings reais do compositor pra a página
-                    // iniciar certa (não com defaults chutados). 3c.
-                    return Task::perform(
-                        crate::ipc::read_bell_settings(conn.clone()),
-                        Message::BellSettingsLoaded,
-                    );
+            // Read-on-open: lê o estado REAL do compositor pra os toggles
+            // iniciarem certos (não com defaults chutados). 3a/3c/3d.
+            if let Some(conn) = &state.conn {
+                match label {
+                    "Sino visual" => {
+                        return Task::perform(
+                            crate::ipc::read_bell_settings(conn.clone()),
+                            Message::BellSettingsLoaded,
+                        );
+                    }
+                    "Movimento" => {
+                        return Task::perform(
+                            crate::ipc::read_reduce_motion(conn.clone()),
+                            Message::MotionReduceLoaded,
+                        );
+                    }
+                    _ => {}
                 }
             }
         }
@@ -222,8 +233,29 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
         Message::ContrastHigh(v) => state.contrast.high_contrast = v,
         Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
-        Message::MotionReduce(v) => state.motion.reduce_motion = v,
+        Message::MotionReduce(v) => {
+            // Wiring real (3d): toggle commita na hora (evento único).
+            // Otimista + reverte se falhar. Sem conexão: ignora.
+            if let Some(conn) = &state.conn {
+                state.motion.reduce_motion = v;
+                return Task::perform(
+                    crate::ipc::write_reduce_motion(conn.clone(), v),
+                    move |r| Message::MotionReduceWritten(v, r),
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; reduzir movimento ignorado");
+            }
+        }
         Message::MotionAnimSpeed(v) => state.motion.anim_speed = v,
+        Message::MotionReduceLoaded(Ok(v)) => state.motion.reduce_motion = v,
+        Message::MotionReduceLoaded(Err(e)) => {
+            eprintln!("luma-config: ler reduzir movimento falhou: {e}");
+        }
+        Message::MotionReduceWritten(_, Ok(())) => {}
+        Message::MotionReduceWritten(attempted, Err(e)) => {
+            eprintln!("luma-config: escrever reduzir movimento falhou: {e}");
+            state.motion.reduce_motion = !attempted;
+        }
         Message::BellEnabled(v) => {
             // Wiring real (3a): escreve no compositor. Otimista (mexe a UI
             // já) + reverte se a escrita falhar. Sem conexão: ignora (o
@@ -416,8 +448,9 @@ fn contrast_page(c: Contrast) -> Element<'static, Message> {
     )
 }
 
-/// Página da categoria **Movimento** (2d.2). Velocidade das animações em %
-/// (100 = normal). Estado local.
+/// Página da categoria **Movimento**. "Reduzir movimento" é wirado (3d):
+/// lê/escreve o compositor via D-Bus e persiste — ligado, as animações do
+/// Luma ficam instantâneas. "Velocidade das animações" segue local (2d.2).
 fn motion_page(m: Motion) -> Element<'static, Message> {
     libluma::settings_group(
         None,
