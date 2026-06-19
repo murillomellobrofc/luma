@@ -22,7 +22,8 @@ pub mod tokens;
 
 pub use color::GoldenHour;
 pub use components::{
-    GridItem, GridSection, category_grid, category_tile, columns_for, page_header, scrollbar_style,
+    GridItem, GridSection, category_grid, category_tile, columns_for, nav_row, page_header,
+    scrollbar_style, settings_group, slider_row, toggle_row,
 };
 pub use theme::golden_hour_theme;
 pub use tokens::Semantic;
