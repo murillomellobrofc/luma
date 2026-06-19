@@ -29,6 +29,9 @@ fn main() -> iced::Result {
         // O título é lido pelo compositor pra desenhar o header oficial.
         .title("Configurações do Luma")
         .theme(app::theme)
+        // HC parte 2: escuta o sinal de mudança de aparência do compositor
+        // e re-resolve a paleta ao vivo.
+        .subscription(app::subscription)
         // App frameless: SEM decoração própria. O Luma decora as janelas
         // dos apps dele server-side (header oficial Golden Hour). Deixamos
         // a decoração ligada pra o compositor desenhar o header.

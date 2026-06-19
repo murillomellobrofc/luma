@@ -42,6 +42,10 @@ pub struct Accessibility {
     /// instantâneas (sem deslizar/interpolar). Convenção: TODA animação
     /// checa este flag antes de animar. Default OFF.
     pub reduce_motion: bool,
+    /// Alto contraste (HC parte 2). Ligado = os apps Luma re-resolvem pra a
+    /// paleta HC. Diferente dos outros: muda a APARÊNCIA, então o set emite
+    /// um sinal D-Bus e os apps re-renderizam ao vivo. Default OFF.
+    pub high_contrast: bool,
 }
 
 impl Default for Accessibility {
@@ -55,6 +59,7 @@ impl Default for Accessibility {
             photosafe_enabled: true,
             flash_intensity: 60,
             reduce_motion: false,
+            high_contrast: false,
         }
     }
 }

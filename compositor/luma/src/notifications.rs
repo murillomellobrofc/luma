@@ -208,6 +208,11 @@ pub struct NotificationsState {
     /// antes de animar — ligado = instantânea (sem deslizar/interpolar).
     /// Persistido. Default OFF.
     pub reduce_motion: bool,
+    /// Alto contraste (HC parte 2). Mora aqui no blob de a11y pra persistir
+    /// via `persist_accessibility`. Diferente dos outros flags, ao mudar o
+    /// servidor D-Bus emite um sinal pros apps re-resolverem a APARÊNCIA ao
+    /// vivo. Persistido. Default OFF.
+    pub high_contrast: bool,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -489,6 +494,7 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         flash_photosafe: true,
         flash_intensity: 60,
         reduce_motion: false,
+        high_contrast: false,
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,

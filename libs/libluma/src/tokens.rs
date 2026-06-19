@@ -14,14 +14,24 @@ use iced::Color;
 
 pub use luma_tokens::{Color as TokenColor, Palette, Semantic};
 
-/// **Alto contraste ativo?** (HC, parte 1). ÚNICO ponto de decisão do
-/// modo de contraste — `semantic_default`, o `GoldenHour` e o theme leem
-/// daqui, então tudo vira junto. **Parte 1 não wira**: retorna `false`
-/// (Golden Hour normal). Pra testar a paleta HC, force `true` aqui,
-/// rebuilda e suba o app — tudo aparece em HC. Parte 2 troca este corpo
-/// pelo flag real (D-Bus/persistido).
+/// Flag global do modo de contraste (HC parte 2). Processo-wide pq o modo é
+/// global e os componentes leem via funções livres (`semantic_default`),
+/// sem passar o flag em cada chamada. O app seta via [`set_high_contrast`]
+/// (no boot lendo o D-Bus e a cada sinal de mudança), e re-renderiza.
+static HIGH_CONTRAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// **Alto contraste ativo?** ÚNICO ponto de decisão do modo de contraste —
+/// `semantic_default`, o `GoldenHour` e o theme leem daqui, então tudo vira
+/// junto quando o app chama [`set_high_contrast`].
 pub fn high_contrast() -> bool {
-    false
+    HIGH_CONTRAST.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Liga/desliga o modo de alto contraste do processo (HC parte 2). O app
+/// chama isto ao ler o flag real (boot) e a cada sinal D-Bus de mudança;
+/// depois re-resolve o `GoldenHour` e re-renderiza.
+pub fn set_high_contrast(on: bool) {
+    HIGH_CONTRAST.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Paleta semântica resolvida do `luma.toml` (default Golden Hour +

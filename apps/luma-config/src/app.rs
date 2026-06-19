@@ -158,9 +158,17 @@ pub enum Message {
     TouchLarger(bool),
     TouchMinSize(f32),
     TouchHighlightFocus(bool),
-    // Página Contraste (2d.2).
+    // Página Contraste (2d.2 + HC parte 2).
     ContrastHigh(bool),
     ContrastReduceTransparency(bool),
+    /// Alto contraste lido do compositor (boot + read-on-open, HC parte 2).
+    HighContrastLoaded(Result<bool, String>),
+    /// Resultado de escrever o alto contraste (HC parte 2); só loga.
+    HighContrastWritten(Result<(), String>),
+    /// **Sinal** de mudança do alto contraste (HC parte 2). Vem da
+    /// Subscription; é a fonte única do re-render — aplica o flag e
+    /// re-resolve a paleta ao vivo.
+    HighContrastChanged(bool),
     // Página Movimento (2d.2 + 3d).
     MotionReduce(bool),
     MotionAnimSpeed(f32),
@@ -194,13 +202,29 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                             Message::MotionReduceLoaded,
                         );
                     }
+                    "Contraste" => {
+                        return Task::perform(
+                            crate::ipc::read_high_contrast(conn.clone()),
+                            Message::HighContrastLoaded,
+                        );
+                    }
                     _ => {}
                 }
             }
         }
         Message::Back => state.view = View::Grid,
         Message::SearchChanged(q) => state.query = q,
-        Message::Connected(Ok(conn)) => state.conn = Some(conn),
+        Message::Connected(Ok(conn)) => {
+            // Lê o alto contraste persistido logo ao conectar, pra o app já
+            // ABRIR na paleta certa (HC parte 2). O re-resolve vem pelo
+            // mesmo caminho do sinal.
+            let read = Task::perform(
+                crate::ipc::read_high_contrast(conn.clone()),
+                Message::HighContrastLoaded,
+            );
+            state.conn = Some(conn);
+            return read;
+        }
         Message::Connected(Err(e)) => {
             eprintln!("luma-config: sem conexão D-Bus com o compositor: {e}");
         }
@@ -231,7 +255,30 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::TouchLarger(v) => state.touch.larger = v,
         Message::TouchMinSize(v) => state.touch.min_size = v,
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
-        Message::ContrastHigh(v) => state.contrast.high_contrast = v,
+        Message::ContrastHigh(v) => {
+            // HC parte 2: o toggle SÓ dispara o set via D-Bus. O re-render
+            // (e o state.contrast.high_contrast) vêm do SINAL — fonte única,
+            // o app reflete o flag real, não um palpite local.
+            if let Some(conn) = &state.conn {
+                return Task::perform(
+                    crate::ipc::write_high_contrast(conn.clone(), v),
+                    Message::HighContrastWritten,
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; alto contraste ignorado");
+            }
+        }
+        Message::HighContrastWritten(Ok(())) => {}
+        Message::HighContrastWritten(Err(e)) => {
+            eprintln!("luma-config: escrever alto contraste falhou: {e}");
+        }
+        // Boot/read-on-open e o sinal de mudança aplicam o mesmo: setam o
+        // flag global, re-resolvem a paleta e re-renderizam ao vivo.
+        Message::HighContrastLoaded(Ok(v)) => apply_high_contrast(state, v),
+        Message::HighContrastLoaded(Err(e)) => {
+            eprintln!("luma-config: ler alto contraste falhou: {e}");
+        }
+        Message::HighContrastChanged(v) => apply_high_contrast(state, v),
         Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
         Message::MotionReduce(v) => {
             // Wiring real (3d): toggle commita na hora (evento único).
@@ -304,7 +351,44 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
 
 /// Theme Golden Hour (iced) — vem do `libluma`, resolvido dos tokens.
 pub fn theme(_state: &State) -> Theme {
+    // Lê o flag global de contraste → HC ou Golden Hour. Re-resolvido a cada
+    // re-render, então acompanha o toggle ao vivo (HC parte 2).
     libluma::golden_hour_theme()
+}
+
+/// Aplica o alto contraste ao vivo (HC parte 2): liga o flag global do
+/// processo, re-resolve o `GoldenHour` na paleta nova, e guarda no estado
+/// pro toggle. O re-render acontece naturalmente após o `update` (o `view`
+/// e o `theme` re-resolvem lendo o flag).
+fn apply_high_contrast(state: &mut State, on: bool) {
+    libluma::tokens::set_high_contrast(on);
+    state.gh = libluma::GoldenHour::load();
+    state.contrast.high_contrast = on;
+}
+
+/// **Subscription** do alto contraste (HC parte 2) — o canal de propagação
+/// de aparência. Escuta o sinal `high_contrast_changed` do compositor; cada
+/// emissão vira [`Message::HighContrastChanged`] e re-resolve o tema ao
+/// vivo. A fase de personalização inteira vai rodar por este canal.
+pub fn subscription(_state: &State) -> iced::Subscription<Message> {
+    iced::Subscription::run(high_contrast_subscription)
+}
+
+/// Builder do stream do sinal (fn pointer = identidade da subscription).
+/// Conecta lazy; emite a cada sinal. Se a conexão falhar, fica `pending`
+/// (não derruba o app — só não tem HC ao vivo).
+fn high_contrast_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match crate::ipc::high_contrast_signal_stream().await {
+            Ok(s) => s.map(Message::HighContrastChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-config: subscription de alto contraste falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 pub fn view(state: &State) -> Element<'_, Message> {
@@ -438,7 +522,9 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
     )
 }
 
-/// Página da categoria **Contraste** (2d.2). Estado local.
+/// Página da categoria **Contraste**. "Alto contraste" é wirado (HC parte
+/// 2): o toggle escreve via D-Bus e o app re-resolve a paleta ao vivo pelo
+/// sinal de mudança. "Reduzir transparência" segue local (2d.2).
 fn contrast_page(c: Contrast) -> Element<'static, Message> {
     libluma::settings_group(
         None,
