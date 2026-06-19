@@ -10,11 +10,14 @@ use iced::widget::{column, container, responsive, scrollable, svg, text};
 use iced::{Background, Border, Element, Length, Padding, Task, Theme};
 use libluma::{GoldenHour, GridItem, GridSection};
 
-/// Estado do app: paleta + taxonomia + qual view está aberta.
+/// Estado do app: paleta + taxonomia + qual view está aberta + estado
+/// local dos controles (sem efeito real ainda; o wiring no compositor via
+/// D-Bus é um passo depois).
 pub struct State {
     gh: GoldenHour,
     taxonomy: Vec<GridSection<'static, Message>>,
     view: View,
+    touch: TouchTargets,
 }
 
 /// Tela visível: a grade (landing) ou a página de uma categoria.
@@ -22,6 +25,28 @@ pub struct State {
 enum View {
     Grid,
     Category(&'static str),
+}
+
+/// Estado local da página **Alvos de toque** (2d). Modelo A: cada
+/// categoria tem suas próprias configurações. Sem efeito real ainda.
+#[derive(Debug, Clone, Copy)]
+struct TouchTargets {
+    /// Alvos de toque maiores (default ligado, igual o mockup).
+    larger: bool,
+    /// Tamanho mínimo do alvo em px (>= 44, o piso WCAG AAA).
+    min_size: f32,
+    /// Realçar o foco do teclado.
+    highlight_focus: bool,
+}
+
+impl Default for TouchTargets {
+    fn default() -> Self {
+        Self {
+            larger: true,
+            min_size: 44.0,
+            highlight_focus: false,
+        }
+    }
 }
 
 impl State {
@@ -32,23 +57,31 @@ impl State {
             gh,
             taxonomy,
             view: View::Grid,
+            touch: TouchTargets::default(),
         }
     }
 }
 
-/// Mensagens da UI (navegação, 2c).
+/// Mensagens da UI (navegação 2c + controles locais 2d).
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Abrir a página de uma categoria (o `&str` é o título/id dela).
     OpenCategory(&'static str),
     /// Voltar pra grade.
     Back,
+    // Página Alvos de toque (estado local; sem backend ainda).
+    TouchLarger(bool),
+    TouchMinSize(f32),
+    TouchHighlightFocus(bool),
 }
 
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::OpenCategory(label) => state.view = View::Category(label),
         Message::Back => state.view = View::Grid,
+        Message::TouchLarger(v) => state.touch.larger = v,
+        Message::TouchMinSize(v) => state.touch.min_size = v,
+        Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
     }
     Task::none()
 }
@@ -95,10 +128,18 @@ pub fn view(state: &State) -> Element<'_, Message> {
                     .into()
             }
             View::Category(label) => {
-                // Drill-in (2c): cabeçalho de voltar + stub (conteúdo é 2d).
+                // Drill-in (2c) + conteúdo (2d). Modelo A: cada categoria
+                // tem sua página. Por ora só "Alvos de toque" é real; o
+                // resto segue stub até a sua vez.
                 let header = libluma::page_header(label, Message::Back);
-                let stub = text("Conteúdo em breve").size(14).color(gh.honey_dim);
-                column(vec![header, stub.into()])
+                let body: Element<'_, Message> = match label {
+                    "Alvos de toque" => touch_targets_page(state.touch),
+                    _ => text("Conteúdo em breve")
+                        .size(14)
+                        .color(gh.honey_dim)
+                        .into(),
+                };
+                column(vec![header, body])
                     .spacing(24)
                     .width(Length::Fill)
                     .into()
@@ -118,10 +159,36 @@ pub fn view(state: &State) -> Element<'_, Message> {
     .into()
 }
 
+/// Página da categoria **Alvos de toque** (2d). Um `SettingsGroup` com as
+/// configurações DESSA categoria; estado local (sem backend ainda). As
+/// outras configs de acessibilidade (contraste, movimento, sino) moram nas
+/// suas próprias páginas, que vêm depois.
+fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
+    libluma::settings_group(
+        None,
+        vec![
+            libluma::toggle_row("Alvos de toque maiores", t.larger, Message::TouchLarger),
+            libluma::slider_row(
+                "Tamanho mínimo do alvo",
+                t.min_size,
+                44.0..=64.0,
+                1.0,
+                "px",
+                Message::TouchMinSize,
+            ),
+            libluma::toggle_row(
+                "Realçar foco do teclado",
+                t.highlight_focus,
+                Message::TouchHighlightFocus,
+            ),
+        ],
+    )
+}
+
 /// Taxonomia travada. Hues resolvidas da paleta Golden Hour; cada
 /// categoria mapeia pro seu ícone do pack (`assets/icons/<nome>.svg`,
 /// monocromático `currentColor`). O `libluma` recebe o handle e tinge na
-/// hue da seção. Enabled hoje: Widgets e Wallpaper.
+/// hue da seção. Enabled hoje: Widgets, Wallpaper e Alvos de toque.
 fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
     // Handle de svg do pack (bundlado via include_bytes — sem dor de path).
     macro_rules! icon {
@@ -159,7 +226,7 @@ fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
             label: "Acessibilidade",
             hue: gh.sage,
             items: vec![
-                item("Alvos de toque", icon!("alvos-de-toque"), false),
+                item("Alvos de toque", icon!("alvos-de-toque"), true),
                 item("Contraste", icon!("contraste"), false),
                 item("Sino visual", icon!("sino-visual"), false),
                 item("Movimento", icon!("movimento"), false),
