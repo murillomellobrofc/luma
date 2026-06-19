@@ -28,6 +28,14 @@ pub trait Compositor {
 
     /// Liga/desliga o sino visual no compositor ao vivo (3a).
     async fn set_visual_bell_enabled(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Modo seguro pra fotossensibilidade (3c).
+    async fn photosafe_enabled(&self) -> zbus::Result<bool>;
+    async fn set_photosafe_enabled(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Intensidade do flash em % 0–100 (3c) — primeiro setting numérico.
+    async fn flash_intensity(&self) -> zbus::Result<u8>;
+    async fn set_flash_intensity(&self, intensity: u8) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -81,6 +89,40 @@ pub async fn write_visual_bell(conn: zbus::Connection, enabled: bool) -> Result<
         .map_err(|e| e.to_string())?;
     proxy
         .set_visual_bell_enabled(enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Lê os TRÊS settings do sino visual de uma vez (3c), pra o `read-on-open`
+/// inicializar a página inteira: `(visual_bell, photosafe, intensidade%)`.
+pub async fn read_bell_settings(conn: zbus::Connection) -> Result<(bool, bool, u8), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let enabled = proxy.visual_bell_enabled().await.map_err(|e| e.to_string())?;
+    let photosafe = proxy.photosafe_enabled().await.map_err(|e| e.to_string())?;
+    let intensity = proxy.flash_intensity().await.map_err(|e| e.to_string())?;
+    Ok((enabled, photosafe, intensity))
+}
+
+/// Escreve o modo fotossensibilidade (3c).
+pub async fn write_photosafe(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_photosafe_enabled(enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Escreve a intensidade do flash em % (3c). Commitado no soltar do slider.
+pub async fn write_flash_intensity(conn: zbus::Connection, intensity: u8) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_flash_intensity(intensity)
         .await
         .map_err(|e| e.to_string())
 }

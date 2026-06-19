@@ -753,6 +753,8 @@ impl LumaState {
         if let Some(s) = crate::settings::load() {
             if let Ok(mut g) = notifications_slot.lock() {
                 g.flash_enabled = s.accessibility.visual_bell_enabled;
+                g.flash_photosafe = s.accessibility.photosafe_enabled;
+                g.flash_intensity = s.accessibility.flash_intensity;
             }
         }
         // Fatia 4 widgets: pipeline completo de carga, já distribuído

@@ -24,22 +24,32 @@ pub struct Settings {
     pub accessibility: Accessibility,
 }
 
-/// Seção `[accessibility]`. 3b só persiste o sino visual; os outros campos
-/// (modo fotossensibilidade, intensidade) entram aqui quando forem wirados.
+/// Seção `[accessibility]`. 3b persistiu o sino visual; 3c soma o modo
+/// fotossensibilidade e a intensidade do flash. Graceful: um `settings.toml`
+/// antigo (só `visual_bell_enabled`) carrega liso e ganha os defaults nos
+/// campos novos (via `#[serde(default)]` + `Default`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Accessibility {
     /// Sino visual (piscada de tela). Espelha o `flash_enabled` em memória.
     pub visual_bell_enabled: bool,
+    /// Modo seguro pra fotossensibilidade (3c). Ligado = a intensidade
+    /// efetiva é capada num teto seguro, sem território de estrobo.
+    pub photosafe_enabled: bool,
+    /// Intensidade do flash em % (3c, 0–100). Escala a força da piscada.
+    pub flash_intensity: u8,
 }
 
 impl Default for Accessibility {
     fn default() -> Self {
-        // Mesmo default do token `flash_enabled_default` (OFF). Só vale
-        // quando o arquivo existe mas omite o campo; sem arquivo, o boot
-        // usa o token direto (ver `settings_path` ausente → `load` = None).
+        // Defaults: sino OFF (igual token `flash_enabled_default`),
+        // fotossensibilidade ON (seguro por padrão), intensidade 60%.
+        // Só valem quando o arquivo existe mas omite o campo; sem arquivo,
+        // o boot usa os defaults do compositor (`load` = None).
         Self {
             visual_bell_enabled: false,
+            photosafe_enabled: true,
+            flash_intensity: 60,
         }
     }
 }

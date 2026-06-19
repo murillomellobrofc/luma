@@ -110,26 +110,59 @@ impl CompositorService {
         }
     }
 
-    /// Liga/desliga o **sino visual**. Gira o `flash_enabled` que o
-    /// consumidor de alertas checa antes de piscar (winit.rs). 3a. Sem
-    /// persistência em disco ainda (vale pela sessão do compositor).
+    /// Liga/desliga o **sino visual**. Gira o `flash_enabled` (memória, 3a)
+    /// e persiste no disco (3b). O gate de alerta (winit.rs) checa o flag.
     async fn set_visual_bell_enabled(&self, enabled: bool) {
-        // 1) memória (3a): gira o flag que o gate de alerta checa.
+        if let Ok(mut g) = self.notifications.lock() {
+            g.flash_enabled = enabled;
+            info!("D-Bus: sino visual = {enabled}");
+        } else {
+            error!("D-Bus: lock de notificações envenenado ao setar sino visual");
+        }
+        persist_accessibility(&self.notifications);
+    }
+
+    /// Estado do **modo seguro pra fotossensibilidade** (3c). `true` = a
+    /// intensidade efetiva é capada no teto seguro, sem estrobo.
+    async fn photosafe_enabled(&self) -> bool {
         match self.notifications.lock() {
-            Ok(mut g) => {
-                g.flash_enabled = enabled;
-                info!("D-Bus: sino visual = {enabled}");
-            }
-            Err(_) => error!("D-Bus: lock de notificações envenenado ao setar sino visual"),
+            Ok(g) => g.flash_photosafe,
+            Err(_) => true,
         }
-        // 2) disco (3b): persiste pra sobreviver ao restart. Load-modify-save
-        // preserva campos futuros; escrita atômica via .tmp + rename. Falha
-        // de I/O não derruba nada — loga e segue (a memória já mudou).
-        let mut settings = crate::settings::load().unwrap_or_default();
-        settings.accessibility.visual_bell_enabled = enabled;
-        if let Err(err) = crate::settings::save(&settings) {
-            error!("D-Bus: falha ao persistir settings do sino visual: {err}");
+    }
+
+    /// Liga/desliga o modo seguro pra fotossensibilidade (3c). Memória +
+    /// disco. Com ON, o cap de segurança vale na aplicação do flash.
+    async fn set_photosafe_enabled(&self, enabled: bool) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.flash_photosafe = enabled;
+            info!("D-Bus: photosafe = {enabled}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar photosafe");
         }
+        persist_accessibility(&self.notifications);
+    }
+
+    /// **Intensidade do flash** em % (3c, 0–100). Primeiro setting numérico
+    /// do stack. Escala a força da piscada (com o cap do photosafe).
+    async fn flash_intensity(&self) -> u8 {
+        match self.notifications.lock() {
+            Ok(g) => g.flash_intensity,
+            Err(_) => 60,
+        }
+    }
+
+    /// Seta a intensidade do flash (3c). Clampa em 0–100 por segurança.
+    /// Memória + disco.
+    async fn set_flash_intensity(&self, intensity: u8) {
+        let clamped = intensity.min(100);
+        if let Ok(mut g) = self.notifications.lock() {
+            g.flash_intensity = clamped;
+            info!("D-Bus: intensidade do flash = {clamped}%");
+        } else {
+            error!("D-Bus: lock envenenado ao setar intensidade");
+        }
+        persist_accessibility(&self.notifications);
     }
 
     /// Gatilho de teste do sino visual (3a): injeta uma notificação fake,
@@ -140,6 +173,28 @@ impl CompositorService {
     async fn emit_test_bell(&self) {
         crate::notifications::inject_test_notification(&self.notifications);
         info!("D-Bus: EmitTestBell — notificação de teste injetada");
+    }
+}
+
+/// Persiste a seção `[accessibility]` a partir da MEMÓRIA (o slot é a fonte
+/// de verdade). Escrita atômica via `settings::save`. Falha de I/O loga e
+/// segue — a memória já mudou. NÃO segura o lock ao salvar (lock liberado
+/// antes do I/O), pra não travar quem lê o slot no render. 3b/3c.
+fn persist_accessibility(notifications: &NotificationsSlot) {
+    let accessibility = match notifications.lock() {
+        Ok(g) => crate::settings::Accessibility {
+            visual_bell_enabled: g.flash_enabled,
+            photosafe_enabled: g.flash_photosafe,
+            flash_intensity: g.flash_intensity,
+        },
+        Err(_) => {
+            error!("D-Bus: lock envenenado ao persistir acessibilidade");
+            return;
+        }
+    };
+    let settings = crate::settings::Settings { accessibility };
+    if let Err(err) = crate::settings::save(&settings) {
+        error!("D-Bus: falha ao persistir settings de acessibilidade: {err}");
     }
 }
 

@@ -142,11 +142,18 @@ pub enum Message {
     SearchChanged(String),
     /// Resultado da conexão D-Bus do boot (3a). Ok guarda a conexão.
     Connected(Result<zbus::Connection, String>),
-    /// Estado real do sino visual lido do compositor ao abrir a página (3a).
-    BellLoaded(Result<bool, String>),
+    /// Os 3 settings do Sino visual lidos do compositor ao abrir a página
+    /// (3c): `(visual_bell, photosafe, intensidade%)`.
+    BellSettingsLoaded(Result<(bool, bool, u8), String>),
     /// Resultado de escrever o sino visual (3a). Carrega o valor tentado
     /// pra reverter o otimismo se a escrita falhar.
     BellWritten(bool, Result<(), String>),
+    /// Resultado de escrever o photosafe (3c); reverte se falhar.
+    PhotosafeWritten(bool, Result<(), String>),
+    /// Slider de intensidade SOLTO (3c) — é aqui que commita no D-Bus/disco.
+    BellIntensityReleased,
+    /// Resultado de escrever a intensidade (3c); só loga se falhar.
+    IntensityWritten(Result<(), String>),
     // Página Alvos de toque (estado local; sem backend ainda).
     TouchLarger(bool),
     TouchMinSize(f32),
@@ -171,9 +178,11 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             // o toggle iniciar certo (não com um default chutado). 3a.
             if label == "Sino visual" {
                 if let Some(conn) = &state.conn {
+                    // Lê os 3 settings reais do compositor pra a página
+                    // iniciar certa (não com defaults chutados). 3c.
                     return Task::perform(
-                        crate::ipc::read_visual_bell(conn.clone()),
-                        Message::BellLoaded,
+                        crate::ipc::read_bell_settings(conn.clone()),
+                        Message::BellSettingsLoaded,
                     );
                 }
             }
@@ -184,15 +193,29 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::Connected(Err(e)) => {
             eprintln!("luma-config: sem conexão D-Bus com o compositor: {e}");
         }
-        Message::BellLoaded(Ok(v)) => state.bell.enabled = v,
-        Message::BellLoaded(Err(e)) => {
-            eprintln!("luma-config: ler sino visual falhou: {e}");
+        Message::BellSettingsLoaded(Ok((enabled, photosafe, intensity))) => {
+            state.bell.enabled = enabled;
+            state.bell.photosafe = photosafe;
+            state.bell.flash_intensity = intensity as f32;
+        }
+        Message::BellSettingsLoaded(Err(e)) => {
+            eprintln!("luma-config: ler settings do sino visual falhou: {e}");
         }
         Message::BellWritten(_, Ok(())) => {}
         Message::BellWritten(attempted, Err(e)) => {
             // Não quebra a UI: loga e reverte o otimismo pro estado anterior.
             eprintln!("luma-config: escrever sino visual falhou: {e}");
             state.bell.enabled = !attempted;
+        }
+        Message::PhotosafeWritten(_, Ok(())) => {}
+        Message::PhotosafeWritten(attempted, Err(e)) => {
+            eprintln!("luma-config: escrever photosafe falhou: {e}");
+            state.bell.photosafe = !attempted;
+        }
+        Message::IntensityWritten(Ok(())) => {}
+        Message::IntensityWritten(Err(e)) => {
+            // Não reverte (re-lê na próxima abertura); só loga.
+            eprintln!("luma-config: escrever intensidade falhou: {e}");
         }
         Message::TouchLarger(v) => state.touch.larger = v,
         Message::TouchMinSize(v) => state.touch.min_size = v,
@@ -215,8 +238,34 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                 eprintln!("luma-config: sem conexão D-Bus; toggle do sino visual ignorado");
             }
         }
-        Message::BellPhotosafe(v) => state.bell.photosafe = v,
-        Message::BellFlashIntensity(v) => state.bell.flash_intensity = v,
+        Message::BellPhotosafe(v) => {
+            // Toggle: commita na hora (evento único). Otimista + reverte.
+            if let Some(conn) = &state.conn {
+                state.bell.photosafe = v;
+                return Task::perform(
+                    crate::ipc::write_photosafe(conn.clone(), v),
+                    move |r| Message::PhotosafeWritten(v, r),
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; photosafe ignorado");
+            }
+        }
+        Message::BellFlashIntensity(v) => {
+            // Arraste do slider: só atualiza a UI ao vivo. O commit
+            // (D-Bus + disco) acontece no soltar — ver BellIntensityReleased.
+            state.bell.flash_intensity = v;
+        }
+        Message::BellIntensityReleased => {
+            // Soltou o slider: commita o valor atual. Sem martelar o disco
+            // durante o arraste — só este disparo único.
+            if let Some(conn) = &state.conn {
+                let intensity = state.bell.flash_intensity.round() as u8;
+                return Task::perform(
+                    crate::ipc::write_flash_intensity(conn.clone(), intensity),
+                    Message::IntensityWritten,
+                );
+            }
+        }
     }
     Task::none()
 }
@@ -341,6 +390,7 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
                 1.0,
                 "px",
                 Message::TouchMinSize,
+                None, // local-only (2d); sem commit no backend
             ),
             libluma::toggle_row(
                 "Realçar foco do teclado",
@@ -380,13 +430,15 @@ fn motion_page(m: Motion) -> Element<'static, Message> {
                 25.0,
                 "%",
                 Message::MotionAnimSpeed,
+                None, // local-only (2d.2)
             ),
         ],
     )
 }
 
-/// Página da categoria **Sino visual** (2d.2). Flash da tela no lugar do
-/// som; modo seguro pra fotossensibilidade ligado por padrão. Estado local.
+/// Página da categoria **Sino visual**. Flash da tela no lugar do som.
+/// Totalmente wirada (3a/3c): os 3 controles leem/escrevem o compositor via
+/// D-Bus e persistem. O slider de intensidade commita no soltar.
 fn visual_bell_page(b: VisualBell) -> Element<'static, Message> {
     libluma::settings_group(
         None,
@@ -404,6 +456,8 @@ fn visual_bell_page(b: VisualBell) -> Element<'static, Message> {
                 10.0,
                 "%",
                 Message::BellFlashIntensity,
+                // Commit no SOLTAR (3c): arraste só mexe a UI; aqui grava.
+                Some(Message::BellIntensityReleased),
             ),
         ],
     )
