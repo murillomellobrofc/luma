@@ -192,8 +192,15 @@ pub struct NotificationsState {
     pub sound_enabled: bool,
     /// Toggle da piscada de tela (visual bell). Independente de som
     /// e DND. Default por preset (`flash_enabled_default` token).
-    /// Sem toggle de usuário até a tela de settings existir. H54.P7.
+    /// Persistido em settings.toml (3a/3b). H54.P7.
     pub flash_enabled: bool,
+    /// Modo seguro pra fotossensibilidade (3c). Ligado = a intensidade
+    /// efetiva é capada no teto seguro do token (nunca passa de estrobo),
+    /// mesmo com a intensidade no talo. Persistido. Default ON.
+    pub flash_photosafe: bool,
+    /// Intensidade do flash em % (3c, 0–100). Escala o peak alpha: 60% é o
+    /// baseline (= peak do token). Persistido. Default 60.
+    pub flash_intensity: u8,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -338,12 +345,22 @@ pub fn flash_alpha_now(
     if elapsed_ms >= total {
         return None;
     }
-    let (color, peak) = match urgency {
+    let (color, ceiling) = match urgency {
         Urgency::Critical => (
             tokens.flash_critical_color,
             tokens.flash_critical_peak_alpha,
         ),
         _ => (tokens.flash_normal_color, tokens.flash_normal_peak_alpha),
+    };
+    // 3c: intensidade escala o peak (60% = baseline, peak = ceiling do
+    // token). photosafe ON cama no ceiling seguro mesmo no talo (cap de
+    // segurança PCD — nunca território de estrobo). OFF permite subir, com
+    // teto absoluto de 1.8× pra não estourar.
+    let scale = state.flash_intensity as f32 / 60.0;
+    let peak = if state.flash_photosafe {
+        (ceiling * scale).min(ceiling)
+    } else {
+        (ceiling * scale).min(ceiling * 1.8)
     };
     let alpha = if elapsed_ms < fi {
         // Fade-in: ease_out cresce de 0 a peak.
@@ -462,6 +479,8 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         dnd_enabled: false,
         sound_enabled: t_n.sound_enabled_default,
         flash_enabled: t_n.flash_enabled_default,
+        flash_photosafe: true,
+        flash_intensity: 60,
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,

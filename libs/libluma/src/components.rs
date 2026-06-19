@@ -477,8 +477,11 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
 }
 
 /// Linha de ajuste com slider + valor (ex: "44 px"). `range`/`step` definem
-/// o intervalo; `on_change` recebe o novo valor enquanto arrasta. O valor é
-/// formatado como inteiro + `unit`. Estado mora no app.
+/// o intervalo; `on_change` recebe o novo valor **a cada tick** enquanto
+/// arrasta (atualiza a UI ao vivo). `on_release` (opcional) dispara **uma
+/// vez ao soltar** — é onde o app deve commitar (D-Bus/disco), pra o
+/// arraste não martelar o backend. O valor é formatado como inteiro +
+/// `unit`. Estado mora no app.
 pub fn slider_row<'a, Msg: Clone + 'a>(
     label: &'a str,
     value: f32,
@@ -486,6 +489,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
     step: f32,
     unit: &'a str,
     on_change: impl Fn(f32) -> Msg + 'a,
+    on_release: Option<Msg>,
 ) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
     let secondary = tokens::to_iced(luma_tokens::Palette::GOLDEN_HOUR.cream_dim);
@@ -511,6 +515,11 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
                 border_color: Color::TRANSPARENT,
             },
         });
+    // Commit no soltar: só registra se o app passou a mensagem.
+    let sld = match on_release {
+        Some(msg) => sld.on_release(msg),
+        None => sld,
+    };
 
     let val = text(format!("{value:.0} {unit}"))
         .size(13.0)
