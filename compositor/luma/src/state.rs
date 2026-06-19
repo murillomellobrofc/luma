@@ -755,6 +755,7 @@ impl LumaState {
                 g.flash_enabled = s.accessibility.visual_bell_enabled;
                 g.flash_photosafe = s.accessibility.photosafe_enabled;
                 g.flash_intensity = s.accessibility.flash_intensity;
+                g.reduce_motion = s.accessibility.reduce_motion;
             }
         }
         // Fatia 4 widgets: pipeline completo de carga, já distribuído

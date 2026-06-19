@@ -36,6 +36,10 @@ pub trait Compositor {
     /// Intensidade do flash em % 0–100 (3c) — primeiro setting numérico.
     async fn flash_intensity(&self) -> zbus::Result<u8>;
     async fn set_flash_intensity(&self, intensity: u8) -> zbus::Result<()>;
+
+    /// Reduzir movimento (3d).
+    async fn reduce_motion(&self) -> zbus::Result<bool>;
+    async fn set_reduce_motion(&self, enabled: bool) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -123,6 +127,25 @@ pub async fn write_flash_intensity(conn: zbus::Connection, intensity: u8) -> Res
         .map_err(|e| e.to_string())?;
     proxy
         .set_flash_intensity(intensity)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Lê o reduzir movimento do compositor (3d). Pro read-on-open do Movimento.
+pub async fn read_reduce_motion(conn: zbus::Connection) -> Result<bool, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.reduce_motion().await.map_err(|e| e.to_string())
+}
+
+/// Escreve o reduzir movimento (3d). Toggle, commitado na hora.
+pub async fn write_reduce_motion(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_reduce_motion(enabled)
         .await
         .map_err(|e| e.to_string())
 }
