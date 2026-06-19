@@ -6,8 +6,8 @@
 //! deste app); o `libluma` fornece só o componente. Navegação ao clicar
 //! (2c), busca funcional (2e) e ícones de verdade (2b.3) ainda não entram.
 
-use iced::widget::{column, container, responsive, scrollable, svg, text};
-use iced::{Background, Border, Element, Length, Padding, Task, Theme};
+use iced::widget::{column, container, responsive, scrollable, svg, text, text_input};
+use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme};
 use libluma::{GoldenHour, GridItem, GridSection};
 
 /// Estado do app: paleta + taxonomia + qual view está aberta + estado
@@ -17,6 +17,8 @@ pub struct State {
     gh: GoldenHour,
     taxonomy: Vec<GridSection<'static, Message>>,
     view: View,
+    /// Texto da busca da landing (2e). Vazio = grade inteira.
+    query: String,
     touch: TouchTargets,
     contrast: Contrast,
     motion: Motion,
@@ -104,6 +106,7 @@ impl State {
             gh,
             taxonomy,
             view: View::Grid,
+            query: String::new(),
             touch: TouchTargets::default(),
             contrast: Contrast::default(),
             motion: Motion::default(),
@@ -119,6 +122,8 @@ pub enum Message {
     OpenCategory(&'static str),
     /// Voltar pra grade.
     Back,
+    /// Texto da busca mudou (2e).
+    SearchChanged(String),
     // Página Alvos de toque (estado local; sem backend ainda).
     TouchLarger(bool),
     TouchMinSize(f32),
@@ -139,6 +144,7 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::OpenCategory(label) => state.view = View::Category(label),
         Message::Back => state.view = View::Grid,
+        Message::SearchChanged(q) => state.query = q,
         Message::TouchLarger(v) => state.touch.larger = v,
         Message::TouchMinSize(v) => state.touch.min_size = v,
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
@@ -175,21 +181,49 @@ pub fn view(state: &State) -> Element<'_, Message> {
         let inner: Element<'_, Message> = match state.view {
             View::Grid => {
                 let cols = libluma::columns_for(content_w);
-                // Barra de busca estática (só visual; 2e), alinhada com a grade.
-                let search =
-                    container(text("Buscar configurações…").size(14).color(gh.honey_dim))
-                        .padding([10, 14])
-                        .width(Length::Fill)
-                        .style(move |_theme| container::Style {
-                            background: Some(Background::Color(surface)),
+                // Busca funcional (2e): text_input estilizado Golden Hour.
+                let amber = gh.amber;
+                let cream = gh.cream;
+                let honey_dim = gh.honey_dim;
+                let search = text_input("Buscar configurações…", &state.query)
+                    .on_input(Message::SearchChanged)
+                    .padding([10, 14])
+                    .size(14)
+                    .width(Length::Fill)
+                    .style(move |_theme, status| {
+                        let focused = matches!(status, text_input::Status::Focused { .. });
+                        text_input::Style {
+                            background: Background::Color(surface),
                             border: Border {
                                 radius: 12.0.into(),
-                                ..Default::default()
+                                width: if focused { 1.5 } else { 0.0 },
+                                color: amber,
                             },
-                            ..Default::default()
-                        });
-                let grid = libluma::category_grid::<Message>(&state.taxonomy, cols);
-                column(vec![search.into(), grid.into()])
+                            icon: cream,
+                            placeholder: honey_dim,
+                            value: cream,
+                            selection: Color { a: 0.3, ..amber },
+                        }
+                    });
+
+                // Filtra a taxonomia pela query (case/accent-insensitive). Query
+                // vazia => predicado sempre verdadeiro => grade inteira. Sem
+                // match => mensagem no lugar da grade.
+                let q = search_fold(&state.query);
+                let body: Element<'_, Message> = match libluma::category_grid_filtered::<Message>(
+                    &state.taxonomy,
+                    cols,
+                    move |label| search_fold(label).contains(&q),
+                ) {
+                    Some(grid) => grid,
+                    None => text("Nenhuma configuração encontrada")
+                        .size(14)
+                        .color(gh.honey_dim)
+                        .width(Length::Fill)
+                        .center()
+                        .into(),
+                };
+                column(vec![search.into(), body])
                     .spacing(20)
                     .width(Length::Fill)
                     .into()
@@ -311,6 +345,26 @@ fn visual_bell_page(b: VisualBell) -> Element<'static, Message> {
             ),
         ],
     )
+}
+
+/// Fold pra busca (2e): minúsculas (unicode) + remove acento comum (PT-BR),
+/// pra "camera" achar "Câmera" e "transferencia" achar "Área de
+/// transferência". Aplicado nos dois lados da comparação. Piso é substring
+/// case-insensitive; o accent-fold é o que faz a busca parecer esperta.
+fn search_fold(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        })
+        .collect()
 }
 
 /// Taxonomia travada. Hues resolvidas da paleta Golden Hour; cada

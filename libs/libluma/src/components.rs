@@ -163,6 +163,36 @@ pub fn category_grid<'a, Msg: Clone + 'static>(
     column(section_views).spacing(SECTION_GAP).into()
 }
 
+/// Como [`category_grid`], mas filtrando os tiles por um predicado sobre o
+/// label (a busca da landing, 2e). Itens cujo label não casa somem; seções
+/// que ficam sem nenhum item somem inteiras (label junto). Retorna `None`
+/// se **nada** casou — aí o app mostra o estado vazio. O predicado decide
+/// o matching (o app aplica o fold case/accent-insensitive de seu lado).
+pub fn category_grid_filtered<'a, Msg: Clone + 'static>(
+    sections: &'a [GridSection<'a, Msg>],
+    cols: usize,
+    matches: impl Fn(&str) -> bool,
+) -> Option<Element<'a, Msg>> {
+    let cols = cols.max(1);
+    let section_views: Vec<Element<'a, Msg>> = sections
+        .iter()
+        .filter_map(|s| {
+            let items: Vec<&'a GridItem<'a, Msg>> =
+                s.items.iter().filter(|it| matches(it.label)).collect();
+            if items.is_empty() {
+                None
+            } else {
+                Some(section_chrome::<Msg>(s.label, s.hue, items, cols))
+            }
+        })
+        .collect();
+    if section_views.is_empty() {
+        None
+    } else {
+        Some(column(section_views).spacing(SECTION_GAP).into())
+    }
+}
+
 /// Estilo Golden Hour da barra de rolagem (pro `.style(...)` de um
 /// `scrollable`): fina, trilho invisível, puxador em `warm_neutral`,
 /// âmbar no hover/drag. Tokens do `libluma`, não o cinza padrão do iced.
@@ -211,8 +241,20 @@ fn section_view<'a, Msg: Clone + 'static>(
     s: &'a GridSection<'a, Msg>,
     cols: usize,
 ) -> Element<'a, Msg> {
+    section_chrome::<Msg>(s.label, s.hue, s.items.iter().collect(), cols)
+}
+
+/// Monta a seção (label + dot na hue + grade de tiles) a partir de uma
+/// lista de itens já escolhida. Compartilhado pela grade cheia
+/// ([`category_grid`]) e pela filtrada ([`category_grid_filtered`]), pra o
+/// chrome da seção sair de um lugar só.
+fn section_chrome<'a, Msg: Clone + 'static>(
+    label: &'a str,
+    hue: Color,
+    items: Vec<&'a GridItem<'a, Msg>>,
+    cols: usize,
+) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
-    let hue = s.hue;
 
     // Dot na hue da seção + label.
     let dot = container(text(""))
@@ -226,13 +268,12 @@ fn section_view<'a, Msg: Clone + 'static>(
             },
             ..Default::default()
         });
-    let header = row(vec![dot.into(), text(s.label).size(16.0).color(cream).into()])
+    let header = row(vec![dot.into(), text(label).size(16.0).color(cream).into()])
         .spacing(8)
         .align_y(Alignment::Center);
 
     // Grade: linhas de `cols` tiles.
-    let tile_rows: Vec<Element<'a, Msg>> = s
-        .items
+    let tile_rows: Vec<Element<'a, Msg>> = items
         .chunks(cols)
         .map(|chunk| {
             let tiles: Vec<Element<'a, Msg>> = chunk
