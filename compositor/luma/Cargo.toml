@@ -22,7 +22,8 @@ resvg = { version = "0.44", default-features = false }
 tiny-skia = { version = "0.11", default-features = false, features = ["std"] }
 usvg = { version = "0.44", default-features = false }
 serde = { version = "1", features = ["derive"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+# "display" (serialize) entra no 3b: o compositor SALVA o settings.toml.
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
 # Modo de edição: read-write preservando comentários/formatação no
 # layout.toml. toml_edit é o que o cargo usa por baixo do toml; só
 # entrou no luma-bar (não no luma-theme) porque só aqui precisa.
