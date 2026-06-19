@@ -22,6 +22,12 @@ pub trait Compositor {
     /// (`"panel"` ou `"desktop"`). Erro de domínio
     /// (target inválido, tipo desconhecido) vira `InvalidArgs`.
     async fn add_widget(&self, type_name: &str, target: &str) -> zbus::Result<()>;
+
+    /// Estado atual do sino visual (3a). `true` = piscada dispara em alertas.
+    async fn visual_bell_enabled(&self) -> zbus::Result<bool>;
+
+    /// Liga/desliga o sino visual no compositor ao vivo (3a).
+    async fn set_visual_bell_enabled(&self, enabled: bool) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -46,4 +52,35 @@ pub async fn add_widget(type_name: String, target: &'static str) -> zbus::Result
     let conn = zbus::Connection::session().await?;
     let proxy = CompositorProxy::new(&conn).await?;
     proxy.add_widget(&type_name, target).await
+}
+
+// ─── Sino visual (3a) ─────────────────────────────────────────────────
+//
+// O app guarda UMA `zbus::Connection` no estado (estabelecida no boot) e a
+// clona pra cada chamada — a `Connection` é `Arc` por dentro, clone é
+// barato. Os erros viram `String` (Clone + Debug) pra viajarem na `Message`
+// do iced. Sem panic: a UI segue mesmo se o compositor não responder.
+
+/// Estabelece a conexão com o session bus (chamada no boot do app).
+pub async fn connect() -> Result<zbus::Connection, String> {
+    zbus::Connection::session().await.map_err(|e| e.to_string())
+}
+
+/// Lê o estado atual do sino visual do compositor.
+pub async fn read_visual_bell(conn: zbus::Connection) -> Result<bool, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.visual_bell_enabled().await.map_err(|e| e.to_string())
+}
+
+/// Escreve o estado do sino visual no compositor.
+pub async fn write_visual_bell(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_visual_bell_enabled(enabled)
+        .await
+        .map_err(|e| e.to_string())
 }

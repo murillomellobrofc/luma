@@ -23,7 +23,9 @@ fn main() -> iced::Result {
     // volta na 2c); parsear cedo só garante que args válidos não quebrem.
     let _cli = flags::CliArgs::parse();
 
-    iced::application(app::State::new, app::update, app::view)
+    // boot (3a) devolve (estado, Task) — o Task estabelece a conexão D-Bus
+    // com o compositor em background, sem travar a subida da janela.
+    iced::application(app::boot, app::update, app::view)
         // O título é lido pelo compositor pra desenhar o header oficial.
         .title("Configurações do Luma")
         .theme(app::theme)

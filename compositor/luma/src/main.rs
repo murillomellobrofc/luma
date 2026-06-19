@@ -118,7 +118,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .collect()
         })
         .unwrap_or_default();
-    dbus_server::spawn(dbus_tx, available);
+    // Slot de notificações compartilhado (clone do Arc) pro sino visual (3a):
+    // o servidor D-Bus lê/escreve `flash_enabled` direto dele.
+    let notifications_slot = data.state.notifications.clone();
+    dbus_server::spawn(dbus_tx, available, notifications_slot);
 
     info!("luma pronto, entrando no loop principal");
 
