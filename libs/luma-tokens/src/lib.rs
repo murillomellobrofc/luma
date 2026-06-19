@@ -155,6 +155,10 @@ pub struct Palette {
     /// "Sistema". Único valor de cor novo do 2b.1 — não existia primitivo
     /// neutro quente; mora aqui, na fonte única, nunca no libluma.
     pub warm_neutral: Color,
+    /// Terracota (#D98E5E). Hue da seção "Dispositivos" (2f). Glifo sobre o
+    /// surface (#3E3632) dá 4.49:1 — passa AA folgado. Primitivo novo na
+    /// fonte única; nunca hex solto no app.
+    pub terracota: Color,
     /// Chrome de janela (#1B1714) — fundo da barra de título custom,
     /// um tom só abaixo do canvas. Token novo do M2 (moldura Golden
     /// Hour); mora aqui, na fonte única, nunca hardcoded no libluma.
@@ -174,6 +178,7 @@ impl Palette {
         amber: Color::rgb8(0xE8, 0x9B, 0x3D),
         cream_dim: Color::rgb8(0xA8, 0x9D, 0x92),
         warm_neutral: Color::rgb8(0x9C, 0x8B, 0x79),
+        terracota: Color::rgb8(0xD9, 0x8E, 0x5E),
         chrome: Color::rgb8(0x1B, 0x17, 0x14),
     };
 
@@ -194,6 +199,7 @@ impl Palette {
             amber: over(ov.amber, d.amber),
             cream_dim: over(ov.cream_dim, d.cream_dim),
             warm_neutral: over(ov.warm_neutral, d.warm_neutral),
+            terracota: over(ov.terracota, d.terracota),
             chrome: over(ov.chrome, d.chrome),
         }
     }
@@ -217,6 +223,7 @@ impl Palette {
             amber: c.accent_amber.as_deref(),
             cream_dim: c.text_secondary.as_deref(),
             warm_neutral: c.warm_neutral.as_deref(),
+            terracota: c.terracota.as_deref(),
             chrome: c.chrome.as_deref(),
         })
     }
@@ -239,6 +246,7 @@ pub struct PaletteOverrides<'a> {
     pub amber: Option<&'a str>,
     pub cream_dim: Option<&'a str>,
     pub warm_neutral: Option<&'a str>,
+    pub terracota: Option<&'a str>,
     pub chrome: Option<&'a str>,
 }
 
@@ -303,6 +311,7 @@ struct RawColors {
     text_primary: Option<String>,
     text_secondary: Option<String>,
     warm_neutral: Option<String>,
+    terracota: Option<String>,
     chrome: Option<String>,
 }
 
