@@ -23,6 +23,7 @@ mod popup;
 mod power;
 mod render;
 mod search;
+mod settings;
 mod sni;
 mod sound;
 mod workspace;

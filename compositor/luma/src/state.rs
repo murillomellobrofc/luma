@@ -746,6 +746,15 @@ impl LumaState {
             );
         let (notifications_slot, notifications_conn_handle) =
             crate::notifications::spawn();
+        // 3b: o sino visual persiste em disco. Se há settings.toml, ele
+        // ganha do default do token (`flash_enabled_default`). Sem arquivo,
+        // mantém o que o spawn inicializou (o token). Precedência:
+        // settings.toml > theme.toml/token.
+        if let Some(s) = crate::settings::load() {
+            if let Ok(mut g) = notifications_slot.lock() {
+                g.flash_enabled = s.accessibility.visual_bell_enabled;
+            }
+        }
         // Fatia 4 widgets: pipeline completo de carga, já distribuído
         // por host. Panel vai pra fileira do painel; desktop é mapeado
         // como SpaceItem::DesktopWidget logo depois do struct ser

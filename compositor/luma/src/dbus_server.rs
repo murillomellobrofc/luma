@@ -114,12 +114,21 @@ impl CompositorService {
     /// consumidor de alertas checa antes de piscar (winit.rs). 3a. Sem
     /// persistência em disco ainda (vale pela sessão do compositor).
     async fn set_visual_bell_enabled(&self, enabled: bool) {
+        // 1) memória (3a): gira o flag que o gate de alerta checa.
         match self.notifications.lock() {
             Ok(mut g) => {
                 g.flash_enabled = enabled;
                 info!("D-Bus: sino visual = {enabled}");
             }
             Err(_) => error!("D-Bus: lock de notificações envenenado ao setar sino visual"),
+        }
+        // 2) disco (3b): persiste pra sobreviver ao restart. Load-modify-save
+        // preserva campos futuros; escrita atômica via .tmp + rename. Falha
+        // de I/O não derruba nada — loga e segue (a memória já mudou).
+        let mut settings = crate::settings::load().unwrap_or_default();
+        settings.accessibility.visual_bell_enabled = enabled;
+        if let Err(err) = crate::settings::save(&settings) {
+            error!("D-Bus: falha ao persistir settings do sino visual: {err}");
         }
     }
 
