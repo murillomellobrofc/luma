@@ -9,6 +9,7 @@
 //! receiver, o loop principal toca o estado e responde pelo sender.
 //! Sem race — só o loop principal toca `LumaState`.
 
+use crate::notifications::NotificationsSlot;
 use luma_ipc::{WidgetInfo, WidgetTarget};
 use smithay::reexports::calloop::channel::Sender;
 use std::thread;
@@ -38,6 +39,11 @@ struct CompositorService {
     /// Sender pro loop principal. Cada handler que muta estado
     /// empacota `IpcCommand` + oneshot e aguarda resposta.
     cmd_tx: Sender<IpcCommand>,
+    /// Estado de notificações compartilhado (`Arc<Mutex>`). O sino visual
+    /// (`flash_enabled`) é lido/escrito direto daqui — esse slot já é
+    /// cross-thread por design (o próprio subsistema de notif. roda noutra
+    /// thread), então não precisa do roundtrip pelo calloop. 3a.
+    notifications: NotificationsSlot,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -93,19 +99,47 @@ impl CompositorService {
             .map_err(|_| zbus::fdo::Error::Failed("sem resposta do compositor".into()))?
             .map_err(zbus::fdo::Error::Failed)
     }
+
+    /// Estado atual do **sino visual** (a piscada de tela que substitui o
+    /// som de alerta): `true` = a piscada dispara em alertas. 3a — primeiro
+    /// wiring real. Lê direto do slot compartilhado de notificações.
+    async fn visual_bell_enabled(&self) -> bool {
+        match self.notifications.lock() {
+            Ok(g) => g.flash_enabled,
+            Err(_) => false,
+        }
+    }
+
+    /// Liga/desliga o **sino visual**. Gira o `flash_enabled` que o
+    /// consumidor de alertas checa antes de piscar (winit.rs). 3a. Sem
+    /// persistência em disco ainda (vale pela sessão do compositor).
+    async fn set_visual_bell_enabled(&self, enabled: bool) {
+        match self.notifications.lock() {
+            Ok(mut g) => {
+                g.flash_enabled = enabled;
+                info!("D-Bus: sino visual = {enabled}");
+            }
+            Err(_) => error!("D-Bus: lock de notificações envenenado ao setar sino visual"),
+        }
+    }
 }
 
 /// Sobe o servidor numa thread dedicada. Não-bloqueante. `available`
 /// é uma cópia estática do catálogo do registry (3c.1) — clonada do
-/// loop principal antes de chamar.
-pub fn spawn(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>) {
+/// loop principal antes de chamar. `notifications` é o slot
+/// compartilhado (clone do `Arc`) pro sino visual (3a).
+pub fn spawn(
+    cmd_tx: Sender<IpcCommand>,
+    available: Vec<WidgetInfo>,
+    notifications: NotificationsSlot,
+) {
     let builder = thread::Builder::new().name("luma-dbus".into());
-    if let Err(err) = builder.spawn(move || run(cmd_tx, available)) {
+    if let Err(err) = builder.spawn(move || run(cmd_tx, available, notifications)) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
 }
 
-fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>) {
+fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>, notifications: NotificationsSlot) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -117,7 +151,7 @@ fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>) {
         }
     };
     rt.block_on(async move {
-        if let Err(err) = serve(cmd_tx, available).await {
+        if let Err(err) = serve(cmd_tx, available, notifications).await {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
     });
@@ -126,10 +160,12 @@ fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>) {
 async fn serve(
     cmd_tx: Sender<IpcCommand>,
     available: Vec<WidgetInfo>,
+    notifications: NotificationsSlot,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
         cmd_tx,
+        notifications,
     };
     let _conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?

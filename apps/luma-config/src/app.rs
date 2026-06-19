@@ -19,6 +19,10 @@ pub struct State {
     view: View,
     /// Texto da busca da landing (2e). Vazio = grade inteira.
     query: String,
+    /// Conexão D-Bus com o compositor (3a). Estabelecida no boot; `None`
+    /// até conectar (ou se o compositor não estiver no bus). Clonável e
+    /// barata (Arc por dentro) — cada `Task` clona pra fazer a chamada.
+    conn: Option<zbus::Connection>,
     touch: TouchTargets,
     contrast: Contrast,
     motion: Motion,
@@ -107,12 +111,24 @@ impl State {
             taxonomy,
             view: View::Grid,
             query: String::new(),
+            conn: None,
             touch: TouchTargets::default(),
             contrast: Contrast::default(),
             motion: Motion::default(),
             bell: VisualBell::default(),
         }
     }
+}
+
+/// Boot do app (3a): estado inicial + um `Task` que estabelece a conexão
+/// D-Bus com o compositor em background. O resultado volta como
+/// [`Message::Connected`] e fica guardado no estado. A UI sobe na hora; se
+/// a conexão falhar, os controles ligados ao backend só não terão efeito.
+pub fn boot() -> (State, Task<Message>) {
+    (
+        State::new(),
+        Task::perform(crate::ipc::connect(), Message::Connected),
+    )
 }
 
 /// Mensagens da UI (navegação 2c + controles locais 2d).
@@ -124,6 +140,13 @@ pub enum Message {
     Back,
     /// Texto da busca mudou (2e).
     SearchChanged(String),
+    /// Resultado da conexão D-Bus do boot (3a). Ok guarda a conexão.
+    Connected(Result<zbus::Connection, String>),
+    /// Estado real do sino visual lido do compositor ao abrir a página (3a).
+    BellLoaded(Result<bool, String>),
+    /// Resultado de escrever o sino visual (3a). Carrega o valor tentado
+    /// pra reverter o otimismo se a escrita falhar.
+    BellWritten(bool, Result<(), String>),
     // Página Alvos de toque (estado local; sem backend ainda).
     TouchLarger(bool),
     TouchMinSize(f32),
@@ -142,9 +165,35 @@ pub enum Message {
 
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
-        Message::OpenCategory(label) => state.view = View::Category(label),
+        Message::OpenCategory(label) => {
+            state.view = View::Category(label);
+            // Ao abrir o Sino visual, lê o estado REAL do compositor pra
+            // o toggle iniciar certo (não com um default chutado). 3a.
+            if label == "Sino visual" {
+                if let Some(conn) = &state.conn {
+                    return Task::perform(
+                        crate::ipc::read_visual_bell(conn.clone()),
+                        Message::BellLoaded,
+                    );
+                }
+            }
+        }
         Message::Back => state.view = View::Grid,
         Message::SearchChanged(q) => state.query = q,
+        Message::Connected(Ok(conn)) => state.conn = Some(conn),
+        Message::Connected(Err(e)) => {
+            eprintln!("luma-config: sem conexão D-Bus com o compositor: {e}");
+        }
+        Message::BellLoaded(Ok(v)) => state.bell.enabled = v,
+        Message::BellLoaded(Err(e)) => {
+            eprintln!("luma-config: ler sino visual falhou: {e}");
+        }
+        Message::BellWritten(_, Ok(())) => {}
+        Message::BellWritten(attempted, Err(e)) => {
+            // Não quebra a UI: loga e reverte o otimismo pro estado anterior.
+            eprintln!("luma-config: escrever sino visual falhou: {e}");
+            state.bell.enabled = !attempted;
+        }
         Message::TouchLarger(v) => state.touch.larger = v,
         Message::TouchMinSize(v) => state.touch.min_size = v,
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
@@ -152,7 +201,20 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
         Message::MotionReduce(v) => state.motion.reduce_motion = v,
         Message::MotionAnimSpeed(v) => state.motion.anim_speed = v,
-        Message::BellEnabled(v) => state.bell.enabled = v,
+        Message::BellEnabled(v) => {
+            // Wiring real (3a): escreve no compositor. Otimista (mexe a UI
+            // já) + reverte se a escrita falhar. Sem conexão: ignora (o
+            // toggle volta sozinho, sem backend não há o que ligar).
+            if let Some(conn) = &state.conn {
+                state.bell.enabled = v;
+                return Task::perform(
+                    crate::ipc::write_visual_bell(conn.clone(), v),
+                    move |r| Message::BellWritten(v, r),
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; toggle do sino visual ignorado");
+            }
+        }
         Message::BellPhotosafe(v) => state.bell.photosafe = v,
         Message::BellFlashIntensity(v) => state.bell.flash_intensity = v,
     }
