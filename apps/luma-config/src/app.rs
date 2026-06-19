@@ -10,26 +10,46 @@ use iced::widget::{column, container, responsive, scrollable, svg, text};
 use iced::{Background, Border, Element, Length, Padding, Task, Theme};
 use libluma::{GoldenHour, GridItem, GridSection};
 
-/// Estado do app: paleta + taxonomia (construída uma vez, com as hues
-/// resolvidas dos tokens). A view empresta `&taxonomy` pra grade.
+/// Estado do app: paleta + taxonomia + qual view está aberta.
 pub struct State {
     gh: GoldenHour,
-    taxonomy: Vec<GridSection<'static>>,
+    taxonomy: Vec<GridSection<'static, Message>>,
+    view: View,
+}
+
+/// Tela visível: a grade (landing) ou a página de uma categoria.
+#[derive(Clone, Copy)]
+enum View {
+    Grid,
+    Category(&'static str),
 }
 
 impl State {
     pub fn new() -> Self {
         let gh = GoldenHour::load();
         let taxonomy = build_taxonomy(&gh);
-        Self { gh, taxonomy }
+        Self {
+            gh,
+            taxonomy,
+            view: View::Grid,
+        }
     }
 }
 
-/// Mensagens da UI. Vazio por ora — sem interação até a 2c (navegação).
+/// Mensagens da UI (navegação, 2c).
 #[derive(Debug, Clone)]
-pub enum Message {}
+pub enum Message {
+    /// Abrir a página de uma categoria (o `&str` é o título/id dela).
+    OpenCategory(&'static str),
+    /// Voltar pra grade.
+    Back,
+}
 
-pub fn update(_state: &mut State, _message: Message) -> Task<Message> {
+pub fn update(state: &mut State, message: Message) -> Task<Message> {
+    match message {
+        Message::OpenCategory(label) => state.view = View::Category(label),
+        Message::Back => state.view = View::Grid,
+    }
     Task::none()
 }
 
@@ -50,36 +70,46 @@ pub fn view(state: &State) -> Element<'_, Message> {
         const MAX_W: f32 = 860.0;
         let content_w = (size.width - 2.0 * MIN_PAD).clamp(0.0, MAX_W);
         let side = ((size.width - content_w) / 2.0).max(MIN_PAD);
-        let cols = libluma::columns_for(content_w);
 
-        // Barra de busca estática (só visual; 2e). Entra DENTRO do
-        // container centralizado, alinhada com a grade.
-        let search = container(text("Buscar configurações…").size(14).color(gh.honey_dim))
-            .padding([10, 14])
-            .width(Length::Fill)
-            .style(move |_theme| container::Style {
-                background: Some(Background::Color(surface)),
-                border: Border {
-                    radius: 12.0.into(),
-                    ..Default::default()
-                },
-                ..Default::default()
-            });
+        // O conteúdo depende da view: grade (landing) ou página da categoria.
+        let inner: Element<'_, Message> = match state.view {
+            View::Grid => {
+                let cols = libluma::columns_for(content_w);
+                // Barra de busca estática (só visual; 2e), alinhada com a grade.
+                let search =
+                    container(text("Buscar configurações…").size(14).color(gh.honey_dim))
+                        .padding([10, 14])
+                        .width(Length::Fill)
+                        .style(move |_theme| container::Style {
+                            background: Some(Background::Color(surface)),
+                            border: Border {
+                                radius: 12.0.into(),
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        });
+                let grid = libluma::category_grid::<Message>(&state.taxonomy, cols);
+                column(vec![search.into(), grid.into()])
+                    .spacing(20)
+                    .width(Length::Fill)
+                    .into()
+            }
+            View::Category(label) => {
+                // Drill-in (2c): cabeçalho de voltar + stub (conteúdo é 2d).
+                let header = libluma::page_header(label, Message::Back);
+                let stub = text("Conteúdo em breve").size(14).color(gh.honey_dim);
+                column(vec![header, stub.into()])
+                    .spacing(24)
+                    .width(Length::Fill)
+                    .into()
+            }
+        };
 
-        let grid = libluma::category_grid::<Message>(&state.taxonomy, cols);
-
-        let content = column(vec![search.into(), grid.into()])
-            .spacing(20)
-            .width(Length::Fill);
-
-        // Conteúdo centralizado via padding lateral (= side): a largura
-        // interna fica content_w, o resto sobra de margem dos dois lados.
-        let centered = container(content)
+        // Conteúdo centralizado via padding lateral; o scrollable é a janela
+        // inteira (barra na borda direita), estilizado em Golden Hour.
+        let centered = container(inner)
             .padding(Padding::from([24.0, side]))
             .width(Length::Fill);
-
-        // O scrollable é a JANELA INTEIRA (barra na borda direita),
-        // estilizado em Golden Hour. Rola só quando passa da altura.
         scrollable(centered)
             .height(Length::Fixed(size.height))
             .style(libluma::scrollbar_style())
@@ -92,7 +122,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
 /// categoria mapeia pro seu ícone do pack (`assets/icons/<nome>.svg`,
 /// monocromático `currentColor`). O `libluma` recebe o handle e tinge na
 /// hue da seção. Enabled hoje: Widgets e Wallpaper.
-fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static>> {
+fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
     // Handle de svg do pack (bundlado via include_bytes — sem dor de path).
     macro_rules! icon {
         ($name:literal) => {
@@ -101,8 +131,18 @@ fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static>> {
             )
         };
     }
-    let item =
-        |label: &'static str, icon: svg::Handle, enabled: bool| GridItem { label, icon, enabled };
+    // Habilitado => clicável (abre a página da categoria); "em breve" => sem
+    // clique. O id da categoria é o próprio label.
+    let item = |label: &'static str, icon: svg::Handle, enabled: bool| GridItem {
+        label,
+        icon,
+        enabled,
+        on_press: if enabled {
+            Some(Message::OpenCategory(label))
+        } else {
+            None
+        },
+    };
     vec![
         GridSection {
             label: "Aparência",

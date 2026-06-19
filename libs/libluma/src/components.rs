@@ -5,8 +5,8 @@
 //! - [`category_grid`]: seções rotuladas + grade responsiva de tiles, que
 //!   reflui pela largura. Dirigido por dados (a taxonomia mora no app).
 
-use iced::widget::{column, container, row, scrollable, svg, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Shadow};
+use iced::widget::{column, container, mouse_area, row, scrollable, svg, text};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Shadow};
 
 use crate::tokens;
 
@@ -37,13 +37,14 @@ const DISABLED_DIM: f32 = 0.45;
 ///   não guarda os arquivos, só recebe o handle e tinge.
 /// - `hue`: cor da seção — tinge o ícone via `svg::Style { color }`.
 /// - `enabled`: estado.
-///
-/// A largura do tile é o alvo de toque (>= 44); ligar o clique é 2c.
-pub fn category_tile<'a, Msg: 'a>(
+/// - `on_press`: mensagem ao clicar. `Some` + `enabled` => tile clicável
+///   (cursor de mão); `None` ou "em breve" => não interage.
+pub fn category_tile<'a, Msg: Clone + 'a>(
     label: &'a str,
     icon: svg::Handle,
     hue: Color,
     enabled: bool,
+    on_press: Option<Msg>,
 ) -> Element<'a, Msg> {
     let sem = tokens::semantic_default();
     let surface = tokens::to_iced(sem.surface);
@@ -108,24 +109,36 @@ pub fn category_tile<'a, Msg: 'a>(
         .align_x(Alignment::Center)
         .width(Length::Fixed(TILE_WIDTH));
 
-    container(col).padding(4).into()
+    let tile = container(col).padding(4);
+
+    // Tile habilitado com mensagem vira clicável (cursor de mão). "Em
+    // breve" (ou sem mensagem) fica só visual.
+    match (enabled, on_press) {
+        (true, Some(msg)) => mouse_area(tile)
+            .on_press(msg)
+            .interaction(iced::mouse::Interaction::Pointer)
+            .into(),
+        _ => tile.into(),
+    }
 }
 
 // ─── CategoryGrid ─────────────────────────────────────────────────────
 
 /// Um item (categoria) da grade. Dado dirigido pelo app.
-pub struct GridItem<'a> {
+pub struct GridItem<'a, Msg> {
     pub label: &'a str,
     /// Handle de svg do ícone (o app é dono dos arquivos; o libluma só tinge).
     pub icon: svg::Handle,
     pub enabled: bool,
+    /// Mensagem ao clicar (abrir a categoria). `None` = não navega.
+    pub on_press: Option<Msg>,
 }
 
 /// Uma seção da grade: label + hue + categorias.
-pub struct GridSection<'a> {
+pub struct GridSection<'a, Msg> {
     pub label: &'a str,
     pub hue: Color,
-    pub items: Vec<GridItem<'a>>,
+    pub items: Vec<GridItem<'a, Msg>>,
 }
 
 /// Quantas colunas de tile cabem numa largura (min 1). O app calcula isso
@@ -140,8 +153,8 @@ pub fn columns_for(width: f32) -> usize {
 /// de [`category_tile`] em `cols` colunas. **Não rola por dentro** — quem
 /// rola é a janela inteira (o app envolve isto num `scrollable`, com a
 /// barra na borda direita). Reflui porque `cols` vem de [`columns_for`].
-pub fn category_grid<'a, Msg: 'static>(
-    sections: &'a [GridSection<'a>],
+pub fn category_grid<'a, Msg: Clone + 'static>(
+    sections: &'a [GridSection<'a, Msg>],
     cols: usize,
 ) -> Element<'a, Msg> {
     let cols = cols.max(1);
@@ -194,7 +207,10 @@ pub fn scrollbar_style() -> impl Fn(&iced::Theme, scrollable::Status) -> scrolla
     }
 }
 
-fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Element<'a, Msg> {
+fn section_view<'a, Msg: Clone + 'static>(
+    s: &'a GridSection<'a, Msg>,
+    cols: usize,
+) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
     let hue = s.hue;
 
@@ -221,7 +237,9 @@ fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Elemen
         .map(|chunk| {
             let tiles: Vec<Element<'a, Msg>> = chunk
                 .iter()
-                .map(|it| category_tile::<Msg>(it.label, it.icon.clone(), hue, it.enabled))
+                .map(|it| {
+                    category_tile::<Msg>(it.label, it.icon.clone(), hue, it.enabled, it.on_press.clone())
+                })
                 .collect();
             row(tiles).spacing(GRID_GAP).into()
         })
@@ -229,4 +247,59 @@ fn section_view<'a, Msg: 'static>(s: &'a GridSection<'a>, cols: usize) -> Elemen
     let grid = column(tile_rows).spacing(GRID_GAP);
 
     column(vec![header.into(), grid.into()]).spacing(12).into()
+}
+
+// ─── PageHeader ───────────────────────────────────────────────────────
+
+/// Cabeçalho da página de categoria (drill-in): quadradinho `surface` com a
+/// seta de voltar âmbar (clicável => `on_back`), "Todas as configurações" em
+/// texto secundário, e o título da categoria no display (Fraunces).
+/// Reusável por qualquer app Luma.
+pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element<'a, Msg> {
+    let p = luma_tokens::Palette::GOLDEN_HOUR;
+    let amber = tokens::to_iced(p.amber);
+    let surface = tokens::to_iced(tokens::semantic_default().surface);
+    let cream = tokens::to_iced(p.cream);
+    let secondary = tokens::to_iced(p.cream_dim);
+
+    let back = mouse_area(
+        container(text("←").size(22.0).color(amber))
+            .center_x(Length::Fixed(40.0))
+            .center_y(Length::Fixed(40.0))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 12.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(on_back)
+    .interaction(iced::mouse::Interaction::Pointer);
+
+    let labels = column(vec![
+        text("Todas as configurações")
+            .size(12.0)
+            .color(secondary)
+            .into(),
+        text(title)
+            .size(26.0)
+            // Fraunces SÓ tem a face SemiBold (peso 600) embarcada; o
+            // cosmic-text não faz fallback de peso dentro da família, então
+            // pedir Weight::Normal cai no sans. Casa o peso da face.
+            .font(Font {
+                family: iced::font::Family::Name(tokens::FONT_DISPLAY),
+                weight: iced::font::Weight::Semibold,
+                ..Font::DEFAULT
+            })
+            .color(cream)
+            .into(),
+    ])
+    .spacing(2);
+
+    row(vec![back.into(), labels.into()])
+        .spacing(14)
+        .align_y(Alignment::Center)
+        .into()
 }
