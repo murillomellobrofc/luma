@@ -42,6 +42,10 @@ pub struct WindowDecoration {
     pub background: MemoryRenderBuffer,
     /// Última largura usada pra gerar `background`. Re-gera se diferir.
     pub background_width: i32,
+    /// Modo de contraste com que o `background` foi gerado (HC chrome). O
+    /// gradiente tem as cores baked, então o cache invalida quando a largura
+    /// OU o modo muda — é o que faz a chrome virar HC ao vivo.
+    pub background_hc: bool,
     /// Linha 1px no topo do header (Amber alpha 0.4 default). Continuidade
     /// visual com a taskbar e o menu (H32.6.4).
     pub header_top_accent: SolidColorBuffer,
@@ -72,6 +76,10 @@ pub struct TitleCache {
     pub text: String,
     pub buffer: MemoryRenderBuffer,
     pub size: Size<i32, Logical>,
+    /// Modo de contraste com que o título foi pintado (HC chrome). A cor é
+    /// baked no buffer, então mudar o contraste força re-rasterizar mesmo
+    /// com o texto igual.
+    pub hc: bool,
 }
 
 impl WindowDecoration {
@@ -113,6 +121,7 @@ impl WindowDecoration {
         Self {
             background,
             background_width: 256,
+            background_hc: crate::theme::high_contrast(),
             header_top_accent: SolidColorBuffer::new((0, 1), top_accent),
             left_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
             right_border: SolidColorBuffer::new((BORDER_THICKNESS, 0), unfocused),
@@ -156,8 +165,10 @@ pub fn update_title(window: &Window, renderer: &crate::text::TextRenderer) {
         .unwrap_or_default();
 
     let mut deco = decoration_for(window);
+    // HC chrome: re-rasteriza se o texto OU o modo de contraste mudou.
+    let cur_hc = crate::theme::high_contrast();
     let needs_rebuild = match &deco.title {
-        Some(cache) => cache.text != title_text,
+        Some(cache) => cache.text != title_text || cache.hc != cur_hc,
         None => !title_text.is_empty(),
     };
     if !needs_rebuild {
@@ -201,6 +212,7 @@ pub fn update_title(window: &Window, renderer: &crate::text::TextRenderer) {
         text: title_text,
         buffer,
         size: Size::from((w as i32, h as i32)),
+        hc: cur_hc,
     });
 }
 
@@ -297,16 +309,30 @@ pub struct ButtonGlyphs {
 }
 
 static BUTTON_GLYPHS: OnceLock<ButtonGlyphs> = OnceLock::new();
+/// Variante HC dos glyphs (HC chrome). As cores são baked no buffer, então
+/// o alto contraste tem seu próprio conjunto. Cache separado, selecionado
+/// pelo flag; cada um é construído com a cor do `current()` no momento (que
+/// é flag-aware), então o HC sai com as cores HC.
+static BUTTON_GLYPHS_HC: OnceLock<ButtonGlyphs> = OnceLock::new();
 
 /// Inicializa (ou devolve) os buffers globais dos window controls. O
 /// `_renderer` é mantido por compat com call site existente, mas H32.5.12
-/// não usa fontdue — os ícones são desenhados em código.
+/// não usa fontdue — os ícones são desenhados em código. HC chrome: escolhe
+/// o conjunto normal ou HC pelo flag de contraste.
 pub fn ensure_button_glyphs(_renderer: &crate::text::TextRenderer) -> &'static ButtonGlyphs {
-    BUTTON_GLYPHS.get_or_init(build_button_glyphs)
+    if crate::theme::high_contrast() {
+        BUTTON_GLYPHS_HC.get_or_init(build_button_glyphs)
+    } else {
+        BUTTON_GLYPHS.get_or_init(build_button_glyphs)
+    }
 }
 
 pub fn button_glyphs() -> Option<&'static ButtonGlyphs> {
-    BUTTON_GLYPHS.get()
+    if crate::theme::high_contrast() {
+        BUTTON_GLYPHS_HC.get()
+    } else {
+        BUTTON_GLYPHS.get()
+    }
 }
 
 fn build_button_glyphs() -> ButtonGlyphs {
@@ -466,6 +492,15 @@ pub fn header_top_accent_at(
 ) -> SolidColorRenderElement {
     let width = full_width.max(1);
     let mut deco = decoration_for(window);
+    // HC chrome: recolore a linha de topo a cada frame a partir do tema
+    // atual (flag-aware). Barato (1px) e dispensa rastrear o modo aqui — a
+    // cor segue o `current()` ao vivo.
+    let theme = crate::theme::current();
+    let accent = with_alpha(
+        theme.colors.window_header_top_accent,
+        theme.colors.window_header_top_alpha,
+    );
+    deco.header_top_accent.set_color(accent);
     deco.header_top_accent.resize((width, 1));
     SolidColorRenderElement::from_buffer(
         &deco.header_top_accent,
@@ -490,10 +525,11 @@ where
 {
     let width = full_width.max(1);
     let mut deco = decoration_for(window);
-    // H_deco.9: re-gera bg quando a largura muda (cantos arredondados
-    // não escalam corretamente esticando 1×h — precisam de buffer w×h
-    // com os cantos rasterizados na resolução real).
-    if deco.background_width != width {
+    // H_deco.9: re-gera bg quando a largura muda. HC chrome: também re-gera
+    // quando o modo de contraste muda (o gradiente tem as cores baked) —
+    // é o que faz o header virar HC ao vivo, não só ao redimensionar.
+    let hc = crate::theme::high_contrast();
+    if deco.background_width != width || deco.background_hc != hc {
         let theme = crate::theme::current();
         deco.background = crate::gfx::make_titlebar_bg(
             width,
@@ -503,6 +539,7 @@ where
             theme.window.titlebar_bg_bottom,
         );
         deco.background_width = width;
+        deco.background_hc = hc;
     }
     MemoryRenderBufferRenderElement::from_buffer(
         renderer,

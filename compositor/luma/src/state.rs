@@ -757,6 +757,8 @@ impl LumaState {
                 g.flash_intensity = s.accessibility.flash_intensity;
                 g.reduce_motion = s.accessibility.reduce_motion;
                 g.high_contrast = s.accessibility.high_contrast;
+                // Chrome do compositor abre já no modo certo (HC chrome).
+                crate::theme::set_high_contrast(s.accessibility.high_contrast);
             }
         }
         // Fatia 4 widgets: pipeline completo de carga, já distribuído

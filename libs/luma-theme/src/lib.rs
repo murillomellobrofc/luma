@@ -8,17 +8,51 @@ use tracing::{info, warn};
 /// acessível de qualquer módulo via `theme::current()`. Imutável após
 /// o init — mudança de cores requer reiniciar o compositor.
 static GLOBAL_THEME: OnceLock<Theme> = OnceLock::new();
+/// Variante de **alto contraste** da chrome. Mesma base do `GLOBAL_THEME`,
+/// com os campos de decoração resolvidos pros valores HC (vindos do
+/// `luma_tokens::Palette::HIGH_CONTRAST` — fonte única). O resto dos tokens
+/// (taskbar, applets) fica normal: o escopo é a chrome/decoração.
+static GLOBAL_THEME_HC: OnceLock<Theme> = OnceLock::new();
+/// Modo de contraste ativo da chrome do compositor. Setado pelo boot e pelo
+/// D-Bus quando o flag muda; o render contínuo lê e a chrome vira na próxima
+/// frame (gradiente/título rebuiltados pela invalidação de cache, accent
+/// recolorido, glyphs via cache flag-selecionado). Atomic do processo.
+static HIGH_CONTRAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Inicializa o tema global a partir de `~/.config/luma/luma.toml` ou
 /// defaults Golden Hour. Chamar no main, antes de qualquer subsistema usar cores.
 pub fn init() {
-    let _ = GLOBAL_THEME.set(Theme::load());
+    let base = Theme::load();
+    let mut hc = base.clone();
+    apply_hc_chrome(&mut hc);
+    let _ = GLOBAL_THEME.set(base);
+    let _ = GLOBAL_THEME_HC.set(hc);
 }
 
-/// Referência ao tema atual. Se `init()` não foi chamado, inicializa
-/// lazy com Theme::default() — usado em testes ou paths não previstos.
+/// Referência ao tema atual, honrando o **alto contraste**. Se `init()` não
+/// foi chamado, inicializa lazy.
 pub fn current() -> &'static Theme {
-    GLOBAL_THEME.get_or_init(Theme::default)
+    if high_contrast() {
+        GLOBAL_THEME_HC.get_or_init(|| {
+            let mut hc = Theme::default();
+            apply_hc_chrome(&mut hc);
+            hc
+        })
+    } else {
+        GLOBAL_THEME.get_or_init(Theme::default)
+    }
+}
+
+/// Alto contraste da chrome ativo? Lido pelo `current()`, pelo cache do
+/// gradiente/título e pelos glyphs dos window controls.
+pub fn high_contrast() -> bool {
+    HIGH_CONTRAST.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Liga/desliga o alto contraste da chrome. O render contínuo re-resolve e
+/// redesenha as decorações na próxima frame (caches invalidam pelo modo).
+pub fn set_high_contrast(on: bool) {
+    HIGH_CONTRAST.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Tema do Luma — paleta Golden Hour + tokens de layout pra taskbar,
@@ -4075,6 +4109,34 @@ fn hex_color(hex: &str, alpha: f32) -> Color32F {
 /// `luma-tokens`; o luma-theme só veste a casca de renderer aqui.
 fn c32(c: luma_tokens::Color) -> Color32F {
     Color32F::new(c.r(), c.g(), c.b(), c.a())
+}
+
+/// Override de **alto contraste** da chrome. Resolve os campos da decoração
+/// pros valores HC vindos da MESMA fonte que os apps usam
+/// (`luma_tokens::Palette::HIGH_CONTRAST`), convertidos pra `Color32F` — sem
+/// redigitar hex. Só toca a chrome (gradiente do header, título, accent,
+/// ícones/hover dos botões); taskbar e applets ficam normais.
+fn apply_hc_chrome(t: &mut Theme) {
+    let hc = luma_tokens::Palette::HIGH_CONTRAST;
+    // Gradiente do header — os campos CERTOS (era `window_header_bg_dark`
+    // por engano na 1ª tentativa). Topo = surface HC, base = fundo HC.
+    t.window.titlebar_bg_top = c32(hc.coffee_surface); // #17120E
+    t.window.titlebar_bg_bottom = c32(hc.coffee); // #0C0A08
+    let c = &mut t.colors;
+    // Detecção de header escuro + cor do título e dos ícones.
+    c.window_header_bg_dark = c32(hc.coffee_surface);
+    c.window_title_color_dark = c32(hc.cream); // branco-quente
+    c.window_control_icon_light = c32(hc.cream);
+    // Linha de topo = a BORDA FORTE do HC (branca, alpha cheio), coerente
+    // com as bordas dos componentes dos apps.
+    c.window_header_top_accent = c32(hc.border); // #FFF6EA
+    c.window_header_top_alpha = 1.0;
+    // Hovers dos botões de janela.
+    c.hover_close = c32(hc.coral);
+    c.hover_minimize = c32(hc.honey);
+    c.hover_maximize = c32(hc.sage);
+    // Glifos inativos legíveis.
+    t.window_controls.inactive_color = c32(hc.cream_dim);
 }
 
 /// Parse string "#RRGGBB" ou "#RRGGBBAA" pra Color32F. Inválido vira `None`.
