@@ -50,6 +50,17 @@ pub trait Compositor {
     /// `receive_high_contrast_changed()` (stream) + o tipo de args.
     #[zbus(signal)]
     fn high_contrast_changed(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Alvos de toque (parte 2): os dois controles + o efetivo (read-only).
+    async fn larger_targets(&self) -> zbus::Result<bool>;
+    async fn set_larger_targets(&self, enabled: bool) -> zbus::Result<()>;
+    async fn min_target_size(&self) -> zbus::Result<u16>;
+    async fn set_min_target_size(&self, size: u16) -> zbus::Result<()>;
+    async fn hit_target_min(&self) -> zbus::Result<u16>;
+
+    /// Sinal de mudança dos alvos — carrega o alvo EFETIVO (px).
+    #[zbus(signal)]
+    fn targets_changed(&self, effective: u16) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -196,5 +207,61 @@ pub async fn high_contrast_signal_stream(
     Ok(signals.filter_map(|sig| async move {
         // O accessor do arg é um método que devolve &bool; deref pra copiar.
         sig.args().ok().map(|a| *a.enabled())
+    }))
+}
+
+// ─── Alvos de toque (parte 2) ─────────────────────────────────────────
+
+/// Lê o alvo de toque EFETIVO (px) — pro boot aplicar o tamanho certo.
+pub async fn read_hit_target_min(conn: zbus::Connection) -> Result<u16, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.hit_target_min().await.map_err(|e| e.to_string())
+}
+
+/// Lê os dois controles (larger, min_size) — pro read-on-open inicializar
+/// o toggle + o slider da página Alvos de toque.
+pub async fn read_target_settings(conn: zbus::Connection) -> Result<(bool, u16), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let larger = proxy.larger_targets().await.map_err(|e| e.to_string())?;
+    let size = proxy.min_target_size().await.map_err(|e| e.to_string())?;
+    Ok((larger, size))
+}
+
+/// Escreve "alvos maiores" (toggle, commita na hora).
+pub async fn write_larger_targets(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_larger_targets(enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Escreve o tamanho do alvo (slider, commitado no soltar).
+pub async fn write_min_target_size(conn: zbus::Connection, size: u16) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_min_target_size(size)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Stream do sinal `targets_changed` — emite o alvo EFETIVO (px) a cada
+/// mudança. A `Subscription` aplica via `set_hit_target_min` e re-layouta.
+pub async fn targets_signal_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = u16>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_targets_changed().await?;
+    Ok(signals.filter_map(|sig| async move {
+        sig.args().ok().map(|a| *a.effective())
     }))
 }

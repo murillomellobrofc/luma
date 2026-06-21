@@ -50,9 +50,11 @@ struct TouchTargets {
 
 impl Default for TouchTargets {
     fn default() -> Self {
+        // Fallback local antes de ler o compositor; espelha o default de
+        // settings (larger off, 48px). Parte 2.
         Self {
-            larger: true,
-            min_size: 44.0,
+            larger: false,
+            min_size: 48.0,
             highlight_focus: false,
         }
     }
@@ -158,6 +160,16 @@ pub enum Message {
     TouchLarger(bool),
     TouchMinSize(f32),
     TouchHighlightFocus(bool),
+    /// Os dois controles lidos do compositor ao abrir (larger, min_size px).
+    TouchSettingsLoaded(Result<(bool, u16), String>),
+    /// Resultado de escrever larger/min_target (Alvos parte 2); só loga.
+    TouchWritten(Result<(), String>),
+    /// Slider de tamanho SOLTO (Alvos parte 2) — commita o min_target.
+    TouchMinReleased,
+    /// Alvo EFETIVO lido no boot (Alvos parte 2) → aplica o tamanho.
+    TargetsEffectiveLoaded(Result<u16, String>),
+    /// **Sinal** de mudança dos alvos → aplica o efetivo e re-layouta.
+    TargetsChanged(u16),
     // Página Contraste (2d.2 + HC parte 2).
     ContrastHigh(bool),
     ContrastReduceTransparency(bool),
@@ -208,6 +220,12 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                             Message::HighContrastLoaded,
                         );
                     }
+                    "Alvos de toque" => {
+                        return Task::perform(
+                            crate::ipc::read_target_settings(conn.clone()),
+                            Message::TouchSettingsLoaded,
+                        );
+                    }
                     _ => {}
                 }
             }
@@ -215,13 +233,19 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::Back => state.view = View::Grid,
         Message::SearchChanged(q) => state.query = q,
         Message::Connected(Ok(conn)) => {
-            // Lê o alto contraste persistido logo ao conectar, pra o app já
-            // ABRIR na paleta certa (HC parte 2). O re-resolve vem pelo
-            // mesmo caminho do sinal.
-            let read = Task::perform(
-                crate::ipc::read_high_contrast(conn.clone()),
-                Message::HighContrastLoaded,
-            );
+            // Lê, no boot, o estado persistido que afeta o LAYOUT/APARÊNCIA
+            // já na abertura: alto contraste (paleta) e o alvo de toque
+            // EFETIVO (tamanho). O re-render vem pelos mesmos sinais.
+            let read = Task::batch([
+                Task::perform(
+                    crate::ipc::read_high_contrast(conn.clone()),
+                    Message::HighContrastLoaded,
+                ),
+                Task::perform(
+                    crate::ipc::read_hit_target_min(conn.clone()),
+                    Message::TargetsEffectiveLoaded,
+                ),
+            ]);
             state.conn = Some(conn);
             return read;
         }
@@ -252,8 +276,53 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             // Não reverte (re-lê na próxima abertura); só loga.
             eprintln!("luma-config: escrever intensidade falhou: {e}");
         }
-        Message::TouchLarger(v) => state.touch.larger = v,
-        Message::TouchMinSize(v) => state.touch.min_size = v,
+        Message::TouchLarger(v) => {
+            // Toggle "alvos maiores": display otimista + commita na hora. O
+            // tamanho EFETIVO (layout) vem pelo sinal targets_changed.
+            if let Some(conn) = &state.conn {
+                state.touch.larger = v;
+                return Task::perform(
+                    crate::ipc::write_larger_targets(conn.clone(), v),
+                    Message::TouchWritten,
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; alvos maiores ignorado");
+            }
+        }
+        Message::TouchMinSize(v) => {
+            // Arraste do slider: só o número ao vivo (não re-dimensiona
+            // embaixo do cursor). O commit é no soltar (TouchMinReleased).
+            state.touch.min_size = v;
+        }
+        Message::TouchMinReleased => {
+            // Soltou: commita o tamanho. O efetivo (e o re-layout) vêm pelo
+            // sinal — se larger estiver on.
+            if let Some(conn) = &state.conn {
+                let size = state.touch.min_size.round() as u16;
+                return Task::perform(
+                    crate::ipc::write_min_target_size(conn.clone(), size),
+                    Message::TouchWritten,
+                );
+            }
+        }
+        Message::TouchSettingsLoaded(Ok((larger, size))) => {
+            state.touch.larger = larger;
+            state.touch.min_size = size as f32;
+        }
+        Message::TouchSettingsLoaded(Err(e)) => {
+            eprintln!("luma-config: ler alvos de toque falhou: {e}");
+        }
+        Message::TouchWritten(Ok(())) => {}
+        Message::TouchWritten(Err(e)) => {
+            eprintln!("luma-config: escrever alvos de toque falhou: {e}");
+        }
+        // Boot e sinal aplicam o alvo EFETIVO → set_hit_target_min →
+        // re-layout (a mensagem dispara o re-render).
+        Message::TargetsEffectiveLoaded(Ok(eff)) => libluma::tokens::set_hit_target_min(eff),
+        Message::TargetsEffectiveLoaded(Err(e)) => {
+            eprintln!("luma-config: ler alvo efetivo falhou: {e}");
+        }
+        Message::TargetsChanged(eff) => libluma::tokens::set_hit_target_min(eff),
         Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
         Message::ContrastHigh(v) => {
             // HC parte 2: o toggle SÓ dispara o set via D-Bus. O re-render
@@ -371,7 +440,28 @@ fn apply_high_contrast(state: &mut State, on: bool) {
 /// emissão vira [`Message::HighContrastChanged`] e re-resolve o tema ao
 /// vivo. A fase de personalização inteira vai rodar por este canal.
 pub fn subscription(_state: &State) -> iced::Subscription<Message> {
-    iced::Subscription::run(high_contrast_subscription)
+    // Dois canais de mudança ao vivo: alto contraste (cor) e alvos de toque
+    // (tamanho/layout). Mesmo padrão de stream de sinal.
+    iced::Subscription::batch([
+        iced::Subscription::run(high_contrast_subscription),
+        iced::Subscription::run(targets_subscription),
+    ])
+}
+
+/// Builder do stream do sinal `targets_changed` → aplica o alvo efetivo e
+/// re-layouta. fn pointer = identidade da subscription.
+fn targets_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match crate::ipc::targets_signal_stream().await {
+            Ok(s) => s.map(Message::TargetsChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-config: subscription de alvos de toque falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 /// Builder do stream do sinal (fn pointer = identidade da subscription).
@@ -511,11 +601,13 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
             libluma::slider_row(
                 "Tamanho mínimo do alvo",
                 t.min_size,
-                44.0..=64.0,
+                44.0..=72.0,
                 1.0,
                 "px",
                 Message::TouchMinSize,
-                None, // local-only (2d); sem commit no backend
+                // Commita no SOLTAR (parte 2): número ao vivo, tamanho aplica
+                // no release (não cresce embaixo do cursor).
+                Some(Message::TouchMinReleased),
             ),
             libluma::toggle_row(
                 "Realçar foco do teclado",

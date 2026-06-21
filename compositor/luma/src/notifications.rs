@@ -213,6 +213,11 @@ pub struct NotificationsState {
     /// servidor D-Bus emite um sinal pros apps re-resolverem a APARÊNCIA ao
     /// vivo. Persistido. Default OFF.
     pub high_contrast: bool,
+    /// Alvos de toque maiores (Alvos parte 2). On = usa `min_target_size`;
+    /// off = baseline. Persistido. Default OFF.
+    pub larger_targets: bool,
+    /// Tamanho do alvo (px) quando `larger_targets` on. Persistido. Def 48.
+    pub min_target_size: u16,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -233,6 +238,23 @@ pub struct NotificationsState {
     /// True se o painel está animando pra dentro (slide-in);
     /// false = slide-out. None quando estático. H54.P5.
     pub panel_anim_opening: Option<bool>,
+}
+
+/// Baseline do alvo de toque (WCAG AAA 44px) — usado quando
+/// `larger_targets` está off. Alvos parte 2.
+pub const HIT_TARGET_BASELINE: u16 = 44;
+
+impl NotificationsState {
+    /// Alvo de toque **efetivo** (Alvos parte 2): `min_target_size` se
+    /// `larger_targets` on, senão o baseline. Fonte única do número que os
+    /// apps recebem — eles só aplicam, não calculam.
+    pub fn effective_hit_target(&self) -> u16 {
+        if self.larger_targets {
+            self.min_target_size
+        } else {
+            HIT_TARGET_BASELINE
+        }
+    }
 }
 
 /// Aloca o próximo id monotônico, pulando qualquer id ainda vivo
@@ -495,6 +517,8 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         flash_intensity: 60,
         reduce_motion: false,
         high_contrast: false,
+        larger_targets: false,
+        min_target_size: 48,
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,
