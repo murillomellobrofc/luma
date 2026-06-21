@@ -15,17 +15,20 @@ libluma = { path = "../../libs/libluma" }
 # Migração M1: iced puro no lugar do libcosmic. Sem luma-theme aqui
 # tampouco — o app pega cor/theme via libluma (tokens), então o grafo
 # fica zero-cosmic e zero-smithay.
-# `linux-theme-detection` (default) removido: puxa o `mundy`, que faz um
-# call de portal D-Bus (zbus) no boot; com o compositor forçando
-# zbus/tokio no workspace, esse call panica sob iced (sem runtime tokio).
-# Theme próprio (Golden Hour), detecção de sistema dispensável. Mesma
-# lista do libluma (unificação de features).
+# `linux-theme-detection` (default) removido: puxa o `mundy` (call de portal
+# zbus no boot), e usamos theme próprio (Golden Hour) — dispensável.
+# Executor: **tokio** (não mais thread-pool). O compositor já habilita
+# `zbus/tokio` e a unificação de features do Cargo joga isso no zbus daqui
+# também; rodando o iced sob thread-pool, o zbus procurava um reactor tokio
+# inexistente e paniqueava ("no reactor running, must be called from a Tokio
+# runtime") no canal de sinal. Consolidando o iced no executor tokio, o zbus
+# tem reactor em todo lugar, igual o compositor. (O acoplamento com cosmic
+# que pedia async-io já saiu.) Mesma lista do libluma (unificação).
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland", "svg",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "x11", "wayland", "svg",
 ] }
-# Camada D-Bus (cliente; ipc.rs intacto, religado à GUI em 2c). Backend
-# async-io (default do zbus) — sem cosmic não há runtime tokio, e iced já
-# usa zbus via portal com async-io; forçar tokio aqui panica no boot.
-zbus = "5"
+# Cliente D-Bus (ipc.rs). `tokio` explícito pra casar com o executor do iced
+# e com o compositor — runtime único no workspace, sem o split frágil.
+zbus = { version = "5", features = ["tokio"] }
 # Parsing de --tab/--target no boot.
 clap = { version = "4", features = ["derive"] }
