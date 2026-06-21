@@ -589,3 +589,29 @@ pub fn nav_row<'a, Msg: Clone + 'a>(label: &'a str, on_press: Msg) -> Element<'a
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
 }
+
+/// Linha **"em breve"**: label dim + selo "Em breve" à direita, SEM controle
+/// e SEM clique. Pra um ajuste que ainda não funciona — não pode aparentar
+/// que funciona (limpeza honesta). Mesma altura/ritmo das outras linhas.
+pub fn coming_soon_row<'a, Msg: 'a>(label: &'a str) -> Element<'a, Msg> {
+    let sem = tokens::semantic_default();
+    let cream = tokens::to_iced(sem.text);
+    let secondary = tokens::to_iced(sem.text_secondary);
+    let dim = Color {
+        a: cream.a * DISABLED_DIM,
+        ..cream
+    };
+    row_shell(
+        row(vec![
+            text(label)
+                .size(14.0)
+                .color(dim)
+                .width(Length::Fill)
+                .into(),
+            text("Em breve").size(12.0).color(secondary).into(),
+        ])
+        .spacing(12)
+        .align_y(Alignment::Center),
+    )
+    .into()
+}
