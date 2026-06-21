@@ -30,6 +30,15 @@ const DISABLED_DIM: f32 = 0.45;
 /// HC (parte 1).
 const BORDER_WIDTH: f32 = 1.5;
 
+/// Escala uma dimensão INTERATIVA (área tocável) pelo alvo de toque atual
+/// (Alvos de toque parte 1). No default (`hit_scale()` == 1.0) devolve o
+/// próprio baseline → idêntico ao de hoje; com o alvo maior, cresce
+/// proporcional. Só pra área clicável/tocável — não pra texto nem padding
+/// decorativo.
+fn scaled(base: f32) -> f32 {
+    base * tokens::hit_scale()
+}
+
 // ─── CategoryTile ─────────────────────────────────────────────────────
 
 /// Tile estilo Cinnamon: quadrado de ícone **neutro** (`surface`, flutua
@@ -78,14 +87,14 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
     // Borda forte no HC (transparente no normal).
     let square = container(
         svg(icon)
-            .width(Length::Fixed(ICON_GLYPH))
-            .height(Length::Fixed(ICON_GLYPH))
+            .width(Length::Fixed(scaled(ICON_GLYPH)))
+            .height(Length::Fixed(scaled(ICON_GLYPH)))
             .style(move |_theme, _status| svg::Style {
                 color: Some(icon_color),
             }),
     )
-    .center_x(Length::Fixed(ICON_SQUARE))
-    .center_y(Length::Fixed(ICON_SQUARE))
+    .center_x(Length::Fixed(scaled(ICON_SQUARE)))
+    .center_y(Length::Fixed(scaled(ICON_SQUARE)))
     .style(move |_theme| container::Style {
         background: Some(Background::Color(square_color)),
         border: Border {
@@ -119,7 +128,7 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
     let col = column(items)
         .spacing(6)
         .align_x(Alignment::Center)
-        .width(Length::Fixed(TILE_WIDTH));
+        .width(Length::Fixed(scaled(TILE_WIDTH)));
 
     let tile = container(col).padding(4);
 
@@ -158,7 +167,10 @@ pub struct GridSection<'a, Msg> {
 /// reflow e a centralização saem do mesmo cálculo, sem `responsive`
 /// aninhado.
 pub fn columns_for(width: f32) -> usize {
-    (((width + GRID_GAP) / (TILE_MIN_COL + GRID_GAP)).floor() as usize).max(1)
+    // Min-col escala com o alvo de toque (parte 1): tiles maiores => menos
+    // colunas => reflow limpo.
+    let min_col = scaled(TILE_MIN_COL);
+    (((width + GRID_GAP) / (min_col + GRID_GAP)).floor() as usize).max(1)
 }
 
 /// Grade estilo Cinnamon: cada seção com label (+ dot na hue) e uma grade
@@ -318,8 +330,8 @@ pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element
 
     let back = mouse_area(
         container(text("←").size(22.0).color(amber))
-            .center_x(Length::Fixed(40.0))
-            .center_y(Length::Fixed(40.0))
+            .center_x(Length::Fixed(scaled(40.0)))
+            .center_y(Length::Fixed(scaled(40.0)))
             .style(move |_theme| container::Style {
                 background: Some(Background::Color(surface)),
                 border: Border {
@@ -374,7 +386,7 @@ const GROUP_RADIUS: f32 = 16.0;
 fn row_shell<'a, Msg: 'a>(inner: impl Into<Element<'a, Msg>>) -> iced::widget::Container<'a, Msg> {
     container(inner)
         .width(Length::Fill)
-        .center_y(Length::Fixed(ROW_MIN_H))
+        .center_y(Length::Fixed(scaled(ROW_MIN_H)))
         .padding(Padding::from([0.0, ROW_PAD_H]))
 }
 
@@ -457,7 +469,7 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
 
     let tog = toggler(value)
         .on_toggle(on_toggle)
-        .size(26.0)
+        .size(scaled(26.0))
         .style(move |_theme, status| {
             let on = matches!(
                 status,
@@ -525,7 +537,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
                 },
             },
             handle: slider::Handle {
-                shape: slider::HandleShape::Circle { radius: 9.0 },
+                shape: slider::HandleShape::Circle { radius: scaled(9.0) },
                 background: Background::Color(cream),
                 border_width: 0.0,
                 border_color: Color::TRANSPARENT,
