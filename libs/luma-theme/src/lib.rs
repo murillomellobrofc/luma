@@ -4137,6 +4137,13 @@ fn apply_hc_chrome(t: &mut Theme) {
     c.hover_maximize = c32(hc.sage);
     // Glifos inativos legíveis.
     t.window_controls.inactive_color = c32(hc.cream_dim);
+    // Exceções intencionais (modo-agnósticas, NÃO overridadas no HC):
+    // - `window_shadow_color` (#000000): sombra é preta por natureza, em
+    //   qualquer modo. Mantém o drop-shadow das janelas.
+    // - Cores `Color::TRANSPARENT` nos componentes dos apps (borda do
+    //   toggler/slider, bg do auto-scroll): ausência de cor — nada pra virar.
+    // O sweep do HC (parte 3) confirmou que o resto do que é visível resolve
+    // por token (flag-aware), então vira junto.
 }
 
 /// Parse string "#RRGGBB" ou "#RRGGBBAA" pra Color32F. Inválido vira `None`.
