@@ -46,6 +46,13 @@ pub struct Accessibility {
     /// paleta HC. Diferente dos outros: muda a APARÊNCIA, então o set emite
     /// um sinal D-Bus e os apps re-renderizam ao vivo. Default OFF.
     pub high_contrast: bool,
+    /// Alvos de toque maiores (Alvos parte 2). Ligado = usa
+    /// `min_target_size`; desligado = baseline 44. Efetivo calculado pelo
+    /// compositor. Default OFF.
+    pub larger_targets: bool,
+    /// Tamanho do alvo de toque em px quando `larger_targets` está on
+    /// (Alvos parte 2). Range 44–72. Default 48.
+    pub min_target_size: u16,
 }
 
 impl Default for Accessibility {
@@ -60,6 +67,8 @@ impl Default for Accessibility {
             flash_intensity: 60,
             reduce_motion: false,
             high_contrast: false,
+            larger_targets: false,
+            min_target_size: 48,
         }
     }
 }

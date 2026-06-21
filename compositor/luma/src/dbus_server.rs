@@ -230,6 +230,76 @@ impl CompositorService {
         enabled: bool,
     ) -> zbus::Result<()>;
 
+    // ─── Alvos de toque (parte 2) ─────────────────────────────────────
+
+    /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
+    async fn larger_targets(&self) -> bool {
+        match self.notifications.lock() {
+            Ok(g) => g.larger_targets,
+            Err(_) => false,
+        }
+    }
+
+    /// Tamanho do alvo (px) quando `larger_targets` está on.
+    async fn min_target_size(&self) -> u16 {
+        match self.notifications.lock() {
+            Ok(g) => g.min_target_size,
+            Err(_) => 48,
+        }
+    }
+
+    /// Alvo de toque **efetivo** (px) — o número final que os apps aplicam.
+    /// `larger_targets ? min_target_size : 44`. Read-only (computado).
+    async fn hit_target_min(&self) -> u16 {
+        match self.notifications.lock() {
+            Ok(g) => g.effective_hit_target(),
+            Err(_) => crate::notifications::HIT_TARGET_BASELINE,
+        }
+    }
+
+    /// Liga/desliga "alvos maiores" (parte 2). Memória + disco + emite
+    /// `targets_changed(efetivo)` pros apps re-dimensionarem ao vivo.
+    async fn set_larger_targets(
+        &self,
+        enabled: bool,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.larger_targets = enabled;
+            info!("D-Bus: alvos maiores = {enabled}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar alvos maiores");
+        }
+        persist_accessibility(&self.notifications);
+        self.emit_targets_changed(&emitter).await;
+    }
+
+    /// Seta o tamanho do alvo (parte 2). Clampa em 44–72. Memória + disco +
+    /// emite `targets_changed(efetivo)` (só muda o efetivo se larger on).
+    async fn set_min_target_size(
+        &self,
+        size: u16,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        let clamped = size.clamp(crate::notifications::HIT_TARGET_BASELINE, 72);
+        if let Ok(mut g) = self.notifications.lock() {
+            g.min_target_size = clamped;
+            info!("D-Bus: tamanho do alvo = {clamped}px");
+        } else {
+            error!("D-Bus: lock envenenado ao setar tamanho do alvo");
+        }
+        persist_accessibility(&self.notifications);
+        self.emit_targets_changed(&emitter).await;
+    }
+
+    /// **Sinal** de mudança dos alvos de toque (parte 2). Carrega o alvo
+    /// EFETIVO (px) — os apps fazem `set_hit_target_min` e re-layoutam.
+    #[zbus(signal)]
+    async fn targets_changed(
+        emitter: &SignalEmitter<'_>,
+        effective: u16,
+    ) -> zbus::Result<()>;
+
     /// Gatilho de teste do sino visual (3a): injeta uma notificação fake,
     /// que passa pelo caminho normal de alerta. Se o sino visual estiver
     /// ligado, a tela pisca. Existe porque, rodando aninhado sob um DE dono
@@ -238,6 +308,22 @@ impl CompositorService {
     async fn emit_test_bell(&self) {
         crate::notifications::inject_test_notification(&self.notifications);
         info!("D-Bus: EmitTestBell — notificação de teste injetada");
+    }
+}
+
+impl CompositorService {
+    /// Emite `targets_changed` com o alvo de toque EFETIVO atual. Helper
+    /// interno (fora da interface D-Bus), chamado pelos setters de alvos.
+    /// Alvos parte 2.
+    async fn emit_targets_changed(&self, emitter: &SignalEmitter<'_>) {
+        let effective = self
+            .notifications
+            .lock()
+            .map(|g| g.effective_hit_target())
+            .unwrap_or(crate::notifications::HIT_TARGET_BASELINE);
+        if let Err(err) = emitter.targets_changed(effective).await {
+            error!("D-Bus: falha ao emitir targets_changed: {err}");
+        }
     }
 }
 
@@ -253,6 +339,8 @@ fn persist_accessibility(notifications: &NotificationsSlot) {
             flash_intensity: g.flash_intensity,
             reduce_motion: g.reduce_motion,
             high_contrast: g.high_contrast,
+            larger_targets: g.larger_targets,
+            min_target_size: g.min_target_size,
         },
         Err(_) => {
             error!("D-Bus: lock envenenado ao persistir acessibilidade");
