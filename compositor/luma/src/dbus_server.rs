@@ -197,8 +197,9 @@ impl CompositorService {
     /// Liga/desliga o **alto contraste** (HC parte 2). Memória + disco +
     /// **emite o sinal de mudança** pros apps re-resolverem a aparência ao
     /// vivo. É a primeira config que muda a APARÊNCIA, daí o sinal — esse
-    /// canal vai servir a fase de personalização inteira. (A chrome do
-    /// próprio compositor re-resolver pra HC fica pra um passo de polish.)
+    /// canal serve a fase de personalização inteira. A própria chrome do
+    /// compositor também vira HC (via `theme::set_high_contrast` + render
+    /// contínuo re-resolvendo a decoração).
     async fn set_high_contrast(
         &self,
         enabled: bool,
@@ -211,6 +212,10 @@ impl CompositorService {
             error!("D-Bus: lock envenenado ao setar alto contraste");
         }
         persist_accessibility(&self.notifications);
+        // Chrome do compositor: gira o atomic do tema; o render contínuo
+        // re-resolve a decoração (gradiente/título rebuiltam, accent e
+        // glyphs viram) na próxima frame.
+        crate::theme::set_high_contrast(enabled);
         if let Err(err) = emitter.high_contrast_changed(enabled).await {
             error!("D-Bus: falha ao emitir sinal de alto contraste: {err}");
         }
