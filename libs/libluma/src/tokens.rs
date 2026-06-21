@@ -57,11 +57,39 @@ pub fn to_iced(c: TokenColor) -> Color {
 
 // ─── Alvo de toque (PCD) ──────────────────────────────────────────────
 
-/// Tamanho mínimo de hit target — WCAG AAA = 44px. Mesmo valor de
-/// `accessibility.hit_target_min` do `luma-theme` (os quadrados 44×44
-/// da taskbar são a referência). Não muda o valor; só dá um lar
-/// app-side ao número.
+/// Baseline do hit target — WCAG AAA = 44px. É o ÂNCORA da escala: no
+/// default `hit_target_min()` == este valor, então `hit_scale()` == 1.0 e
+/// os componentes ficam idênticos ao de hoje. Mesmo valor de
+/// `accessibility.hit_target_min` do `luma-theme` (quadrados 44×44 da
+/// taskbar).
 pub const HIT_TARGET_MIN: u16 = 44;
+
+/// Valor de **runtime** do alvo mínimo de toque (parte 1 de Alvos de
+/// toque). Os componentes leem por [`hit_target_min`], não por const, então
+/// dá pra crescer ao vivo. Default = [`HIT_TARGET_MIN`] (baseline) →
+/// idêntico ao de hoje. Parte 2 liga no toggle + slider.
+static HIT_TARGET: std::sync::atomic::AtomicU16 =
+    std::sync::atomic::AtomicU16::new(HIT_TARGET_MIN);
+
+/// Alvo mínimo de toque atual (px). Função LIVRE — os componentes leem
+/// daqui pra dimensionar a área interativa.
+pub fn hit_target_min() -> u16 {
+    HIT_TARGET.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Seta o alvo mínimo de toque (parte 2 chama no boot/D-Bus). Px.
+pub fn set_hit_target_min(px: u16) {
+    HIT_TARGET.store(px, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Fator de escala dos alvos de toque: `hit_target_min() / baseline`. 1.0
+/// no default (44). Os componentes multiplicam suas dimensões INTERATIVAS
+/// (altura de linha, toggle, slider, quadrado do tile, botão de voltar) por
+/// isto — assim crescer o alvo escala a UI tocável proporcionalmente e o
+/// default fica idêntico. Não escala texto nem padding decorativo.
+pub fn hit_scale() -> f32 {
+    hit_target_min() as f32 / HIT_TARGET_MIN as f32
+}
 
 // ─── Spacing (escala 4px) ─────────────────────────────────────────────
 

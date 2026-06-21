@@ -415,9 +415,13 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 let amber = gh.amber;
                 let cream = gh.cream;
                 let honey_dim = gh.honey_dim;
+                // Padding vertical escala com o alvo de toque (parte 1): a
+                // altura tocável da busca cresce junto. Horizontal e o texto
+                // ficam (decorativos).
+                let search_vpad = 10.0 * libluma::tokens::hit_scale();
                 let search = text_input("Buscar configurações…", &state.query)
                     .on_input(Message::SearchChanged)
-                    .padding([10, 14])
+                    .padding(iced::Padding::from([search_vpad, 14.0]))
                     .size(14)
                     .width(Length::Fill)
                     .style(move |_theme, status| {
