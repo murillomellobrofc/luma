@@ -44,8 +44,6 @@ struct TouchTargets {
     larger: bool,
     /// Tamanho mínimo do alvo em px (>= 44, o piso WCAG AAA).
     min_size: f32,
-    /// Realçar o foco do teclado.
-    highlight_focus: bool,
 }
 
 impl Default for TouchTargets {
@@ -55,7 +53,6 @@ impl Default for TouchTargets {
         Self {
             larger: false,
             min_size: 48.0,
-            highlight_focus: false,
         }
     }
 }
@@ -159,7 +156,9 @@ pub enum Message {
     // Página Alvos de toque (estado local; sem backend ainda).
     TouchLarger(bool),
     TouchMinSize(f32),
-    TouchHighlightFocus(bool),
+    /// Tab / Shift+Tab → move o foco (Teclado passo 1).
+    FocusNext,
+    FocusPrev,
     /// Os dois controles lidos do compositor ao abrir (larger, min_size px).
     TouchSettingsLoaded(Result<(bool, u16), String>),
     /// Resultado de escrever larger/min_target (Alvos parte 2); só loga.
@@ -323,7 +322,11 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             eprintln!("luma-config: ler alvo efetivo falhou: {e}");
         }
         Message::TargetsChanged(eff) => libluma::tokens::set_hit_target_min(eff),
-        Message::TouchHighlightFocus(v) => state.touch.highlight_focus = v,
+        // Encanamento do Tab (Teclado passo 1): emite a operação de foco do
+        // iced. Hoje só a busca (text_input) responde; os outros viram
+        // focáveis nos passos 2/3.
+        Message::FocusNext => return iced::widget::operation::focus_next(),
+        Message::FocusPrev => return iced::widget::operation::focus_previous(),
         Message::ContrastHigh(v) => {
             // HC parte 2: o toggle SÓ dispara o set via D-Bus. O re-render
             // (e o state.contrast.high_contrast) vêm do SINAL — fonte única,
@@ -445,7 +448,31 @@ pub fn subscription(_state: &State) -> iced::Subscription<Message> {
     iced::Subscription::batch([
         iced::Subscription::run(high_contrast_subscription),
         iced::Subscription::run(targets_subscription),
+        // Encanamento do Tab (Teclado passo 1): eventos de teclado → foco.
+        iced::event::listen_with(tab_focus),
     ])
+}
+
+/// Mapeia Tab / Shift+Tab pros comandos de foco (Teclado passo 1). `fn`
+/// (não closure) — exigência do `listen_with`. Outros eventos = ignora.
+fn tab_focus(
+    event: iced::Event,
+    _status: iced::event::Status,
+    _window: iced::window::Id,
+) -> Option<Message> {
+    use iced::keyboard::{key::Named, Event as Kbd, Key};
+    match event {
+        iced::Event::Keyboard(Kbd::KeyPressed {
+            key: Key::Named(Named::Tab),
+            modifiers,
+            ..
+        }) => Some(if modifiers.shift() {
+            Message::FocusPrev
+        } else {
+            Message::FocusNext
+        }),
+        _ => None,
+    }
 }
 
 /// Builder do stream do sinal `targets_changed` → aplica o alvo efetivo e
@@ -609,11 +636,9 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
                 // no release (não cresce embaixo do cursor).
                 Some(Message::TouchMinReleased),
             ),
-            libluma::toggle_row(
-                "Realçar foco do teclado",
-                t.highlight_focus,
-                Message::TouchHighlightFocus,
-            ),
+            // "Realçar foco" depende de navegação por teclado (épico em
+            // andamento). Em breve, honesto: dim, não interativo, no-op.
+            libluma::coming_soon_row("Realçar foco do teclado"),
         ],
     )
 }
