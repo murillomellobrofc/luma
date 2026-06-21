@@ -12,11 +12,13 @@ license = "GPL-3.0-or-later"
 luma-tokens = { path = "../luma-tokens" }
 # Migração M1: iced puro no lugar do libcosmic, pra controle total do
 # visual. libluma constrói Elements iced (tile, title bar, cor/theme).
-# `linux-theme-detection` (default) é REMOVIDO: ele puxa o `mundy`, que
-# lê o color-scheme do sistema via portal D-Bus (zbus) no boot — e como
-# o compositor força zbus/tokio no workspace, esse call panica sob iced.
-# Usamos o theme Golden Hour próprio, então detecção de tema é dispensável.
-# Precisa casar com o luma-config (unificação de features).
+# `linux-theme-detection` (default) é REMOVIDO: ele puxa o `mundy`, que lê
+# o color-scheme do sistema via portal D-Bus no boot; usamos o theme Golden
+# Hour próprio, então detecção é dispensável.
+# Executor **tokio** (não thread-pool) pra casar com o luma-config: o
+# compositor habilita `zbus/tokio` e a unificação de features espalha isso;
+# o runtime tem que ser tokio em todo lugar pro zbus não paniquear. Precisa
+# casar com o luma-config (unificação de features).
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland", "svg",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "x11", "wayland", "svg",
 ] }
