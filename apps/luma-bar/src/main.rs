@@ -8,8 +8,8 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{column, container, row, text, Space};
-use iced::{Background, Border, Element, Length, Task};
+use iced::widget::{button, column, container, row, text, Space};
+use iced::{Background, Border, Color, Element, Length, Task};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -18,10 +18,22 @@ use iced_layershell::to_layer_message;
 const BAR_HEIGHT: u32 = 36;
 /// Espessura da linha de acento na base da barra.
 const ACCENT_LINE: u32 = 2;
+/// Máximo de chars do título no botão (trunca com reticências).
+const TITLE_MAX: usize = 22;
+
+/// Uma janela na taskbar (passo 2): id pra ativar, label resolvido, foco.
+#[derive(Debug, Clone)]
+struct WinEntry {
+    id: u64,
+    label: String,
+    focused: bool,
+}
 
 struct Bar {
     /// Hora atual "HH:MM" — o conteúdo simples que prova render + update.
     clock: String,
+    /// Janelas abertas (poll de `list_windows` a cada 500ms).
+    windows: Vec<WinEntry>,
 }
 
 #[to_layer_message]
@@ -35,6 +47,12 @@ enum Message {
     /// Alto contraste lido no boot / mudado pelo sinal.
     HighContrastLoaded(Result<bool, String>),
     HighContrastChanged(bool),
+    /// Hora de re-ler a lista de janelas (tick de 500ms).
+    PollWindows,
+    /// Lista de janelas lida do compositor.
+    WindowsLoaded(Vec<(u64, String, String, bool)>),
+    /// Clique num botão de janela → foca/levanta no compositor.
+    ActivateWindow(u64),
 }
 
 fn now_hm() -> String {
@@ -42,12 +60,19 @@ fn now_hm() -> String {
 }
 
 fn boot() -> (Bar, Task<Message>) {
-    // Lê acento + HC no boot pra a barra abrir já no estado salvo.
+    // Lê acento + HC + janelas no boot pra a barra abrir já no estado certo.
     let read = Task::batch([
         Task::perform(ipc::read_accent(), Message::AccentLoaded),
         Task::perform(ipc::read_high_contrast(), Message::HighContrastLoaded),
+        Task::perform(ipc::read_windows(), Message::WindowsLoaded),
     ]);
-    (Bar { clock: now_hm() }, read)
+    (
+        Bar {
+            clock: now_hm(),
+            windows: Vec::new(),
+        },
+        read,
+    )
 }
 
 fn update(state: &mut Bar, message: Message) -> Task<Message> {
@@ -63,9 +88,44 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
             eprintln!("luma-bar: ler alto contraste falhou: {e}")
         }
         Message::HighContrastChanged(v) => libluma::tokens::set_high_contrast(v),
+        // Taskbar: poll → fetch; fetch → guarda; clique → ativa e re-poll na
+        // hora (o destaque do foco atualiza rápido).
+        Message::PollWindows => {
+            return Task::perform(ipc::read_windows(), Message::WindowsLoaded);
+        }
+        Message::WindowsLoaded(list) => {
+            state.windows = list
+                .into_iter()
+                .map(|(id, title, app_id, focused)| WinEntry {
+                    id,
+                    label: resolve_label(&title, &app_id),
+                    focused,
+                })
+                .collect();
+        }
+        Message::ActivateWindow(id) => {
+            return Task::perform(ipc::activate_window(id), |_| Message::PollWindows);
+        }
         _ => {}
     }
     Task::none()
+}
+
+/// Resolve o rótulo do botão: título, senão app_id, senão genérico. Trunca.
+fn resolve_label(title: &str, app_id: &str) -> String {
+    let raw = if !title.trim().is_empty() {
+        title.trim()
+    } else if !app_id.trim().is_empty() {
+        app_id.trim()
+    } else {
+        "Janela"
+    };
+    let chars: Vec<char> = raw.chars().collect();
+    if chars.len() > TITLE_MAX {
+        format!("{}…", chars[..TITLE_MAX - 1].iter().collect::<String>())
+    } else {
+        raw.to_string()
+    }
 }
 
 fn view(state: &Bar) -> Element<'_, Message> {
@@ -85,8 +145,44 @@ fn view(state: &Bar) -> Element<'_, Message> {
             ..Default::default()
         }
     });
+    // Botões de janela (esquerda): um por janela, título; a focada destacada
+    // no acento (texto na cor do fundo). Clique → ativa/foca.
+    let cream = libluma::tokens::to_iced(sem.text);
+    let bg_color = libluma::tokens::to_iced(sem.background);
+    let win_buttons: Vec<Element<Message>> = state
+        .windows
+        .iter()
+        .map(|w| {
+            let focused = w.focused;
+            let label_color = if focused { bg_color } else { cream };
+            let bg = if focused {
+                accent
+            } else {
+                Color { a: 0.10, ..cream }
+            };
+            button(text(w.label.clone()).size(13.0).color(label_color))
+                .on_press(Message::ActivateWindow(w.id))
+                .padding(iced::Padding::from([3.0, 10.0]))
+                .style(move |_theme, _status| button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: label_color,
+                    border: Border {
+                        radius: 8.0.into(),
+                        ..Default::default()
+                    },
+                    ..button::Style::default()
+                })
+                .into()
+        })
+        .collect();
+    let windows_row = row(win_buttons)
+        .spacing(6)
+        .align_y(iced::Alignment::Center);
+
     let content = container(
         row![
+            Space::new().width(Length::Fixed(12.0)),
+            windows_row,
             Space::new().width(Length::Fill),
             dot,
             text(state.clock.clone()).size(15.0).color(accent),
@@ -119,6 +215,9 @@ fn view(state: &Bar) -> Element<'_, Message> {
 fn subscription(_state: &Bar) -> iced::Subscription<Message> {
     iced::Subscription::batch([
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
+        // Poll da lista de janelas (≤500ms de latência — "ao vivo" o bastante
+        // pro passo 2; um push-signal dá pra adicionar depois).
+        iced::time::every(Duration::from_millis(500)).map(|_| Message::PollWindows),
         iced::Subscription::run(accent_subscription),
         iced::Subscription::run(high_contrast_subscription),
     ])
