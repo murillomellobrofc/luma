@@ -137,7 +137,11 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
     // Enter/Espaço/clique. "Em breve" (ou sem mensagem) fica só visual — sem
     // foco, então é pulado na ordem de Tab.
     match (enabled, on_press) {
-        (true, Some(msg)) => crate::focusable::focusable(tile, msg).into(),
+        // Id = label: deixa o app restaurar o foco NESTE tile ao voltar da
+        // categoria (Teclado passo 4). `Id::from(String)` casa por string.
+        (true, Some(msg)) => crate::focusable::focusable(tile, msg)
+            .id(iced::advanced::widget::Id::from(label.to_string()))
+            .into(),
         _ => tile.into(),
     }
 }

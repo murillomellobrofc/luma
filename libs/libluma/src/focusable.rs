@@ -20,7 +20,7 @@
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
-use iced::advanced::widget::{operation, tree, Operation, Tree, Widget};
+use iced::advanced::widget::{operation, tree, Id, Operation, Tree, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::{
     keyboard, mouse, Border, Color, Element, Event, Length, Rectangle, Shadow, Size,
@@ -63,8 +63,19 @@ pub struct Focusable<'a, Message, Theme, Renderer> {
     on_left: Vec<Message>,
     /// Seta Direita → idem.
     on_right: Vec<Message>,
+    /// Id opcional pra foco direcionado (`operation::focus(id)`) — o tile usa
+    /// o label da categoria, pra restaurar o foco ao voltar (passo 4).
+    id: Option<Id>,
     /// Raio do anel de foco (casa com o card/linha).
     ring_radius: f32,
+}
+
+impl<'a, Message, Theme, Renderer> Focusable<'a, Message, Theme, Renderer> {
+    /// Dá um Id ao focável, pra ser alvo de `operation::focus(id)`.
+    pub fn id(mut self, id: impl Into<Id>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
 }
 
 /// Embrulha `content` num widget focável que emite `on_activate` ao ser
@@ -80,6 +91,7 @@ pub fn focusable<'a, Message, Theme, Renderer>(
         on_activate: Some(on_activate),
         on_left: Vec::new(),
         on_right: Vec::new(),
+        id: None,
         ring_radius: 14.0,
     }
 }
@@ -100,6 +112,7 @@ pub fn focusable_stepper<'a, Message, Theme, Renderer>(
         on_activate: None,
         on_left,
         on_right,
+        id: None,
         ring_radius: 14.0,
     }
 }
@@ -151,7 +164,7 @@ where
         // Registra ESTE tile na cadeia de foco (entra no focus_next junto com
         // a busca). Sem id — a ordem é a do widget tree, que basta.
         let state = tree.state.downcast_mut::<State>();
-        operation.focusable(None, layout.bounds(), state);
+        operation.focusable(self.id.as_ref(), layout.bounds(), state);
         // Desce pro conteúdo (sem focáveis hoje, mas mantém geral).
         self.content
             .as_widget_mut()
@@ -284,7 +297,7 @@ where
                     bounds: layout.bounds(),
                     border: Border {
                         color: tokens::focus_ring(),
-                        width: 2.0,
+                        width: tokens::focus_ring_width(),
                         radius: self.ring_radius.into(),
                     },
                     shadow: Shadow::default(),

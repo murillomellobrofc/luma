@@ -218,6 +218,10 @@ pub struct NotificationsState {
     pub larger_targets: bool,
     /// Tamanho do alvo (px) quando `larger_targets` on. Persistido. Def 48.
     pub min_target_size: u16,
+    /// Realçar foco do teclado (Teclado passo 4). Mora aqui pra persistir; ao
+    /// mudar, o D-Bus emite sinal pros apps engrossarem o anel. O compositor
+    /// não desenha foco — só guarda/serve. Persistido. Default OFF.
+    pub focus_highlight: bool,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -519,6 +523,7 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         high_contrast: false,
         larger_targets: false,
         min_target_size: 48,
+        focus_highlight: false,
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,

@@ -61,6 +61,14 @@ pub trait Compositor {
     /// Sinal de mudança dos alvos — carrega o alvo EFETIVO (px).
     #[zbus(signal)]
     fn targets_changed(&self, effective: u16) -> zbus::Result<()>;
+
+    /// Realçar foco do teclado (Teclado passo 4): get/set + sinal de mudança,
+    /// mesmo padrão do alto contraste. O app re-renderiza o anel mais forte.
+    async fn focus_highlight(&self) -> zbus::Result<bool>;
+    async fn set_focus_highlight(&self, enabled: bool) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    fn focus_highlight_changed(&self, enabled: bool) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -264,4 +272,36 @@ pub async fn targets_signal_stream(
     Ok(signals.filter_map(|sig| async move {
         sig.args().ok().map(|a| *a.effective())
     }))
+}
+
+// ─── Realçar foco do teclado (Teclado passo 4) ────────────────────────
+
+/// Lê o realçar foco do compositor (boot + read-on-open).
+pub async fn read_focus_highlight(conn: zbus::Connection) -> Result<bool, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.focus_highlight().await.map_err(|e| e.to_string())
+}
+
+/// Escreve o realçar foco (toggle). O re-render vem do SINAL (fonte única).
+pub async fn write_focus_highlight(conn: zbus::Connection, enabled: bool) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy
+        .set_focus_highlight(enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Stream do sinal `focus_highlight_changed` — emite o novo `bool` a cada
+/// mudança. A `Subscription` aplica via `set_focus_highlight` e re-renderiza.
+pub async fn focus_highlight_signal_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = bool>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_focus_highlight_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| *a.enabled()) }))
 }

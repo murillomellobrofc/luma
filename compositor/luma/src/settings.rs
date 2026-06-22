@@ -53,6 +53,11 @@ pub struct Accessibility {
     /// Tamanho do alvo de toque em px quando `larger_targets` está on
     /// (Alvos parte 2). Range 44–72. Default 48.
     pub min_target_size: u16,
+    /// Realçar foco do teclado (Teclado passo 4). Ligado = o anel de foco
+    /// dos apps fica mais forte. Muda APARÊNCIA → emite sinal D-Bus, igual o
+    /// `high_contrast`. O compositor só guarda/serve; quem desenha é o app.
+    /// Default OFF.
+    pub focus_highlight: bool,
 }
 
 impl Default for Accessibility {
@@ -69,6 +74,7 @@ impl Default for Accessibility {
             high_contrast: false,
             larger_targets: false,
             min_target_size: 48,
+            focus_highlight: false,
         }
     }
 }

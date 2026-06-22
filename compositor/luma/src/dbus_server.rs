@@ -230,6 +230,43 @@ impl CompositorService {
         enabled: bool,
     ) -> zbus::Result<()>;
 
+    /// Estado do **realçar foco do teclado** (Teclado passo 4).
+    async fn focus_highlight(&self) -> bool {
+        match self.notifications.lock() {
+            Ok(g) => g.focus_highlight,
+            Err(_) => false,
+        }
+    }
+
+    /// Liga/desliga o **realçar foco** (passo 4). Memória + disco + **emite o
+    /// sinal** pros apps engrossarem o anel de foco ao vivo. O compositor não
+    /// desenha foco — só guarda/serve/notifica (diferente do `high_contrast`,
+    /// que também gira a chrome).
+    async fn set_focus_highlight(
+        &self,
+        enabled: bool,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.focus_highlight = enabled;
+            info!("D-Bus: realçar foco = {enabled}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar realçar foco");
+        }
+        persist_accessibility(&self.notifications);
+        if let Err(err) = emitter.focus_highlight_changed(enabled).await {
+            error!("D-Bus: falha ao emitir sinal de realçar foco: {err}");
+        }
+    }
+
+    /// **Sinal de mudança** do realçar foco (passo 4). Os apps escutam via
+    /// `Subscription` e re-renderizam o anel mais forte. Sem corpo.
+    #[zbus(signal)]
+    async fn focus_highlight_changed(
+        emitter: &SignalEmitter<'_>,
+        enabled: bool,
+    ) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -341,6 +378,7 @@ fn persist_accessibility(notifications: &NotificationsSlot) {
             high_contrast: g.high_contrast,
             larger_targets: g.larger_targets,
             min_target_size: g.min_target_size,
+            focus_highlight: g.focus_highlight,
         },
         Err(_) => {
             error!("D-Bus: lock envenenado ao persistir acessibilidade");

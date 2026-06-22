@@ -44,15 +44,19 @@ struct TouchTargets {
     larger: bool,
     /// Tamanho mínimo do alvo em px (>= 44, o piso WCAG AAA).
     min_size: f32,
+    /// Realçar foco do teclado (Teclado passo 4). Espelha o flag global; o
+    /// re-render do anel forte vem pelo sinal (fonte única).
+    focus_highlight: bool,
 }
 
 impl Default for TouchTargets {
     fn default() -> Self {
         // Fallback local antes de ler o compositor; espelha o default de
-        // settings (larger off, 48px). Parte 2.
+        // settings (larger off, 48px, realce off). Parte 2 / passo 4.
         Self {
             larger: false,
             min_size: 48.0,
+            focus_highlight: false,
         }
     }
 }
@@ -159,6 +163,16 @@ pub enum Message {
     /// Tab / Shift+Tab → move o foco (Teclado passo 1).
     FocusNext,
     FocusPrev,
+    /// Esc → volta pra grade quando numa página (Teclado passo 4).
+    EscapePressed,
+    /// Toggle "Realçar foco do teclado" (passo 4): só dispara o set via D-Bus.
+    FocusHighlightToggle(bool),
+    /// Resultado de escrever o realçar foco; só loga.
+    FocusHighlightWritten(Result<(), String>),
+    /// Realçar foco lido do compositor (boot + read-on-open).
+    FocusHighlightLoaded(Result<bool, String>),
+    /// **Sinal** de mudança do realçar foco — fonte única do re-render.
+    FocusHighlightChanged(bool),
     /// Os dois controles lidos do compositor ao abrir (larger, min_size px).
     TouchSettingsLoaded(Result<(bool, u16), String>),
     /// Resultado de escrever larger/min_target (Alvos parte 2); só loga.
@@ -199,37 +213,40 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             state.view = View::Category(label);
             // Read-on-open: lê o estado REAL do compositor pra os toggles
             // iniciarem certos (não com defaults chutados). 3a/3c/3d.
-            if let Some(conn) = &state.conn {
-                match label {
-                    "Sino visual" => {
-                        return Task::perform(
-                            crate::ipc::read_bell_settings(conn.clone()),
-                            Message::BellSettingsLoaded,
-                        );
-                    }
-                    "Movimento" => {
-                        return Task::perform(
-                            crate::ipc::read_reduce_motion(conn.clone()),
-                            Message::MotionReduceLoaded,
-                        );
-                    }
-                    "Contraste" => {
-                        return Task::perform(
-                            crate::ipc::read_high_contrast(conn.clone()),
-                            Message::HighContrastLoaded,
-                        );
-                    }
-                    "Alvos de toque" => {
-                        return Task::perform(
-                            crate::ipc::read_target_settings(conn.clone()),
-                            Message::TouchSettingsLoaded,
-                        );
-                    }
-                    _ => {}
-                }
+            let read = match (&state.conn, label) {
+                (Some(conn), "Sino visual") => Task::perform(
+                    crate::ipc::read_bell_settings(conn.clone()),
+                    Message::BellSettingsLoaded,
+                ),
+                (Some(conn), "Movimento") => Task::perform(
+                    crate::ipc::read_reduce_motion(conn.clone()),
+                    Message::MotionReduceLoaded,
+                ),
+                (Some(conn), "Contraste") => Task::perform(
+                    crate::ipc::read_high_contrast(conn.clone()),
+                    Message::HighContrastLoaded,
+                ),
+                (Some(conn), "Alvos de toque") => Task::perform(
+                    crate::ipc::read_target_settings(conn.clone()),
+                    Message::TouchSettingsLoaded,
+                ),
+                _ => Task::none(),
+            };
+            // Foco ao abrir (passo 4): aterrissa no 1º focável da página (o
+            // voltar) pra operar de cara sem Tab. Roda na UI já re-renderizada.
+            return Task::batch([read, iced::widget::operation::focus_next()]);
+        }
+        // Voltar pra grade (botão) ou Esc (passo 4). Restaura o foco no tile
+        // de onde veio, por Id = label — não some, não pula pro topo. Esc na
+        // grade (sem categoria) é no-op.
+        Message::Back | Message::EscapePressed => {
+            if let View::Category(label) = state.view {
+                state.view = View::Grid;
+                return iced::widget::operation::focus(iced::advanced::widget::Id::from(
+                    label.to_string(),
+                ));
             }
         }
-        Message::Back => state.view = View::Grid,
         Message::SearchChanged(q) => state.query = q,
         Message::Connected(Ok(conn)) => {
             // Lê, no boot, o estado persistido que afeta o LAYOUT/APARÊNCIA
@@ -243,6 +260,11 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                 Task::perform(
                     crate::ipc::read_hit_target_min(conn.clone()),
                     Message::TargetsEffectiveLoaded,
+                ),
+                // Realçar foco (passo 4): aplica o anel forte já no boot.
+                Task::perform(
+                    crate::ipc::read_focus_highlight(conn.clone()),
+                    Message::FocusHighlightLoaded,
                 ),
             ]);
             state.conn = Some(conn);
@@ -352,6 +374,27 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             eprintln!("luma-config: ler alto contraste falhou: {e}");
         }
         Message::HighContrastChanged(v) => apply_high_contrast(state, v),
+        // Realçar foco (passo 4): mesmo padrão do HC — o toggle SÓ escreve;
+        // o re-render (e o state) vêm do sinal. Boot/open/sinal aplicam igual.
+        Message::FocusHighlightToggle(v) => {
+            if let Some(conn) = &state.conn {
+                return Task::perform(
+                    crate::ipc::write_focus_highlight(conn.clone(), v),
+                    Message::FocusHighlightWritten,
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; realçar foco ignorado");
+            }
+        }
+        Message::FocusHighlightWritten(Ok(())) => {}
+        Message::FocusHighlightWritten(Err(e)) => {
+            eprintln!("luma-config: escrever realçar foco falhou: {e}");
+        }
+        Message::FocusHighlightLoaded(Ok(v)) => apply_focus_highlight(state, v),
+        Message::FocusHighlightLoaded(Err(e)) => {
+            eprintln!("luma-config: ler realçar foco falhou: {e}");
+        }
+        Message::FocusHighlightChanged(v) => apply_focus_highlight(state, v),
         Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
         Message::MotionReduce(v) => {
             // Wiring real (3d): toggle commita na hora (evento único).
@@ -439,6 +482,14 @@ fn apply_high_contrast(state: &mut State, on: bool) {
     state.contrast.high_contrast = on;
 }
 
+/// Aplica o realçar foco (passo 4): gira o flag global (engrossa/realça o
+/// anel no próximo render) e reflete no toggle da página. Fonte única =
+/// boot/read-on-open/sinal, igual o [`apply_high_contrast`].
+fn apply_focus_highlight(state: &mut State, on: bool) {
+    libluma::tokens::set_focus_highlight(on);
+    state.touch.focus_highlight = on;
+}
+
 /// **Subscription** do alto contraste (HC parte 2) — o canal de propagação
 /// de aparência. Escuta o sinal `high_contrast_changed` do compositor; cada
 /// emissão vira [`Message::HighContrastChanged`] e re-resolve o tema ao
@@ -449,12 +500,29 @@ pub fn subscription(_state: &State) -> iced::Subscription<Message> {
     iced::Subscription::batch([
         iced::Subscription::run(high_contrast_subscription),
         iced::Subscription::run(targets_subscription),
+        iced::Subscription::run(focus_highlight_subscription),
         // Encanamento do Tab (Teclado passo 1): eventos de teclado → foco.
         iced::event::listen_with(tab_focus),
     ])
 }
 
-/// Mapeia Tab / Shift+Tab pros comandos de foco (Teclado passo 1). `fn`
+/// Builder do stream do sinal `focus_highlight_changed` (passo 4) → engrossa
+/// o anel ao vivo. fn pointer = identidade da subscription.
+fn focus_highlight_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match crate::ipc::focus_highlight_signal_stream().await {
+            Ok(s) => s.map(Message::FocusHighlightChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-config: subscription de realçar foco falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
+}
+
+/// Mapeia Tab / Shift+Tab → foco (passo 1) e Esc → voltar (passo 4). `fn`
 /// (não closure) — exigência do `listen_with`. Outros eventos = ignora.
 fn tab_focus(
     event: iced::Event,
@@ -472,6 +540,11 @@ fn tab_focus(
         } else {
             Message::FocusNext
         }),
+        // Esc volta pra grade (o update ignora se já está na grade).
+        iced::Event::Keyboard(Kbd::KeyPressed {
+            key: Key::Named(Named::Escape),
+            ..
+        }) => Some(Message::EscapePressed),
         _ => None,
     }
 }
@@ -637,9 +710,13 @@ fn touch_targets_page(t: TouchTargets) -> Element<'static, Message> {
                 // no release (não cresce embaixo do cursor).
                 Some(Message::TouchMinReleased),
             ),
-            // "Realçar foco" depende de navegação por teclado (épico em
-            // andamento). Em breve, honesto: dim, não interativo, no-op.
-            libluma::coming_soon_row("Realçar foco do teclado"),
+            // "Realçar foco do teclado" agora é REAL (passo 4): liga o anel
+            // de foco mais forte ao vivo, pelo canal D-Bus de sempre.
+            libluma::toggle_row(
+                "Realçar foco do teclado",
+                t.focus_highlight,
+                Message::FocusHighlightToggle,
+            ),
         ],
     )
 }

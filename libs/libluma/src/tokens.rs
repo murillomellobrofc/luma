@@ -55,16 +55,45 @@ pub fn to_iced(c: TokenColor) -> Color {
     Color::from_rgba(r, g, b, a)
 }
 
-/// Cor do **anel de foco** do teclado (Teclado passo 2). Palette-aware: âmbar
-/// no Golden Hour normal (anel quente e visível) e a **borda forte**
-/// (#FFF6EA) no alto contraste — a mesma cor que já separa as formas no HC.
-/// Sem hex solto: sai da paleta resolvida pelo [`high_contrast`]. O passo 4
-/// (Realçar foco) compõe em cima disto pra um anel mais forte quando o
-/// usuário liga o realce.
+/// Flag do **Realçar foco do teclado** (Teclado passo 4). Quando ligado, o
+/// anel de foco fica mais forte (mais grosso + cor mais contrastante). Igual
+/// o [`high_contrast`]: processo-wide, o app seta no boot/sinal e re-renderiza.
+static FOCUS_HIGHLIGHT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Realçar foco ativo? O [`focus_ring`]/[`focus_ring_width`] leem daqui.
+pub fn focus_highlight() -> bool {
+    FOCUS_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Liga/desliga o realce de foco do processo (passo 4). O app chama ao ler o
+/// flag real (boot) e a cada sinal D-Bus de mudança; depois re-renderiza.
+pub fn set_focus_highlight(on: bool) {
+    FOCUS_HIGHLIGHT.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Cor do **anel de foco** do teclado (passo 2), ciente do [`high_contrast`]
+/// E do [`focus_highlight`] (passo 4). Sem hex solto — sai da paleta. Quatro
+/// combinações: realce OFF dá âmbar (normal) / borda forte (HC); realce ON
+/// puxa a cor mais clara/contrastante (mel no normal, creme puro no HC).
 pub fn focus_ring() -> Color {
     let hc = high_contrast();
     let p = Palette::for_contrast(hc);
-    to_iced(if hc { p.border } else { p.amber })
+    to_iced(match (hc, focus_highlight()) {
+        (true, true) => p.cream,    // HC + realce: creme puro (máx contraste)
+        (true, false) => p.border,  // HC: borda #FFF6EA
+        (false, true) => p.honey,   // realce: mel, mais claro/vibrante
+        (false, false) => p.amber,  // normal: âmbar
+    })
+}
+
+/// Espessura do anel de foco (px). Realce ON engrossa pra ficar inconfundível.
+pub fn focus_ring_width() -> f32 {
+    if focus_highlight() {
+        4.0
+    } else {
+        2.0
+    }
 }
 
 // ─── Alvo de toque (PCD) ──────────────────────────────────────────────
