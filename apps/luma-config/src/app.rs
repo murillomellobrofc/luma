@@ -173,6 +173,15 @@ pub enum Message {
     FocusHighlightLoaded(Result<bool, String>),
     /// **Sinal** de mudança do realçar foco — fonte única do re-render.
     FocusHighlightChanged(bool),
+    // Página Tema e cores (acento curado).
+    /// Amostra de acento escolhida (id estável). Só dispara o set via D-Bus.
+    AccentSelected(&'static str),
+    /// Resultado de escrever o acento; só loga.
+    AccentWritten(Result<(), String>),
+    /// Acento lido do compositor (boot + read-on-open).
+    AccentLoaded(Result<String, String>),
+    /// **Sinal** de mudança do acento — fonte única do re-render.
+    AccentChanged(String),
     /// Os dois controles lidos do compositor ao abrir (larger, min_size px).
     TouchSettingsLoaded(Result<(bool, u16), String>),
     /// Resultado de escrever larger/min_target (Alvos parte 2); só loga.
@@ -265,6 +274,11 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                 Task::perform(
                     crate::ipc::read_focus_highlight(conn.clone()),
                     Message::FocusHighlightLoaded,
+                ),
+                // Acento curado: tudo já abre na cor escolhida.
+                Task::perform(
+                    crate::ipc::read_accent(conn.clone()),
+                    Message::AccentLoaded,
                 ),
             ]);
             state.conn = Some(conn);
@@ -395,6 +409,27 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             eprintln!("luma-config: ler realçar foco falhou: {e}");
         }
         Message::FocusHighlightChanged(v) => apply_focus_highlight(state, v),
+        // Acento curado: o clique SÓ escreve; o re-render vem do sinal (fonte
+        // única). Boot/open/sinal aplicam igual (set_accent_id global).
+        Message::AccentSelected(id) => {
+            if let Some(conn) = &state.conn {
+                return Task::perform(
+                    crate::ipc::write_accent(conn.clone(), id.to_string()),
+                    Message::AccentWritten,
+                );
+            } else {
+                eprintln!("luma-config: sem conexão D-Bus; acento ignorado");
+            }
+        }
+        Message::AccentWritten(Ok(())) => {}
+        Message::AccentWritten(Err(e)) => {
+            eprintln!("luma-config: escrever acento falhou: {e}");
+        }
+        Message::AccentLoaded(Ok(id)) => apply_accent(&id),
+        Message::AccentLoaded(Err(e)) => {
+            eprintln!("luma-config: ler acento falhou: {e}");
+        }
+        Message::AccentChanged(id) => apply_accent(&id),
         Message::ContrastReduceTransparency(v) => state.contrast.reduce_transparency = v,
         Message::MotionReduce(v) => {
             // Wiring real (3d): toggle commita na hora (evento único).
@@ -490,6 +525,13 @@ fn apply_focus_highlight(state: &mut State, on: bool) {
     state.touch.focus_highlight = on;
 }
 
+/// Aplica o acento curado (boot/read-on-open/sinal): gira o flag global; o
+/// próximo render re-resolve `accent()` em tudo (toggle, anel, slider, etc.).
+/// A página lê `accent_id()` direto, então não precisa de campo no State.
+fn apply_accent(id: &str) {
+    libluma::tokens::set_accent_id(id);
+}
+
 /// **Subscription** do alto contraste (HC parte 2) — o canal de propagação
 /// de aparência. Escuta o sinal `high_contrast_changed` do compositor; cada
 /// emissão vira [`Message::HighContrastChanged`] e re-resolve o tema ao
@@ -501,9 +543,26 @@ pub fn subscription(_state: &State) -> iced::Subscription<Message> {
         iced::Subscription::run(high_contrast_subscription),
         iced::Subscription::run(targets_subscription),
         iced::Subscription::run(focus_highlight_subscription),
+        iced::Subscription::run(accent_subscription),
         // Encanamento do Tab (Teclado passo 1): eventos de teclado → foco.
         iced::event::listen_with(tab_focus),
     ])
+}
+
+/// Builder do stream do sinal `accent_changed` (acento curado) → re-resolve o
+/// token de accent ao vivo. fn pointer = identidade da subscription.
+fn accent_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match crate::ipc::accent_signal_stream().await {
+            Ok(s) => s.map(Message::AccentChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-config: subscription de acento falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 /// Builder do stream do sinal `focus_highlight_changed` (passo 4) → engrossa
@@ -661,6 +720,7 @@ pub fn view(state: &State) -> Element<'_, Message> {
                 // resto segue stub até a sua vez.
                 let header = libluma::page_header(label, Message::Back);
                 let body: Element<'_, Message> = match label {
+                    "Tema e cores" => theme_colors_page(),
                     "Alvos de toque" => touch_targets_page(state.touch),
                     "Contraste" => contrast_page(state.contrast),
                     "Movimento" => motion_page(state.motion),
@@ -687,6 +747,23 @@ pub fn view(state: &State) -> Element<'_, Message> {
             .style(libluma::scrollbar_style())
             .into()
     })
+    .into()
+}
+
+/// Página **Tema e cores**: o seletor de **acento curado** (modelo Cinnamon).
+/// As amostras saem do conjunto fixo do libluma; a atual vem do flag global
+/// (`accent_id()`), então a página não guarda estado. Escolher escreve via
+/// D-Bus; o destaque vira ao vivo pelo sinal (fonte única). Cor livre +
+/// guardrail ficam pra a camada avançada (futuro).
+fn theme_colors_page() -> Element<'static, Message> {
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    column(vec![
+        text("Acento").size(13.0).color(secondary).into(),
+        libluma::accent_picker(libluma::tokens::accent_id(), Message::AccentSelected),
+    ])
+    .spacing(12)
+    .width(Length::Fill)
     .into()
 }
 
@@ -837,7 +914,7 @@ fn build_taxonomy(gh: &GoldenHour) -> Vec<GridSection<'static, Message>> {
             label: "Aparência",
             hue: gh.amber,
             items: vec![
-                item("Tema e cores", icon!("tema-e-cores"), false),
+                item("Tema e cores", icon!("tema-e-cores"), true),
                 item("Fontes", icon!("fontes"), false),
                 item("Wallpaper", icon!("wallpaper"), true),
                 item("Barra de tarefas", icon!("barra-de-tarefas"), false),

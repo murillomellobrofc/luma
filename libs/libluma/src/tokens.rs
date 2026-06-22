@@ -72,19 +72,146 @@ pub fn set_focus_highlight(on: bool) {
     FOCUS_HIGHLIGHT.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Cor do **anel de foco** do teclado (passo 2), ciente do [`high_contrast`]
-/// E do [`focus_highlight`] (passo 4). Sem hex solto — sai da paleta. Quatro
-/// combinações: realce OFF dá âmbar (normal) / borda forte (HC); realce ON
-/// puxa a cor mais clara/contrastante (mel no normal, creme puro no HC).
+// ─── Acento curado (modelo Cinnamon) ──────────────────────────────────
+
+/// **Acento curado**: um conjunto fixo de hues do espírito Golden Hour, cada
+/// um pré-verificado AAA contra os fundos no normal E no HC (usa a variante
+/// HC quando ligado). Cinnamon cura o acento de propósito — cor arbitrária
+/// quebra legibilidade; cor livre fica pro caminho avançado (futuro).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Accent {
+    Amber,
+    Coral,
+    Honey,
+    Sage,
+    Terracota,
+    Rosa,
+    Lavanda,
+}
+
+impl Accent {
+    /// O conjunto curado, na ordem de exibição na página.
+    pub const ALL: [Accent; 7] = [
+        Accent::Amber,
+        Accent::Coral,
+        Accent::Honey,
+        Accent::Sage,
+        Accent::Terracota,
+        Accent::Rosa,
+        Accent::Lavanda,
+    ];
+
+    /// Id estável (D-Bus/persist) — nunca muda.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Accent::Amber => "amber",
+            Accent::Coral => "coral",
+            Accent::Honey => "honey",
+            Accent::Sage => "sage",
+            Accent::Terracota => "terracota",
+            Accent::Rosa => "rosa",
+            Accent::Lavanda => "lavanda",
+        }
+    }
+
+    /// Nome pra UI (pt-BR).
+    pub const fn label(self) -> &'static str {
+        match self {
+            Accent::Amber => "Âmbar",
+            Accent::Coral => "Coral",
+            Accent::Honey => "Mel",
+            Accent::Sage => "Sálvia",
+            Accent::Terracota => "Terracota",
+            Accent::Rosa => "Rosa",
+            Accent::Lavanda => "Lavanda",
+        }
+    }
+
+    /// Resolve o id pro acento; desconhecido cai no default (Âmbar).
+    pub fn from_id(id: &str) -> Accent {
+        Accent::ALL
+            .into_iter()
+            .find(|a| a.id() == id)
+            .unwrap_or(Accent::Amber)
+    }
+
+    /// Token de cor do acento na paleta do modo (hc-aware). Sem hex solto.
+    pub fn token(self, hc: bool) -> TokenColor {
+        let p = Palette::for_contrast(hc);
+        match self {
+            Accent::Amber => p.amber,
+            Accent::Coral => p.coral,
+            Accent::Honey => p.honey,
+            Accent::Sage => p.sage,
+            Accent::Terracota => p.terracota,
+            Accent::Rosa => p.rosa,
+            Accent::Lavanda => p.lavanda,
+        }
+    }
+
+    /// Cor iced do acento pro modo atual (pra amostra da página).
+    pub fn color(self) -> Color {
+        to_iced(self.token(high_contrast()))
+    }
+}
+
+/// Acento escolhido (runtime), guardado como índice em [`Accent::ALL`].
+/// Default 0 = Âmbar. Igual `high_contrast`/`focus_highlight`: o app seta no
+/// boot/sinal e re-renderiza.
+static ACCENT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Acento escolhido agora.
+pub fn current_accent() -> Accent {
+    let i = ACCENT.load(std::sync::atomic::Ordering::Relaxed);
+    Accent::ALL.get(i).copied().unwrap_or(Accent::Amber)
+}
+
+/// Id do acento escolhido (pra escrever no D-Bus).
+pub fn accent_id() -> &'static str {
+    current_accent().id()
+}
+
+/// Seta o acento do processo (boot/sinal). Índice em [`Accent::ALL`].
+pub fn set_accent(a: Accent) {
+    let i = Accent::ALL.iter().position(|x| *x == a).unwrap_or(0);
+    ACCENT.store(i, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Seta o acento por id (string do D-Bus); desconhecido → Âmbar.
+pub fn set_accent_id(id: &str) {
+    set_accent(Accent::from_id(id));
+}
+
+/// **Cor de acento** resolvida (escolha + hc). Fonte única do destaque que os
+/// componentes consomem: toggle ligado, fill do slider, anel de foco, glifo
+/// de voltar, borda de foco da busca. Default âmbar.
+pub fn accent() -> Color {
+    current_accent().color()
+}
+
+/// Mistura linear de duas cores iced (`t` de 0=a a 1=b). Helper local pro
+/// anel forte clarear o acento sem hex solto.
+fn mix(a: Color, b: Color, t: f32) -> Color {
+    Color {
+        r: a.r + (b.r - a.r) * t,
+        g: a.g + (b.g - a.g) * t,
+        b: a.b + (b.b - a.b) * t,
+        a: a.a + (b.a - a.a) * t,
+    }
+}
+
+/// Cor do **anel de foco** do teclado (passo 2), agora baseada no [`accent`]
+/// escolhido (passo "acento curado"). Realce ON ([`focus_highlight`], passo 4)
+/// clareia o acento em direção ao creme pra ficar inconfundível; OFF usa o
+/// acento puro. Hc-aware via o próprio `accent()`.
 pub fn focus_ring() -> Color {
-    let hc = high_contrast();
-    let p = Palette::for_contrast(hc);
-    to_iced(match (hc, focus_highlight()) {
-        (true, true) => p.cream,    // HC + realce: creme puro (máx contraste)
-        (true, false) => p.border,  // HC: borda #FFF6EA
-        (false, true) => p.honey,   // realce: mel, mais claro/vibrante
-        (false, false) => p.amber,  // normal: âmbar
-    })
+    let base = accent();
+    if focus_highlight() {
+        let cream = to_iced(Palette::for_contrast(high_contrast()).cream);
+        mix(base, cream, 0.45)
+    } else {
+        base
+    }
 }
 
 /// Espessura do anel de foco (px). Realce ON engrossa pra ficar inconfundível.

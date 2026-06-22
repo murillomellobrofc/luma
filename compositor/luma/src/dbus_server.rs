@@ -267,6 +267,40 @@ impl CompositorService {
         enabled: bool,
     ) -> zbus::Result<()>;
 
+    /// Id do **acento curado** escolhido (modelo Cinnamon).
+    async fn accent(&self) -> String {
+        match self.notifications.lock() {
+            Ok(g) => g.accent.clone(),
+            Err(_) => "amber".to_string(),
+        }
+    }
+
+    /// Escolhe o **acento curado** (passo "acento curado"). Memória + disco +
+    /// **emite o sinal** pros apps re-resolverem o token de accent ao vivo. O
+    /// compositor só guarda/serve/notifica — quem pinta é o app. Aceita
+    /// qualquer id; o app valida (id desconhecido → âmbar).
+    async fn set_accent(
+        &self,
+        accent: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.accent = accent.to_string();
+            info!("D-Bus: acento = {accent}");
+        } else {
+            error!("D-Bus: lock envenenado ao setar acento");
+        }
+        persist_accessibility(&self.notifications);
+        if let Err(err) = emitter.accent_changed(accent).await {
+            error!("D-Bus: falha ao emitir sinal de acento: {err}");
+        }
+    }
+
+    /// **Sinal de mudança** do acento. Os apps escutam via `Subscription` e
+    /// re-resolvem o token de accent. Sem corpo.
+    #[zbus(signal)]
+    async fn accent_changed(emitter: &SignalEmitter<'_>, accent: &str) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -369,23 +403,31 @@ impl CompositorService {
 /// segue — a memória já mudou. NÃO segura o lock ao salvar (lock liberado
 /// antes do I/O), pra não travar quem lê o slot no render. 3b/3c.
 fn persist_accessibility(notifications: &NotificationsSlot) {
-    let accessibility = match notifications.lock() {
-        Ok(g) => crate::settings::Accessibility {
-            visual_bell_enabled: g.flash_enabled,
-            photosafe_enabled: g.flash_photosafe,
-            flash_intensity: g.flash_intensity,
-            reduce_motion: g.reduce_motion,
-            high_contrast: g.high_contrast,
-            larger_targets: g.larger_targets,
-            min_target_size: g.min_target_size,
-            focus_highlight: g.focus_highlight,
-        },
+    let (accessibility, appearance) = match notifications.lock() {
+        Ok(g) => (
+            crate::settings::Accessibility {
+                visual_bell_enabled: g.flash_enabled,
+                photosafe_enabled: g.flash_photosafe,
+                flash_intensity: g.flash_intensity,
+                reduce_motion: g.reduce_motion,
+                high_contrast: g.high_contrast,
+                larger_targets: g.larger_targets,
+                min_target_size: g.min_target_size,
+                focus_highlight: g.focus_highlight,
+            },
+            crate::settings::Appearance {
+                accent: g.accent.clone(),
+            },
+        ),
         Err(_) => {
-            error!("D-Bus: lock envenenado ao persistir acessibilidade");
+            error!("D-Bus: lock envenenado ao persistir settings");
             return;
         }
     };
-    let settings = crate::settings::Settings { accessibility };
+    let settings = crate::settings::Settings {
+        accessibility,
+        appearance,
+    };
     if let Err(err) = crate::settings::save(&settings) {
         error!("D-Bus: falha ao persistir settings de acessibilidade: {err}");
     }

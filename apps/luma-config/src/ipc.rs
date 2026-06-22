@@ -69,6 +69,14 @@ pub trait Compositor {
 
     #[zbus(signal)]
     fn focus_highlight_changed(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Acento curado (modelo Cinnamon): get/set do id + sinal de mudança. O
+    /// app re-resolve o token de accent ao vivo.
+    async fn accent(&self) -> zbus::Result<String>;
+    async fn set_accent(&self, accent: &str) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    fn accent_changed(&self, accent: &str) -> zbus::Result<()>;
 }
 
 /// Conecta no session bus e chama `Ping`. Em sucesso, devolve a
@@ -304,4 +312,32 @@ pub async fn focus_highlight_signal_stream(
     let proxy = CompositorProxy::new(&conn).await?;
     let signals = proxy.receive_focus_highlight_changed().await?;
     Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| *a.enabled()) }))
+}
+
+// ─── Acento curado (modelo Cinnamon) ──────────────────────────────────
+
+/// Lê o id do acento do compositor (boot + read-on-open).
+pub async fn read_accent(conn: zbus::Connection) -> Result<String, String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.accent().await.map_err(|e| e.to_string())
+}
+
+/// Escreve o acento escolhido (id). O re-render vem do SINAL (fonte única).
+pub async fn write_accent(conn: zbus::Connection, accent: String) -> Result<(), String> {
+    let proxy = CompositorProxy::new(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    proxy.set_accent(&accent).await.map_err(|e| e.to_string())
+}
+
+/// Stream do sinal `accent_changed` — emite o id novo a cada mudança. A
+/// `Subscription` aplica via `set_accent_id` e re-renderiza.
+pub async fn accent_signal_stream() -> zbus::Result<impl iced::futures::Stream<Item = String>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_accent_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| a.accent().to_string()) }))
 }

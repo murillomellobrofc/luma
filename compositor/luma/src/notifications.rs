@@ -222,6 +222,11 @@ pub struct NotificationsState {
     /// mudar, o D-Bus emite sinal pros apps engrossarem o anel. O compositor
     /// não desenha foco — só guarda/serve. Persistido. Default OFF.
     pub focus_highlight: bool,
+    /// Acento curado escolhido (id, modelo Cinnamon). Mora aqui no blob
+    /// compartilhado pra o D-Bus servir/persistir; ao mudar emite sinal pros
+    /// apps re-resolverem o token de accent. O compositor só guarda/serve.
+    /// Persistido. Default "amber".
+    pub accent: String,
     /// Piscada ativa: Instant em que começou. None = sem piscada.
     pub flash_started_at: Option<Instant>,
     /// Urgência da piscada ativa — escolhe cor/peak. H54.P7.
@@ -524,6 +529,7 @@ pub fn spawn() -> (NotificationsSlot, NotificationsConn) {
         larger_targets: false,
         min_target_size: 48,
         focus_highlight: false,
+        accent: String::from("amber"),
         flash_started_at: None,
         flash_urgency: None,
         flash_last_at: None,
