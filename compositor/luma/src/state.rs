@@ -31,6 +31,7 @@ use smithay::{
         },
         shm::ShmState,
         socket::ListeningSocketSource,
+        viewporter::ViewporterState,
     },
 };
 use tracing::{info, warn};
@@ -59,6 +60,10 @@ pub struct LumaState {
     pub xdg_shell_state: XdgShellState,
     pub xdg_decoration_state: XdgDecorationState,
     pub layer_shell_state: WlrLayerShellState,
+    /// `wp_viewporter` — exigido por clientes layer-shell em iced
+    /// (iced_layershell, ex. a luma-bar) pra escala/hidpi. Guardado pra o
+    /// global ficar vivo; o dispatch vem do `delegate_dispatch2!` unificado.
+    pub viewporter_state: ViewporterState,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -670,21 +675,22 @@ impl LumaState {
             .filter(|i| i.as_window().is_some())
             .count() as i32;
 
-        let output_size = self
-            .space
-            .output_geometry(self.focused_output())
-            .map(|geo| geo.size)
-            .unwrap_or((1280, 800).into());
+        // Área útil = zona NÃO-exclusiva do output (já desconta os layer
+        // surfaces, ex. a luma-bar), ainda menos a barra VELHA do compositor
+        // (não é layer, reserva via `taskbar_height`). Assim janelas novas não
+        // nascem sob a barra nova nem sob a velha. `non_exclusive_zone` vem em
+        // coords do output; a origem da cascata começa nela.
+        let output = self.focused_output();
+        let zone = smithay::desktop::layer_map_for_output(output).non_exclusive_zone();
 
-        let max_x_slots =
-            ((output_size.w - CASCADE_MARGIN).max(CASCADE_STEP) / CASCADE_STEP).max(1);
-        let max_y_slots = ((output_size.h - CASCADE_MARGIN - crate::taskbar::taskbar_height())
-            .max(CASCADE_STEP)
-            / CASCADE_STEP)
-            .max(1);
+        let avail_w = zone.size.w;
+        let avail_h = zone.size.h - crate::taskbar::taskbar_height();
 
-        let x = (count % max_x_slots) * CASCADE_STEP;
-        let y = (count % max_y_slots) * CASCADE_STEP;
+        let max_x_slots = ((avail_w - CASCADE_MARGIN).max(CASCADE_STEP) / CASCADE_STEP).max(1);
+        let max_y_slots = ((avail_h - CASCADE_MARGIN).max(CASCADE_STEP) / CASCADE_STEP).max(1);
+
+        let x = zone.loc.x + (count % max_x_slots) * CASCADE_STEP;
+        let y = zone.loc.y + (count % max_y_slots) * CASCADE_STEP;
         Point::from((x, y))
     }
 
@@ -698,6 +704,7 @@ impl LumaState {
         let xdg_shell_state = XdgShellState::new::<LumaState>(&dh);
         let xdg_decoration_state = XdgDecorationState::new::<LumaState>(&dh);
         let layer_shell_state = WlrLayerShellState::new::<LumaState>(&dh);
+        let viewporter_state = ViewporterState::new::<LumaState>(&dh);
         let shm_state = ShmState::new::<LumaState>(&dh, vec![]);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
@@ -800,6 +807,7 @@ impl LumaState {
             xdg_shell_state,
             xdg_decoration_state,
             layer_shell_state,
+            viewporter_state,
             shm_state,
             output_manager_state,
             seat_state,

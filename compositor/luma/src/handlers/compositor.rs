@@ -52,6 +52,10 @@ impl CompositorHandler for LumaState {
 
         xdg_shell::handle_commit(&mut self.popups, &self.space, surface);
         resize_grab::handle_commit(&mut self.space, surface);
+
+        // Layer surfaces (luma-bar e cia): arranja + configure inicial. O
+        // render é de graça (space::render_output desenha os layers).
+        super::layer_shell::handle_layer_commit(self, surface);
     }
 }
 
