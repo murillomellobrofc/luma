@@ -9,6 +9,7 @@ members = [
     "libs/luma-ipc",
     "libs/luma-customize",
     "apps/luma-config",
+    "apps/luma-bar",
 ]
 
 [profile.dev]
