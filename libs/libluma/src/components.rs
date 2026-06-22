@@ -226,7 +226,7 @@ pub fn category_grid_filtered<'a, Msg: Clone + 'static>(
 pub fn scrollbar_style() -> impl Fn(&iced::Theme, scrollable::Status) -> scrollable::Style {
     let p = luma_tokens::Palette::for_contrast(tokens::high_contrast());
     let neutral = tokens::to_iced(p.warm_neutral);
-    let amber = tokens::to_iced(p.amber);
+    let accent = tokens::accent();
     move |_theme, status| {
         let active = matches!(
             status,
@@ -242,7 +242,7 @@ pub fn scrollbar_style() -> impl Fn(&iced::Theme, scrollable::Status) -> scrolla
             background: None,
             border: Border::default(),
             scroller: scrollable::Scroller {
-                background: Background::Color(if active { amber } else { neutral }),
+                background: Background::Color(if active { accent } else { neutral }),
                 border: Border {
                     radius: 4.0.into(),
                     ..Default::default()
@@ -325,7 +325,7 @@ fn section_chrome<'a, Msg: Clone + 'static>(
 /// Reusável por qualquer app Luma.
 pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element<'a, Msg> {
     let p = luma_tokens::Palette::for_contrast(tokens::high_contrast());
-    let amber = tokens::to_iced(p.amber);
+    let accent = tokens::accent();
     let surface = tokens::to_iced(p.surface);
     let cream = tokens::to_iced(p.cream);
     let secondary = tokens::to_iced(p.cream_dim);
@@ -334,7 +334,7 @@ pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element
     // Botão voltar focável (Teclado passo 3): Tab para nele, Enter volta pra
     // grade. Primeiro na ordem de foco da página (vem antes dos controles).
     let back = crate::focusable::focusable(
-        container(text("←").size(22.0).color(amber))
+        container(text("←").size(22.0).color(accent))
             .center_x(Length::Fixed(scaled(40.0)))
             .center_y(Length::Fixed(scaled(40.0)))
             .style(move |_theme| container::Style {
@@ -468,7 +468,7 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
     on_toggle: impl Fn(bool) -> Msg + 'a,
 ) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
-    let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
+    let accent = tokens::accent();
     let off = Color { a: 0.22, ..cream };
 
     // Ativação por teclado (Espaço com foco) ou clique no corpo da linha =
@@ -485,7 +485,7 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
                     | toggler::Status::Hovered { is_toggled: true }
             );
             toggler::Style {
-                background: Background::Color(if on { amber } else { off }),
+                background: Background::Color(if on { accent } else { off }),
                 background_border_width: 0.0,
                 background_border_color: Color::TRANSPARENT,
                 foreground: Background::Color(cream),
@@ -532,7 +532,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
 ) -> Element<'a, Msg> {
     let cream = tokens::to_iced(tokens::semantic_default().text);
     let secondary = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).cream_dim);
-    let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
+    let accent = tokens::accent();
     let track = Color { a: 0.18, ..cream };
 
     // Teclado (Teclado passo 3): Esquerda/Direita = um passo discreto. Cada
@@ -561,7 +561,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
         .width(Length::Fill)
         .style(move |_theme, _status| slider::Style {
             rail: slider::Rail {
-                backgrounds: (Background::Color(amber), Background::Color(track)),
+                backgrounds: (Background::Color(accent), Background::Color(track)),
                 width: 5.0,
                 border: Border {
                     radius: 3.0.into(),
@@ -621,6 +621,74 @@ pub fn nav_row<'a, Msg: Clone + 'a>(label: &'a str, on_press: Msg) -> Element<'a
     // Focável (Teclado passo 3): Tab para na linha, Enter navega. O clique
     // segue funcionando (o focável trata o press do corpo).
     crate::focusable::focusable(row_shell(inner), on_press).into()
+}
+
+// ─── Acento curado (amostras) ─────────────────────────────────────────
+
+/// Amostra de um acento curado (modelo Cinnamon): quadrado preenchido com a
+/// cor do acento + label embaixo, **focável e clicável** (reusa o
+/// [`focusable`]: anel no Tab, Enter/Espaço/clique seleciona). Selecionado =
+/// borda creme + check. Largura uniforme pra a linha ficar alinhada.
+pub fn accent_swatch<'a, Msg: Clone + 'a>(
+    accent: tokens::Accent,
+    selected: bool,
+    on_select: Msg,
+) -> Element<'a, Msg> {
+    let color = accent.color();
+    let sem = tokens::semantic_default();
+    let cream = tokens::to_iced(sem.text);
+    let bg = tokens::to_iced(sem.background);
+    let side = scaled(48.0);
+    let w = scaled(64.0);
+
+    // Check no tom do fundo (escuro sobre o acento claro) quando selecionado.
+    let check = text(if selected { "✓" } else { "" })
+        .size(22.0)
+        .color(bg);
+    let square = container(check)
+        .center_x(Length::Fixed(side))
+        .center_y(Length::Fixed(side))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(color)),
+            border: Border {
+                radius: 12.0.into(),
+                width: if selected { 3.0 } else { 0.0 },
+                color: cream,
+            },
+            ..Default::default()
+        });
+
+    let label_color = Color { a: cream.a * 0.85, ..cream };
+    let col = column(vec![
+        square.into(),
+        text(accent.label())
+            .size(11.0)
+            .color(label_color)
+            .width(Length::Fill)
+            .center()
+            .into(),
+    ])
+    .spacing(6)
+    .align_x(Alignment::Center)
+    .width(Length::Fixed(w));
+
+    crate::focusable::focusable(col, on_select)
+        .id(iced::advanced::widget::Id::from(accent.id()))
+        .into()
+}
+
+/// O **seletor de acento** inteiro: uma linha com as amostras do conjunto
+/// curado, na ordem de exibição. `selected_id` marca a atual; `on_select(id)`
+/// recebe o id do acento ativado.
+pub fn accent_picker<'a, Msg: Clone + 'a>(
+    selected_id: &str,
+    on_select: impl Fn(&'static str) -> Msg,
+) -> Element<'a, Msg> {
+    let swatches: Vec<Element<'a, Msg>> = tokens::Accent::ALL
+        .iter()
+        .map(|a| accent_swatch(*a, a.id() == selected_id, on_select(a.id())))
+        .collect();
+    row(swatches).spacing(14).into()
 }
 
 /// Linha **"em breve"**: label dim + selo "Em breve" à direita, SEM controle

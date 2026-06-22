@@ -760,6 +760,7 @@ impl LumaState {
                 g.larger_targets = s.accessibility.larger_targets;
                 g.min_target_size = s.accessibility.min_target_size;
                 g.focus_highlight = s.accessibility.focus_highlight;
+                g.accent = s.appearance.accent.clone();
                 // Chrome do compositor abre já no modo certo (HC chrome).
                 crate::theme::set_high_contrast(s.accessibility.high_contrast);
             }

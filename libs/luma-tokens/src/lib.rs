@@ -159,6 +159,13 @@ pub struct Palette {
     /// surface (#3E3632) dá 4.49:1 — passa AA folgado. Primitivo novo na
     /// fonte única; nunca hex solto no app.
     pub terracota: Color,
+    /// Rosa do crepúsculo (#E892AC). Acento curado novo (modelo Cinnamon) —
+    /// variedade fora dos âmbares quentes. AAA contra os fundos: 5.1:1 normal,
+    /// 10.6:1 no HC (#FFADC4). Primitivo na fonte única, nunca hex solto.
+    pub rosa: Color,
+    /// Lavanda do crepúsculo (#B9A1E8). Acento curado novo. AAA: 5.2:1 normal,
+    /// 10.9:1 no HC (#D0BCFF). Primitivo na fonte única.
+    pub lavanda: Color,
     /// Chrome de janela (#1B1714) — fundo da barra de título custom,
     /// um tom só abaixo do canvas. Token novo do M2 (moldura Golden
     /// Hour); mora aqui, na fonte única, nunca hardcoded no libluma.
@@ -188,6 +195,8 @@ impl Palette {
         cream_dim: Color::rgb8(0xA8, 0x9D, 0x92),
         warm_neutral: Color::rgb8(0x9C, 0x8B, 0x79),
         terracota: Color::rgb8(0xD9, 0x8E, 0x5E),
+        rosa: Color::rgb8(0xE8, 0x92, 0xAC),
+        lavanda: Color::rgb8(0xB9, 0xA1, 0xE8),
         chrome: Color::rgb8(0x1B, 0x17, 0x14),
         // surface = coffee.lighten(0.14), agora explícito. border
         // transparente: estética normal não tem borda forte.
@@ -212,6 +221,8 @@ impl Palette {
         cream_dim: Color::rgb8(0xE6, 0xD7, 0xC5),    // texto secundário
         warm_neutral: Color::rgb8(0xC7, 0xB3, 0x9A), // hue Sistema (HC)
         terracota: Color::rgb8(0xF2, 0xA8, 0x75),
+        rosa: Color::rgb8(0xFF, 0xAD, 0xC4),
+        lavanda: Color::rgb8(0xD0, 0xBC, 0xFF),
         chrome: Color::rgb8(0x0A, 0x08, 0x06),
         surface: Color::rgb8(0x17, 0x12, 0x0E),
         border: Color::rgb8(0xFF, 0xF6, 0xEA),       // borda forte presente
@@ -257,6 +268,10 @@ impl Palette {
             cream_dim: over(ov.cream_dim, d.cream_dim),
             warm_neutral: over(ov.warm_neutral, d.warm_neutral),
             terracota: over(ov.terracota, d.terracota),
+            // Acentos curados novos: não overridáveis por luma.toml (como
+            // surface/border) — moram só na const.
+            rosa: d.rosa,
+            lavanda: d.lavanda,
             chrome: over(ov.chrome, d.chrome),
             // surface/border não são overridáveis por luma.toml (parte 1):
             // surface é derivado e border é função do modo de contraste.

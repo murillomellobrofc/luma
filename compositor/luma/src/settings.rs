@@ -22,6 +22,27 @@ use tracing::{info, warn};
 #[serde(default)]
 pub struct Settings {
     pub accessibility: Accessibility,
+    pub appearance: Appearance,
+}
+
+/// Seção `[appearance]` — estética escolhida pelo usuário. Começa com o
+/// **acento curado** (modelo Cinnamon): um id de um conjunto fixo verificado
+/// AAA. Cor livre + guardrail virão na camada avançada (futuro).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Appearance {
+    /// Id do acento curado ("amber", "coral", "honey", "sage", "terracota",
+    /// "rosa", "lavanda"). Default "amber". Os apps re-resolvem o token de
+    /// accent a partir disto. Id desconhecido → âmbar (no lado do app).
+    pub accent: String,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            accent: "amber".to_string(),
+        }
+    }
 }
 
 /// Seção `[accessibility]`. 3b persistiu o sino visual; 3c soma o modo
