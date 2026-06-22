@@ -96,6 +96,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             );
                         }
                     }
+                    dbus_server::IpcCommand::ActivateWindow(id) => {
+                        data.state.activate_window_by_id(id);
+                    }
                 }
             }
         })
@@ -122,7 +125,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Slot de notificações compartilhado (clone do Arc) pro sino visual (3a):
     // o servidor D-Bus lê/escreve `flash_enabled` direto dele.
     let notifications_slot = data.state.notifications.clone();
-    dbus_server::spawn(dbus_tx, available, notifications_slot);
+    // Slot de janelas (luma-bar passo 2): o servidor D-Bus lê via list_windows.
+    let windows_slot = data.state.windows.clone();
+    dbus_server::spawn(dbus_tx, available, notifications_slot, windows_slot);
 
     info!("luma pronto, entrando no loop principal");
 

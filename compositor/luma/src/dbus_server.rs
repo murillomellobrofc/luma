@@ -29,7 +29,25 @@ pub enum IpcCommand {
         target: WidgetTarget,
         reply: tokio::sync::oneshot::Sender<Result<(), String>>,
     },
+    /// Ativa (foca + levanta) a janela com este id. Fire-and-forget — a
+    /// taskbar (luma-bar) não espera resposta. luma-bar passo 2.
+    ActivateWindow(u64),
 }
+
+/// Uma janela aberta, pra a taskbar (luma-bar passo 2). `id` é estável por
+/// janela (contador do compositor). Estado mínimo: título, app_id, foco.
+#[derive(Clone, Debug)]
+pub struct WindowEntry {
+    pub id: u64,
+    pub title: String,
+    pub app_id: String,
+    pub focused: bool,
+}
+
+/// Lista de janelas compartilhada (`Arc<Mutex>`), escrita pelo compositor a
+/// cada frame e lida pelo `list_windows` do D-Bus. Mesmo padrão cross-thread
+/// do `NotificationsSlot`.
+pub type WindowsSlot = std::sync::Arc<std::sync::Mutex<Vec<WindowEntry>>>;
 
 struct CompositorService {
     /// Catálogo dos tipos de widget conhecidos no boot. Imutável após
@@ -45,6 +63,9 @@ struct CompositorService {
     /// cross-thread por design (o próprio subsistema de notif. roda noutra
     /// thread), então não precisa do roundtrip pelo calloop. 3a.
     notifications: NotificationsSlot,
+    /// Lista de janelas compartilhada (luma-bar passo 2). O compositor
+    /// escreve a cada frame; `list_windows` lê direto, sem roundtrip.
+    windows: WindowsSlot,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -301,6 +322,29 @@ impl CompositorService {
     #[zbus(signal)]
     async fn accent_changed(emitter: &SignalEmitter<'_>, accent: &str) -> zbus::Result<()>;
 
+    // ─── Janelas / taskbar (luma-bar passo 2) ─────────────────────────
+
+    /// Lista as janelas abertas pra a taskbar: `(id, título, app_id, focada)`.
+    /// O compositor mantém isso atualizado por frame no slot compartilhado; a
+    /// luma-bar faz poll. `activate_window` foca pela id.
+    async fn list_windows(&self) -> Vec<(u64, String, String, bool)> {
+        match self.windows.lock() {
+            Ok(g) => g
+                .iter()
+                .map(|w| (w.id, w.title.clone(), w.app_id.clone(), w.focused))
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Ativa (foca + levanta) a janela com esta id. Fire-and-forget: manda o
+    /// comando pro calloop e retorna. Id desconhecida = no-op no compositor.
+    async fn activate_window(&self, id: u64) {
+        if self.cmd_tx.send(IpcCommand::ActivateWindow(id)).is_err() {
+            error!("D-Bus: calloop fechado ao ativar janela {id}");
+        }
+    }
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -441,14 +485,20 @@ pub fn spawn(
     cmd_tx: Sender<IpcCommand>,
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
+    windows: WindowsSlot,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
-    if let Err(err) = builder.spawn(move || run(cmd_tx, available, notifications)) {
+    if let Err(err) = builder.spawn(move || run(cmd_tx, available, notifications, windows)) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
 }
 
-fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>, notifications: NotificationsSlot) {
+fn run(
+    cmd_tx: Sender<IpcCommand>,
+    available: Vec<WidgetInfo>,
+    notifications: NotificationsSlot,
+    windows: WindowsSlot,
+) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -460,7 +510,7 @@ fn run(cmd_tx: Sender<IpcCommand>, available: Vec<WidgetInfo>, notifications: No
         }
     };
     rt.block_on(async move {
-        if let Err(err) = serve(cmd_tx, available, notifications).await {
+        if let Err(err) = serve(cmd_tx, available, notifications, windows).await {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
     });
@@ -470,11 +520,13 @@ async fn serve(
     cmd_tx: Sender<IpcCommand>,
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
+    windows: WindowsSlot,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
         cmd_tx,
         notifications,
+        windows,
     };
     let _conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
