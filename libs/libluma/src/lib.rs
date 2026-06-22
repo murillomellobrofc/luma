@@ -26,6 +26,6 @@ pub use components::{
     GridItem, GridSection, category_grid, category_grid_filtered, category_tile, coming_soon_row,
     columns_for, nav_row, page_header, scrollbar_style, settings_group, slider_row, toggle_row,
 };
-pub use focusable::focusable;
+pub use focusable::{focusable, focusable_stepper};
 pub use theme::golden_hour_theme;
 pub use tokens::Semantic;

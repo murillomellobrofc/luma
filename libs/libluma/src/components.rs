@@ -5,7 +5,7 @@
 //! - [`category_grid`]: seções rotuladas + grade responsiva de tiles, que
 //!   reflui pela largura. Dirigido por dados (a taxonomia mora no app).
 
-use iced::widget::{column, container, mouse_area, row, scrollable, slider, svg, text, toggler};
+use iced::widget::{column, container, row, scrollable, slider, svg, text, toggler};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow};
 
 use crate::tokens;
@@ -327,7 +327,9 @@ pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element
     let secondary = tokens::to_iced(p.cream_dim);
     let border = tokens::to_iced(p.border);
 
-    let back = mouse_area(
+    // Botão voltar focável (Teclado passo 3): Tab para nele, Enter volta pra
+    // grade. Primeiro na ordem de foco da página (vem antes dos controles).
+    let back = crate::focusable::focusable(
         container(text("←").size(22.0).color(amber))
             .center_x(Length::Fixed(scaled(40.0)))
             .center_y(Length::Fixed(scaled(40.0)))
@@ -340,9 +342,8 @@ pub fn page_header<'a, Msg: Clone + 'a>(title: &'a str, on_back: Msg) -> Element
                 },
                 ..Default::default()
             }),
-    )
-    .on_press(on_back)
-    .interaction(iced::mouse::Interaction::Pointer);
+        on_back,
+    );
 
     let labels = column(vec![
         text("Todas as configurações")
@@ -466,6 +467,10 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
     let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
     let off = Color { a: 0.22, ..cream };
 
+    // Ativação por teclado (Espaço com foco) ou clique no corpo da linha =
+    // virar o estado. Calculado ANTES de mover `on_toggle` pro toggler.
+    let activate = on_toggle(!value);
+
     let tog = toggler(value)
         .on_toggle(on_toggle)
         .size(scaled(26.0))
@@ -488,7 +493,7 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
             }
         });
 
-    row_shell(
+    let line = row_shell(
         row(vec![
             text(label)
                 .size(14.0)
@@ -499,8 +504,11 @@ pub fn toggle_row<'a, Msg: Clone + 'a>(
         ])
         .spacing(12)
         .align_y(Alignment::Center),
-    )
-    .into()
+    );
+    // Focável (Teclado passo 3): Tab para na linha, Espaço vira o toggle.
+    // O clique no toggler é capturado por ele; clicar no resto da linha cai
+    // no focável e também vira — alvo maior, sem duplo-disparo.
+    crate::focusable::focusable(line, activate).into()
 }
 
 /// Linha de ajuste com slider + valor (ex: "44 px"). `range`/`step` definem
@@ -522,6 +530,27 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
     let secondary = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).cream_dim);
     let amber = tokens::to_iced(luma_tokens::Palette::for_contrast(tokens::high_contrast()).amber);
     let track = Color { a: 0.18, ..cream };
+
+    // Teclado (Teclado passo 3): Esquerda/Direita = um passo discreto. Cada
+    // seta publica [on_change(novo), on_release] — mexe o valor E commita no
+    // passo (diferente do arraste do mouse, que commita no soltar). Listas
+    // vazias quando já está no limite do range. Calculado ANTES de mover
+    // `on_change`/`range` pro slider.
+    let (lo, hi) = (*range.start(), *range.end());
+    let dec = (value - step).max(lo);
+    let inc = (value + step).min(hi);
+    let step_msgs = |target: f32| -> Vec<Msg> {
+        if (target - value).abs() <= f32::EPSILON {
+            return Vec::new();
+        }
+        let mut v = vec![on_change(target)];
+        if let Some(r) = on_release.clone() {
+            v.push(r);
+        }
+        v
+    };
+    let on_left = step_msgs(dec);
+    let on_right = step_msgs(inc);
 
     let sld = slider(range, value, on_change)
         .step(step)
@@ -554,7 +583,7 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
         .width(Length::Fixed(54.0))
         .align_x(iced::alignment::Horizontal::Right);
 
-    row_shell(
+    let line = row_shell(
         row(vec![
             text(label).size(14.0).color(cream).into(),
             sld.into(),
@@ -562,8 +591,10 @@ pub fn slider_row<'a, Msg: Clone + 'a>(
         ])
         .spacing(16)
         .align_y(Alignment::Center),
-    )
-    .into()
+    );
+    // Focável stepper (Teclado passo 3): Tab para na linha; setas mexem o
+    // valor. O clique no slider é tratado pelo próprio widget.
+    crate::focusable::focusable_stepper(line, on_left, on_right).into()
 }
 
 /// Linha de navegação: label + chevron à direita. A linha inteira é clicável
@@ -583,10 +614,9 @@ pub fn nav_row<'a, Msg: Clone + 'a>(label: &'a str, on_press: Msg) -> Element<'a
     .spacing(12)
     .align_y(Alignment::Center);
 
-    mouse_area(row_shell(inner))
-        .on_press(on_press)
-        .interaction(iced::mouse::Interaction::Pointer)
-        .into()
+    // Focável (Teclado passo 3): Tab para na linha, Enter navega. O clique
+    // segue funcionando (o focável trata o press do corpo).
+    crate::focusable::focusable(row_shell(inner), on_press).into()
 }
 
 /// Linha **"em breve"**: label dim + selo "Em breve" à direita, SEM controle

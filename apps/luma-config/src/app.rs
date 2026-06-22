@@ -289,8 +289,9 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             }
         }
         Message::TouchMinSize(v) => {
-            // Arraste do slider: só o número ao vivo (não re-dimensiona
-            // embaixo do cursor). O commit é no soltar (TouchMinReleased).
+            // Arraste do slider OU seta do teclado: número ao vivo (não
+            // re-dimensiona embaixo do cursor). O commit vem no
+            // soltar/passo (TouchMinReleased).
             state.touch.min_size = v;
         }
         Message::TouchMinReleased => {
