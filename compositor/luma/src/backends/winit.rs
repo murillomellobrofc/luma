@@ -365,6 +365,9 @@ pub fn init_winit(
                 if let Some(layer) = data.state.desktop_icons.as_ref() {
                     layer.set_output_size(smithay::utils::Size::from((size.w, size.h)));
                 }
+                // Re-arranja os layer surfaces (luma-bar) pro novo tamanho do
+                // output — reposiciona âncoras e recalcula a zona exclusiva.
+                smithay::desktop::layer_map_for_output(&output).arrange();
             }
             WinitEvent::Input(event) => data.state.process_input_event(event),
             WinitEvent::Focus(_) => {}
@@ -7920,6 +7923,17 @@ pub fn init_winit(
                         );
                     }
                 });
+                // Frame callbacks pros LAYER SURFACES (luma-bar e cia). Sem
+                // isto a barra renderiza 1 frame e CONGELA — clientes
+                // layer-shell só redesenham quando o `wl_surface.frame`
+                // dispara. (As janelas já recebem acima; os layers não
+                // estavam recebendo.)
+                for out in data.state.space.outputs() {
+                    let map = smithay::desktop::layer_map_for_output(out);
+                    for layer in map.layers() {
+                        layer.send_frame(out, now, Some(Duration::ZERO), |_, _| Some(out.clone()));
+                    }
+                }
                 // H36.3: detecta surfaces que morreram e remove do
                 // workspace (cleanup_empty roda dentro de remove_window).
                 let alive_surfaces: std::collections::HashSet<_> = data
