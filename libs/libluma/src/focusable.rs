@@ -12,8 +12,11 @@
 //! - ativa (`on_activate`) com **Enter/Espaço** (quando focado) ou **clique**
 //!   — o mesmo que clicar no tile.
 //!
-//! É a fundação de teclado da grade; o passo 3 estende pros controles da
-//! página e o passo 4 compõe o realce forte em cima do anel.
+//! É a fundação de teclado da grade. O passo 3 reusa pros controles da
+//! página: toggle/nav/voltar usam [`focusable`] (ativação = flip/navegar);
+//! o slider usa [`focusable_stepper`], onde **Esquerda/Direita** publicam uma
+//! lista de mensagens (mexer o valor + commitar no passo). O passo 4 compõe
+//! o realce forte em cima do anel.
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
@@ -44,13 +47,23 @@ impl operation::Focusable for State {
     }
 }
 
-/// Wrapper focável de um filho único (o visual do tile). Delega tudo pro
+/// Wrapper focável de um filho único (o visual do controle). Delega tudo pro
 /// conteúdo e adiciona: registro na cadeia de foco, anel quando focado, e
-/// ativação por Enter/Espaço/clique.
+/// ativação por teclado. Dois modos:
+/// - **ativação** (`on_activate`): Enter/Espaço (com foco) ou clique → emite
+///   uma mensagem. Tiles, toggles, nav rows, botão voltar.
+/// - **stepper** (`on_left`/`on_right`): Esquerda/Direita → emitem uma LISTA
+///   de mensagens (ex.: mexer o valor + commitar). Sliders.
+///   Os dois modos coexistem, mas na prática um controle usa um só.
 pub struct Focusable<'a, Message, Theme, Renderer> {
     content: Element<'a, Message, Theme, Renderer>,
-    on_activate: Message,
-    /// Raio do anel de foco (casa com o card do tile).
+    /// Enter/Espaço/clique. `None` no slider (clique no corpo não ativa).
+    on_activate: Option<Message>,
+    /// Seta Esquerda → publica esta lista em ordem (valor então commit).
+    on_left: Vec<Message>,
+    /// Seta Direita → idem.
+    on_right: Vec<Message>,
+    /// Raio do anel de foco (casa com o card/linha).
     ring_radius: f32,
 }
 
@@ -64,7 +77,29 @@ pub fn focusable<'a, Message, Theme, Renderer>(
 ) -> Focusable<'a, Message, Theme, Renderer> {
     Focusable {
         content: content.into(),
-        on_activate,
+        on_activate: Some(on_activate),
+        on_left: Vec::new(),
+        on_right: Vec::new(),
+        ring_radius: 14.0,
+    }
+}
+
+/// Embrulha `content` num focável **stepper** (slider): as setas
+/// Esquerda/Direita publicam `on_left`/`on_right` (cada uma uma lista de
+/// mensagens, ex.: `[on_change(novo), on_release]` pra mexer e commitar no
+/// passo). Sem ativação por Enter/Espaço/clique no corpo — o slider trata o
+/// próprio clique. Listas vazias = aquela seta não faz nada (ex.: já no
+/// limite do range).
+pub fn focusable_stepper<'a, Message, Theme, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    on_left: Vec<Message>,
+    on_right: Vec<Message>,
+) -> Focusable<'a, Message, Theme, Renderer> {
+    Focusable {
+        content: content.into(),
+        on_activate: None,
+        on_left,
+        on_right,
         ring_radius: 14.0,
     }
 }
@@ -151,23 +186,46 @@ where
 
         let state = tree.state.downcast_mut::<State>();
         match event {
-            // Clique = ativar (igual ao mouse_area que isto substitui).
+            // Clique no corpo = ativar (igual ao mouse_area que isto
+            // substitui). Só quando há `on_activate` — no slider o próprio
+            // widget trata o clique, então aqui é no-op.
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
                 if cursor.is_over(layout.bounds()) =>
             {
-                shell.publish(self.on_activate.clone());
-                shell.capture_event();
+                if let Some(msg) = &self.on_activate {
+                    shell.publish(msg.clone());
+                    shell.capture_event();
+                }
             }
-            // Enter/Espaço com foco = ativar (mesmo que clicar).
+            // Teclado só com foco.
             Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) if state.is_focused => {
                 use keyboard::key::Named;
-                if matches!(
-                    key,
-                    keyboard::Key::Named(Named::Enter) | keyboard::Key::Named(Named::Space)
-                ) {
-                    shell.publish(self.on_activate.clone());
-                    shell.capture_event();
-                    shell.request_redraw();
+                match key {
+                    // Enter/Espaço = ativar (mesmo que clicar).
+                    keyboard::Key::Named(Named::Enter) | keyboard::Key::Named(Named::Space) => {
+                        if let Some(msg) = &self.on_activate {
+                            shell.publish(msg.clone());
+                            shell.capture_event();
+                            shell.request_redraw();
+                        }
+                    }
+                    // Setas = stepper (slider): publica a lista em ordem
+                    // (mexer o valor, depois commitar no passo).
+                    keyboard::Key::Named(Named::ArrowLeft) if !self.on_left.is_empty() => {
+                        for m in &self.on_left {
+                            shell.publish(m.clone());
+                        }
+                        shell.capture_event();
+                        shell.request_redraw();
+                    }
+                    keyboard::Key::Named(Named::ArrowRight) if !self.on_right.is_empty() => {
+                        for m in &self.on_right {
+                            shell.publish(m.clone());
+                        }
+                        shell.capture_event();
+                        shell.request_redraw();
+                    }
+                    _ => {}
                 }
             }
             _ => {}
