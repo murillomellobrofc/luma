@@ -64,6 +64,12 @@ pub struct LumaState {
     /// (iced_layershell, ex. a luma-bar) pra escala/hidpi. Guardado pra o
     /// global ficar vivo; o dispatch vem do `delegate_dispatch2!` unificado.
     pub viewporter_state: ViewporterState,
+    /// Lista de janelas pra a taskbar (luma-bar passo 2), escrita por frame
+    /// (`update_windows_slot`) e lida pelo `list_windows` do D-Bus.
+    pub windows: crate::dbus_server::WindowsSlot,
+    /// Contador de id estável por janela (luma-bar passo 2). Cada toplevel
+    /// novo ganha um, guardado no `UserDataMap` da Window via [`WindowId`].
+    pub next_window_id: u64,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -424,6 +430,10 @@ const CASCADE_STEP: i32 = 40;
 /// Margem mínima que sempre deve sobrar do output além da janela em cascata.
 const CASCADE_MARGIN: i32 = 80;
 
+/// Id estável de uma janela, guardado no `UserDataMap` da Window (luma-bar
+/// passo 2). Atribuído no `new_toplevel`; sobrevive enquanto a janela viver.
+pub struct WindowId(pub u64);
+
 impl LumaState {
     /// Output principal — sempre o primeiro do `outputs`. Panic se vazio.
     /// O caller é responsável por garantir que o output já foi registrado
@@ -694,6 +704,77 @@ impl LumaState {
         Point::from((x, y))
     }
 
+    /// Reescreve o slot de janelas pra a taskbar (luma-bar passo 2): itera as
+    /// janelas do space na ordem, extrai id/título/app_id/foco, e troca o Vec
+    /// compartilhado. Chamado por frame no render. `&self` — só lê o space/
+    /// seat e escreve via o Arc<Mutex>.
+    pub fn update_windows_slot(&self) {
+        let focused = self
+            .seat
+            .get_keyboard()
+            .and_then(|k| k.current_focus());
+
+        let mut list = Vec::new();
+        for item in self.space.elements() {
+            let Some(window) = item.as_window() else {
+                continue;
+            };
+            let Some(id) = window.window().user_data().get::<WindowId>().map(|w| w.0) else {
+                continue;
+            };
+            let Some(toplevel) = window.window().toplevel() else {
+                continue;
+            };
+            let surface = toplevel.wl_surface();
+            let (title, app_id) = smithay::wayland::compositor::with_states(surface, |states| {
+                states
+                    .data_map
+                    .get::<smithay::wayland::shell::xdg::XdgToplevelSurfaceData>()
+                    .map(|d| {
+                        let g = d.lock().unwrap();
+                        (
+                            g.title.clone().unwrap_or_default(),
+                            g.app_id.clone().unwrap_or_default(),
+                        )
+                    })
+                    .unwrap_or_default()
+            });
+            let focused = focused.as_ref() == Some(surface);
+            list.push(crate::dbus_server::WindowEntry {
+                id,
+                title,
+                app_id,
+                focused,
+            });
+        }
+        if let Ok(mut g) = self.windows.lock() {
+            *g = list;
+        }
+    }
+
+    /// Ativa (foca + levanta) a janela com esta id (luma-bar passo 2). Id
+    /// desconhecida = no-op. Mesma lógica do clique na barra velha.
+    pub fn activate_window_by_id(&mut self, id: u64) {
+        let window = self
+            .space
+            .elements()
+            .filter_map(|i| i.as_window())
+            .find(|w| w.window().user_data().get::<WindowId>().map(|x| x.0) == Some(id))
+            .cloned();
+        let Some(window) = window else {
+            return;
+        };
+        self.space
+            .raise_element(&crate::space_item::SpaceItem::Window(window.clone()), true);
+        if let (Some(keyboard), Some(toplevel)) =
+            (self.seat.get_keyboard(), window.window().toplevel())
+        {
+            let surface = toplevel.wl_surface().clone();
+            let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+            keyboard.set_focus(self, Some(surface), serial);
+        }
+    }
+
     pub fn new(
         event_loop: &mut EventLoop<'static, CalloopData>,
         display: &mut Display<LumaState>,
@@ -706,6 +787,7 @@ impl LumaState {
         let layer_shell_state = WlrLayerShellState::new::<LumaState>(&dh);
         let viewporter_state = ViewporterState::new::<LumaState>(&dh);
         let shm_state = ShmState::new::<LumaState>(&dh, vec![]);
+        let windows = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -808,6 +890,8 @@ impl LumaState {
             xdg_decoration_state,
             layer_shell_state,
             viewporter_state,
+            windows,
+            next_window_id: 1,
             shm_state,
             output_manager_state,
             seat_state,

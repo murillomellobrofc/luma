@@ -24,6 +24,12 @@ impl XdgShellHandler for LumaState {
         debug!("nova janela top-level chegando em {position:?}");
         let wl_surface = surface.wl_surface().clone();
         let window = Window::new_wayland_window(surface);
+        // Id estável pra a taskbar (luma-bar passo 2), no UserDataMap.
+        let win_id = self.next_window_id;
+        self.next_window_id += 1;
+        window
+            .user_data()
+            .insert_if_missing(|| crate::state::WindowId(win_id));
         crate::decoration::ensure_decoration(&window);
         self.space.map_element(
             SpaceItem::Window(LumaWindow::new(window)),

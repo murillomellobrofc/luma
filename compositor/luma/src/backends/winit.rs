@@ -375,6 +375,10 @@ pub fn init_winit(
                 let size = backend.window_size();
                 let damage = Rectangle::from_size(size);
 
+                // Atualiza o slot de janelas pra a taskbar (luma-bar passo 2):
+                // a luma-bar faz poll de `list_windows` via D-Bus.
+                data.state.update_windows_slot();
+
                 // Decorações agora vivem dentro do AsRenderElements de cada
                 // LumaWindow, então o space::render_output cuida do z-order
                 // automaticamente. Aqui só sobra o cursor como custom element.
