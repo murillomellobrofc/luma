@@ -101,12 +101,17 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         Err(_) => false,
     };
     let mut close_notif_panel = false;
-    let _ = keyboard.input::<(), _>(
+    // 1ª passada: SÓ detecta modos especiais (menu/popup/lock/rename/…) e
+    // seta os flags abaixo. Usa `input_intercept` (não `input`) de propósito:
+    // ele roda o filtro + atualiza o estado do xkb mas **NÃO encaminha** a
+    // tecla pro cliente. A 2ª passada (atalhos + forward, lá embaixo) é a
+    // ÚNICA que encaminha. Com `input` aqui o caso normal retornava `Forward`
+    // e o smithay mandava a tecla pro cliente — e a 2ª passada mandava de
+    // novo: todo cliente Wayland recebia cada tecla EM DOBRO.
+    let _ = keyboard.input_intercept::<FilterResult<()>, _>(
         state,
         key_code,
         key_state,
-        serial,
-        time,
         |_state, _modifiers, handle| {
             // H58: lock ativo intercepta TODA tecla. Whitelist (fatia 6):
             // XF86 de brilho, volume e mídia passam pro shortcut handler
