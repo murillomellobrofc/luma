@@ -19,6 +19,9 @@ luma-tokens = { path = "../luma-tokens" }
 # compositor habilita `zbus/tokio` e a unificação de features espalha isso;
 # o runtime tem que ser tokio em todo lugar pro zbus não paniquear. Precisa
 # casar com o luma-config (unificação de features).
+# `advanced`: expõe `iced::advanced::*` (Widget/Operation/Tree) pro widget
+# focável custom (Teclado passo 2) — tiles entram na cadeia de foco do iced.
 iced = { version = "0.14", default-features = false, features = [
     "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "x11", "wayland", "svg",
+    "advanced",
 ] }
