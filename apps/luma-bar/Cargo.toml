@@ -1,0 +1,26 @@
+[package]
+name = "luma-bar"
+version = "0.1.0"
+edition = "2024"
+description = "Barra do Luma — cliente layer-shell (iced) que segue o acento/HC"
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "luma-bar"
+path = "src/main.rs"
+
+[dependencies]
+libluma = { path = "../../libs/libluma" }
+# Cliente layer-shell em iced. Faz o windowing via layershellev (não o winit
+# do iced), então âncora/camada/zona-exclusiva saem daqui. Suporta iced 0.14
+# (a versão pinada do workspace).
+iced_layershell = "0.18"
+# `iced` pros widgets/Element/Theme (o iced_layershell cuida do shell). Mesma
+# lista do libluma/luma-config pra unificação de features — executor tokio.
+iced = { version = "0.14", default-features = false, features = [
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg",
+] }
+# Canal D-Bus (acento/HC ao vivo). `tokio` pra casar com o executor.
+zbus = { version = "5", features = ["tokio"] }
+# Relógio (conteúdo simples do passo 1). Mesma config do compositor.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
