@@ -55,6 +55,18 @@ pub fn to_iced(c: TokenColor) -> Color {
     Color::from_rgba(r, g, b, a)
 }
 
+/// Cor do **anel de foco** do teclado (Teclado passo 2). Palette-aware: âmbar
+/// no Golden Hour normal (anel quente e visível) e a **borda forte**
+/// (#FFF6EA) no alto contraste — a mesma cor que já separa as formas no HC.
+/// Sem hex solto: sai da paleta resolvida pelo [`high_contrast`]. O passo 4
+/// (Realçar foco) compõe em cima disto pra um anel mais forte quando o
+/// usuário liga o realce.
+pub fn focus_ring() -> Color {
+    let hc = high_contrast();
+    let p = Palette::for_contrast(hc);
+    to_iced(if hc { p.border } else { p.amber })
+}
+
 // ─── Alvo de toque (PCD) ──────────────────────────────────────────────
 
 /// Baseline do hit target — WCAG AAA = 44px. É o ÂNCORA da escala: no

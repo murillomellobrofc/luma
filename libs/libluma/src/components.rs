@@ -132,13 +132,12 @@ pub fn category_tile<'a, Msg: Clone + 'a>(
 
     let tile = container(col).padding(4);
 
-    // Tile habilitado com mensagem vira clicável (cursor de mão). "Em
-    // breve" (ou sem mensagem) fica só visual.
+    // Tile habilitado com mensagem vira **focável + clicável** (Teclado
+    // passo 2): entra na cadeia de Tab, mostra o anel ao focar, e ativa por
+    // Enter/Espaço/clique. "Em breve" (ou sem mensagem) fica só visual — sem
+    // foco, então é pulado na ordem de Tab.
     match (enabled, on_press) {
-        (true, Some(msg)) => mouse_area(tile)
-            .on_press(msg)
-            .interaction(iced::mouse::Interaction::Pointer)
-            .into(),
+        (true, Some(msg)) => crate::focusable::focusable(tile, msg).into(),
         _ => tile.into(),
     }
 }
