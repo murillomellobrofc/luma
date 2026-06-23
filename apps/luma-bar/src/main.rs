@@ -38,6 +38,17 @@ enum PopupKind {
     Volume,
     Bluetooth,
     Network,
+    Notifications,
+}
+
+/// Uma notificação na central.
+#[derive(Debug, Clone)]
+struct Notif {
+    #[allow(dead_code)]
+    id: u32,
+    app: String,
+    summary: String,
+    body: String,
 }
 
 /// Uma rede wi-fi no popup de rede.
@@ -113,6 +124,13 @@ struct Bar {
     net_has_wifi: bool,
     net_eth: String,
     net_wifi: Vec<WifiNet>,
+    /// Sino: ícone do estado ("bell-normal"/"bell-alert"/"bell-dnd").
+    notif_icon: String,
+    /// DND e som (pros botões da central).
+    notif_dnd: bool,
+    notif_sound: bool,
+    /// Lista da central (histórico).
+    notif_list: Vec<Notif>,
 }
 
 #[to_layer_message(multi)]
@@ -202,6 +220,18 @@ enum Message {
     ConnectWifi(String),
     /// Liga/desliga o rádio wi-fi.
     SetWifiRadio(bool),
+    /// Clique no sino → abre/fecha a central.
+    OpenNotifPopup,
+    /// Poll do sino (status sempre; lista se a central está aberta).
+    NotifPoll,
+    /// Status do sino carregado `(ícone, contagem, dnd, som)`.
+    NotifStatusLoaded((String, u32, bool, bool)),
+    /// Lista da central carregada.
+    NotifListLoaded(Vec<(u32, String, String, String)>),
+    /// Botões da central: DND, som, limpar.
+    ToggleDnd,
+    ToggleNotifSound,
+    ClearNotifs,
 }
 
 fn now_hm() -> String {
@@ -289,6 +319,10 @@ fn boot() -> (Bar, Task<Message>) {
             net_has_wifi: false,
             net_eth: String::new(),
             net_wifi: Vec::new(),
+            notif_icon: "bell-normal".to_string(),
+            notif_dnd: false,
+            notif_sound: true,
+            notif_list: Vec::new(),
         },
         read,
     )
@@ -349,6 +383,10 @@ fn load_popup(kind: PopupKind) -> Task<Message> {
         PopupKind::Network => {
             Task::perform(ipc::read_network_devices(), Message::NetworkDevicesLoaded)
         }
+        PopupKind::Notifications => Task::batch([
+            Task::perform(ipc::read_notification_status(), Message::NotifStatusLoaded),
+            Task::perform(ipc::read_notifications(), Message::NotifListLoaded),
+        ]),
     }
 }
 
@@ -584,6 +622,38 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
             state.net_wifi_on = on; // otimista
             return Task::perform(ipc::set_wifi_radio(on), Message::NetworkDevicesLoaded);
         }
+        Message::OpenNotifPopup => return open_popup(state, PopupKind::Notifications),
+        Message::NotifPoll => {
+            let mut tasks =
+                vec![Task::perform(ipc::read_notification_status(), Message::NotifStatusLoaded)];
+            if matches!(state.popup, Some((_, PopupKind::Notifications))) {
+                tasks.push(Task::perform(ipc::read_notifications(), Message::NotifListLoaded));
+            }
+            return Task::batch(tasks);
+        }
+        Message::NotifStatusLoaded((icon, _count, dnd, sound)) => {
+            state.notif_icon = icon;
+            state.notif_dnd = dnd;
+            state.notif_sound = sound;
+        }
+        Message::NotifListLoaded(list) => {
+            state.notif_list = list
+                .into_iter()
+                .map(|(id, app, summary, body)| Notif {
+                    id,
+                    app,
+                    summary,
+                    body,
+                })
+                .collect();
+        }
+        Message::ToggleDnd => return Task::perform(ipc::toggle_dnd(), |_| Message::NotifPoll),
+        Message::ToggleNotifSound => {
+            return Task::perform(ipc::toggle_notification_sound(), |_| Message::NotifPoll);
+        }
+        Message::ClearNotifs => {
+            return Task::perform(ipc::clear_notifications(), |_| Message::NotifPoll);
+        }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
         Message::BluetoothLoaded(icon) | Message::BluetoothChanged(icon) => {
@@ -643,6 +713,10 @@ fn applet_svg(name: &str) -> svg::Handle {
         // bluetooth
         "bluetooth-on" => include_bytes!("../../../assets/branding/icons/icon-bluetooth-on.svg"),
         "bluetooth-off" => include_bytes!("../../../assets/branding/icons/icon-bluetooth-off.svg"),
+        // sino
+        "bell-normal" => include_bytes!("../../../assets/branding/icons/icon-bell-normal.svg"),
+        "bell-alert" => include_bytes!("../../../assets/branding/icons/icon-bell-alert.svg"),
+        "bell-dnd" => include_bytes!("../../../assets/branding/icons/icon-bell-dnd.svg"),
         _ => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
     };
     svg::Handle::from_memory(bytes)
@@ -697,6 +771,19 @@ fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
     mouse_area(applet_icon(icon, 18.0, cream))
         .on_press(Message::OpenNetworkPopup)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Applet do sino: o SVG do estado (normal/alerta/dnd), tingido pelo tema.
+/// Clique abre a central de notificações.
+fn notification_applet<'a>(icon: &str) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let accent = libluma::tokens::accent();
+    // Alerta no acento (chama atenção); normal/dnd no creme.
+    let color = if icon == "bell-alert" { accent } else { cream };
+    mouse_area(applet_icon(icon, 18.0, color))
+        .on_press(Message::OpenNotifPopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
 }
@@ -766,6 +853,7 @@ fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
                 PopupKind::Volume => popup_frame(volume_popup_body(state), 60.0),
                 PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 200.0),
                 PopupKind::Network => popup_frame(network_popup_body(state), 130.0),
+                PopupKind::Notifications => popup_frame(notif_popup_body(state), 30.0),
             };
         }
     }
@@ -900,6 +988,8 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
+            Space::new().width(Length::Fixed(14.0)),
+            notification_applet(&state.notif_icon),
             Space::new().width(Length::Fixed(14.0)),
             show_desktop_btn,
             Space::new().width(Length::Fixed(12.0)),
@@ -1397,6 +1487,69 @@ fn wifi_row<'a>(n: &WifiNet) -> Element<'a, Message> {
     .into()
 }
 
+/// Corpo da central: botões (DND/Som/Limpar) + lista de notificações.
+fn notif_popup_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    let mut items: Vec<Element<Message>> = Vec::new();
+    items.push(popup_title("Notificações", cream));
+
+    // Botões: DND (aceso quando ligado), Som (aceso quando ligado), Limpar.
+    items.push(
+        row![
+            pill_button("Não perturbe", Message::ToggleDnd, state.notif_dnd),
+            pill_button("Som", Message::ToggleNotifSound, state.notif_sound),
+            pill_button("Limpar", Message::ClearNotifs, false),
+        ]
+        .spacing(8)
+        .into(),
+    );
+
+    if state.notif_list.is_empty() {
+        items.push(text("Sem notificações").size(13.0).color(secondary).into());
+    } else {
+        for n in &state.notif_list {
+            items.push(notif_card(n));
+        }
+    }
+
+    scrollable(column(items).spacing(12.0)).into()
+}
+
+/// Card de uma notificação: app + resumo + corpo.
+fn notif_card<'a>(n: &Notif) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let accent = libluma::tokens::accent();
+
+    let mut lines: Vec<Element<Message>> = Vec::new();
+    if !n.app.trim().is_empty() {
+        lines.push(text(n.app.clone()).size(11.0).color(accent).into());
+    }
+    if !n.summary.trim().is_empty() {
+        lines.push(text(n.summary.clone()).size(14.0).color(cream).into());
+    }
+    if !n.body.trim().is_empty() {
+        lines.push(text(n.body.clone()).size(12.0).color(secondary).into());
+    }
+
+    container(column(lines).spacing(3))
+        .width(Length::Fill)
+        .padding(Padding::from([8.0, 10.0]))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(Color { a: 0.06, ..cream })),
+            border: Border {
+                radius: 10.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
 fn subscription(state: &Bar) -> iced::Subscription<Message> {
     let mut subs = vec![
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
@@ -1418,6 +1571,9 @@ fn subscription(state: &Bar) -> iced::Subscription<Message> {
     if matches!(state.popup, Some((_, PopupKind::Network))) {
         subs.push(iced::time::every(Duration::from_millis(3000)).map(|_| Message::NetPoll));
     }
+    // Sino: poll do status a cada 2s (sempre — pra o ícone refletir notif nova
+    // / DND ao vivo); a lista só relê com a central aberta (no NotifPoll).
+    subs.push(iced::time::every(Duration::from_millis(2000)).map(|_| Message::NotifPoll));
     iced::Subscription::batch(subs)
 }
 
