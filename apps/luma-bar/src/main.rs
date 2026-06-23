@@ -8,7 +8,7 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{button, column, container, mouse_area, row, svg, text, Space};
+use iced::widget::{column, container, mouse_area, row, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Task};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -27,6 +27,7 @@ struct WinEntry {
     id: u64,
     label: String,
     focused: bool,
+    minimized: bool,
 }
 
 struct Bar {
@@ -60,10 +61,16 @@ enum Message {
     HighContrastChanged(bool),
     /// Hora de re-ler a lista de janelas (tick de 500ms).
     PollWindows,
-    /// Lista de janelas lida do compositor.
-    WindowsLoaded(Vec<(u64, String, String, bool)>),
-    /// Clique num botão de janela → foca/levanta no compositor.
+    /// Lista de janelas lida do compositor (id, título, app_id, focada, min).
+    WindowsLoaded(Vec<(u64, String, String, bool, bool)>),
+    /// Clique num botão de janela → foca/levanta (ou restaura) no compositor.
     ActivateWindow(u64),
+    /// Clique na janela focada → minimiza (passo 7).
+    MinimizeWindow(u64),
+    /// Botão direito num botão de janela → fecha (passo 7).
+    CloseWindow(u64),
+    /// Botão "mostrar área de trabalho" (passo 7).
+    ShowDesktop,
     /// Bateria lida no boot / mudada pelo sinal: `(present, capacity, charging)`.
     BatteryLoaded((bool, u8, bool)),
     BatteryChanged((bool, u8, bool)),
@@ -177,15 +184,25 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::WindowsLoaded(list) => {
             state.windows = list
                 .into_iter()
-                .map(|(id, title, app_id, focused)| WinEntry {
+                .map(|(id, title, app_id, focused, minimized)| WinEntry {
                     id,
                     label: resolve_label(&title, &app_id),
                     focused,
+                    minimized,
                 })
                 .collect();
         }
         Message::ActivateWindow(id) => {
             return Task::perform(ipc::activate_window(id), |_| Message::PollWindows);
+        }
+        Message::MinimizeWindow(id) => {
+            return Task::perform(ipc::minimize_window(id), |_| Message::PollWindows);
+        }
+        Message::CloseWindow(id) => {
+            return Task::perform(ipc::close_window(id), |_| Message::PollWindows);
+        }
+        Message::ShowDesktop => {
+            return Task::perform(ipc::show_desktop(), |_| Message::PollWindows);
         }
         // Bateria (passo 3): boot e sinal aplicam igual. `present=false` =
         // sem bateria (esconde o applet).
@@ -418,31 +435,52 @@ fn view(state: &Bar) -> Element<'_, Message> {
         .windows
         .iter()
         .map(|w| {
-            let focused = w.focused;
-            let label_color = if focused { bg_color } else { cream };
-            let bg = if focused {
-                accent
+            // focada = acento (clique minimiza); minimizada = dim (clique
+            // restaura); normal = sutil (clique foca). Direito = fecha.
+            let (bg, label_color) = if w.focused {
+                (accent, bg_color)
+            } else if w.minimized {
+                (Color { a: 0.05, ..cream }, Color { a: 0.45, ..cream })
             } else {
-                Color { a: 0.10, ..cream }
+                (Color { a: 0.10, ..cream }, cream)
             };
-            button(text(w.label.clone()).size(13.0).color(label_color))
-                .on_press(Message::ActivateWindow(w.id))
+            let left = if w.focused {
+                Message::MinimizeWindow(w.id)
+            } else {
+                Message::ActivateWindow(w.id)
+            };
+            let inner = container(text(w.label.clone()).size(13.0).color(label_color))
                 .padding(iced::Padding::from([3.0, 10.0]))
-                .style(move |_theme, _status| button::Style {
+                .style(move |_theme| container::Style {
                     background: Some(Background::Color(bg)),
-                    text_color: label_color,
                     border: Border {
                         radius: 8.0.into(),
                         ..Default::default()
                     },
-                    ..button::Style::default()
-                })
+                    ..Default::default()
+                });
+            mouse_area(inner)
+                .on_press(left)
+                .on_right_press(Message::CloseWindow(w.id))
+                .interaction(iced::mouse::Interaction::Pointer)
                 .into()
         })
         .collect();
     let windows_row = row(win_buttons)
         .spacing(6)
         .align_y(iced::Alignment::Center);
+
+    // Botão "mostrar área de trabalho" (canto direito, como a barra velha).
+    let show_desktop_btn = mouse_area(
+        svg(svg::Handle::from_memory(
+            include_bytes!("../../../assets/branding/icons/icon-show-desktop.svg").as_slice(),
+        ))
+        .width(Length::Fixed(18.0))
+        .height(Length::Fixed(18.0))
+        .style(move |_theme, _status| svg::Style { color: Some(cream) }),
+    )
+    .on_press(Message::ShowDesktop)
+    .interaction(iced::mouse::Interaction::Pointer);
 
     // Applet de bateria (direita), só se há bateria. Segue o tema; baixa tem
     // cor de alerta própria (coral), carregando fica sage — não o acento.
@@ -476,7 +514,9 @@ fn view(state: &Bar) -> Element<'_, Message> {
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
-            Space::new().width(Length::Fixed(16.0)),
+            Space::new().width(Length::Fixed(14.0)),
+            show_desktop_btn,
+            Space::new().width(Length::Fixed(12.0)),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center),

@@ -32,6 +32,12 @@ pub enum IpcCommand {
     /// Ativa (foca + levanta) a janela com este id. Fire-and-forget — a
     /// taskbar (luma-bar) não espera resposta. luma-bar passo 2.
     ActivateWindow(u64),
+    /// Minimiza a janela (luma-bar passo 7).
+    MinimizeWindow(u64),
+    /// Fecha (send_close) a janela (luma-bar passo 7).
+    CloseWindow(u64),
+    /// Mostrar área de trabalho — toggle com memória (luma-bar passo 7).
+    ShowDesktop,
     /// Seta o volume do default sink (0–150%). luma-bar passo 4 (scroll).
     SetVolume(u8),
     /// Alterna mudo do default sink. luma-bar passo 4 (clique).
@@ -46,6 +52,7 @@ pub struct WindowEntry {
     pub title: String,
     pub app_id: String,
     pub focused: bool,
+    pub minimized: bool,
 }
 
 /// Lista de janelas compartilhada (`Arc<Mutex>`), escrita pelo compositor a
@@ -347,21 +354,50 @@ impl CompositorService {
     /// Lista as janelas abertas pra a taskbar: `(id, título, app_id, focada)`.
     /// O compositor mantém isso atualizado por frame no slot compartilhado; a
     /// luma-bar faz poll. `activate_window` foca pela id.
-    async fn list_windows(&self) -> Vec<(u64, String, String, bool)> {
+    async fn list_windows(&self) -> Vec<(u64, String, String, bool, bool)> {
         match self.windows.lock() {
             Ok(g) => g
                 .iter()
-                .map(|w| (w.id, w.title.clone(), w.app_id.clone(), w.focused))
+                .map(|w| {
+                    (
+                        w.id,
+                        w.title.clone(),
+                        w.app_id.clone(),
+                        w.focused,
+                        w.minimized,
+                    )
+                })
                 .collect(),
             Err(_) => Vec::new(),
         }
     }
 
-    /// Ativa (foca + levanta) a janela com esta id. Fire-and-forget: manda o
-    /// comando pro calloop e retorna. Id desconhecida = no-op no compositor.
+    /// Ativa (foca + levanta, e desminimiza se preciso) a janela. Id
+    /// desconhecida = no-op no compositor.
     async fn activate_window(&self, id: u64) {
         if self.cmd_tx.send(IpcCommand::ActivateWindow(id)).is_err() {
             error!("D-Bus: calloop fechado ao ativar janela {id}");
+        }
+    }
+
+    /// Minimiza a janela (luma-bar passo 7).
+    async fn minimize_window(&self, id: u64) {
+        if self.cmd_tx.send(IpcCommand::MinimizeWindow(id)).is_err() {
+            error!("D-Bus: calloop fechado ao minimizar janela {id}");
+        }
+    }
+
+    /// Fecha a janela (luma-bar passo 7).
+    async fn close_window(&self, id: u64) {
+        if self.cmd_tx.send(IpcCommand::CloseWindow(id)).is_err() {
+            error!("D-Bus: calloop fechado ao fechar janela {id}");
+        }
+    }
+
+    /// Mostrar área de trabalho — toggle com memória (luma-bar passo 7).
+    async fn show_desktop(&self) {
+        if self.cmd_tx.send(IpcCommand::ShowDesktop).is_err() {
+            error!("D-Bus: calloop fechado ao mostrar área de trabalho");
         }
     }
 

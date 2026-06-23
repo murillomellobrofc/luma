@@ -21,10 +21,16 @@ pub trait Compositor {
     #[zbus(signal)]
     fn high_contrast_changed(&self, enabled: bool) -> zbus::Result<()>;
 
-    /// Janelas abertas pra a taskbar (passo 2): `(id, título, app_id, focada)`.
-    async fn list_windows(&self) -> zbus::Result<Vec<(u64, String, String, bool)>>;
-    /// Foca/levanta a janela pela id.
+    /// Janelas abertas (passo 2 + 7): `(id, título, app_id, focada, minimizada)`.
+    async fn list_windows(&self) -> zbus::Result<Vec<(u64, String, String, bool, bool)>>;
+    /// Foca/levanta (e restaura se minimizada) a janela pela id.
     async fn activate_window(&self, id: u64) -> zbus::Result<()>;
+    /// Minimiza a janela (passo 7).
+    async fn minimize_window(&self, id: u64) -> zbus::Result<()>;
+    /// Fecha a janela (passo 7).
+    async fn close_window(&self, id: u64) -> zbus::Result<()>;
+    /// Mostrar área de trabalho — toggle com memória (passo 7).
+    async fn show_desktop(&self) -> zbus::Result<()>;
 
     /// Estado da bateria (passo 3): `(present, capacity 0–100, charging)`.
     async fn battery(&self) -> zbus::Result<(bool, u8, bool)>;
@@ -85,8 +91,8 @@ pub async fn high_contrast_signal_stream(
 
 /// Lê a lista de janelas (poll a cada tick). Erro vira lista vazia — a barra
 /// só esvazia, sem quebrar.
-pub async fn read_windows() -> Vec<(u64, String, String, bool)> {
-    async fn inner() -> zbus::Result<Vec<(u64, String, String, bool)>> {
+pub async fn read_windows() -> Vec<(u64, String, String, bool, bool)> {
+    async fn inner() -> zbus::Result<Vec<(u64, String, String, bool, bool)>> {
         let conn = zbus::Connection::session().await?;
         let proxy = CompositorProxy::new(&conn).await?;
         proxy.list_windows().await
@@ -94,16 +100,47 @@ pub async fn read_windows() -> Vec<(u64, String, String, bool)> {
     inner().await.unwrap_or_default()
 }
 
-/// Ativa (foca/levanta) a janela pela id. Erro só loga.
+/// Helper genérico pros comandos de janela fire-and-forget (passo 2 + 7).
+async fn window_cmd(label: &str, fut: impl std::future::Future<Output = zbus::Result<()>>) {
+    if let Err(e) = fut.await {
+        eprintln!("luma-bar: {label} falhou: {e}");
+    }
+}
+
+/// Ativa (foca/levanta/restaura) a janela pela id.
 pub async fn activate_window(id: u64) {
-    async fn inner(id: u64) -> zbus::Result<()> {
-        let conn = zbus::Connection::session().await?;
-        let proxy = CompositorProxy::new(&conn).await?;
-        proxy.activate_window(id).await
-    }
-    if let Err(e) = inner(id).await {
-        eprintln!("luma-bar: activate_window({id}) falhou: {e}");
-    }
+    let conn = zbus::Connection::session().await;
+    window_cmd("activate_window", async move {
+        CompositorProxy::new(&conn?).await?.activate_window(id).await
+    })
+    .await;
+}
+
+/// Minimiza a janela pela id (passo 7).
+pub async fn minimize_window(id: u64) {
+    let conn = zbus::Connection::session().await;
+    window_cmd("minimize_window", async move {
+        CompositorProxy::new(&conn?).await?.minimize_window(id).await
+    })
+    .await;
+}
+
+/// Fecha a janela pela id (passo 7).
+pub async fn close_window(id: u64) {
+    let conn = zbus::Connection::session().await;
+    window_cmd("close_window", async move {
+        CompositorProxy::new(&conn?).await?.close_window(id).await
+    })
+    .await;
+}
+
+/// Mostrar área de trabalho — toggle (passo 7).
+pub async fn show_desktop() {
+    let conn = zbus::Connection::session().await;
+    window_cmd("show_desktop", async move {
+        CompositorProxy::new(&conn?).await?.show_desktop().await
+    })
+    .await;
 }
 
 // ─── Bateria (passo 3) ────────────────────────────────────────────────
