@@ -30,8 +30,10 @@ struct WinEntry {
 }
 
 struct Bar {
-    /// Hora atual "HH:MM" — o conteúdo simples que prova render + update.
+    /// Hora atual "HH:MM".
     clock: String,
+    /// Data curta pt-BR ("seg · 22 jun"). Atualiza junto no tick.
+    date: String,
     /// Janelas abertas (poll de `list_windows` a cada 500ms).
     windows: Vec<WinEntry>,
     /// Bateria: `Some((capacity, charging))`, ou `None` se não há bateria.
@@ -83,6 +85,51 @@ fn now_hm() -> String {
     chrono::Local::now().format("%H:%M").to_string()
 }
 
+/// Data curta pt-BR no estilo da barra velha: "seg · 22 jun".
+fn now_date() -> String {
+    use chrono::Datelike;
+    let now = chrono::Local::now();
+    format!(
+        "{} · {:02} {}",
+        weekday_pt_br(now.weekday().number_from_monday()),
+        now.day(),
+        month_pt_br(now.month())
+    )
+}
+
+/// Abrev pt-BR do dia da semana (1=seg..7=dom). Espelha a barra velha.
+fn weekday_pt_br(d: u32) -> &'static str {
+    match d {
+        1 => "seg",
+        2 => "ter",
+        3 => "qua",
+        4 => "qui",
+        5 => "sex",
+        6 => "sáb",
+        7 => "dom",
+        _ => "?",
+    }
+}
+
+/// Abrev pt-BR do mês (1=jan..12=dez). Espelha a barra velha.
+fn month_pt_br(m: u32) -> &'static str {
+    match m {
+        1 => "jan",
+        2 => "fev",
+        3 => "mar",
+        4 => "abr",
+        5 => "mai",
+        6 => "jun",
+        7 => "jul",
+        8 => "ago",
+        9 => "set",
+        10 => "out",
+        11 => "nov",
+        12 => "dez",
+        _ => "?",
+    }
+}
+
 fn boot() -> (Bar, Task<Message>) {
     // Lê acento + HC + janelas no boot pra a barra abrir já no estado certo.
     let read = Task::batch([
@@ -96,6 +143,7 @@ fn boot() -> (Bar, Task<Message>) {
     (
         Bar {
             clock: now_hm(),
+            date: now_date(),
             windows: Vec::new(),
             battery: None,
             volume: (0, false),
@@ -107,7 +155,10 @@ fn boot() -> (Bar, Task<Message>) {
 
 fn update(state: &mut Bar, message: Message) -> Task<Message> {
     match message {
-        Message::Tick => state.clock = now_hm(),
+        Message::Tick => {
+            state.clock = now_hm();
+            state.date = now_date();
+        }
         // Acento/HC: giram os flags globais do libluma; o próximo render
         // re-resolve `accent()`/cores. Fonte única = boot + sinal.
         Message::AccentLoaded(Ok(id)) => libluma::tokens::set_accent_id(&id),
@@ -345,6 +396,7 @@ fn view(state: &Bar) -> Element<'_, Message> {
     let sem = libluma::tokens::semantic_default();
     let bar_bg = libluma::tokens::to_iced(sem.surface);
     let accent = libluma::tokens::accent();
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
 
     // Conteúdo: dot de acento + relógio à direita. O dot e a linha de base
     // seguem o acento — a personalização aparece na hora.
@@ -417,7 +469,13 @@ fn view(state: &Bar) -> Element<'_, Message> {
             battery_el,
             Space::new().width(Length::Fixed(14.0)),
             dot,
-            text(state.clock.clone()).size(15.0).color(accent),
+            // Data (secundária) + hora (acento), lado a lado.
+            row![
+                text(state.date.clone()).size(12.0).color(secondary),
+                text(state.clock.clone()).size(15.0).color(accent),
+            ]
+            .spacing(8)
+            .align_y(iced::Alignment::Center),
             Space::new().width(Length::Fixed(16.0)),
         ]
         .spacing(8)
