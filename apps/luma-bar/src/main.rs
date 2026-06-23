@@ -34,6 +34,9 @@ struct Bar {
     clock: String,
     /// Janelas abertas (poll de `list_windows` a cada 500ms).
     windows: Vec<WinEntry>,
+    /// Bateria: `Some((capacity, charging))`, ou `None` se não há bateria.
+    /// Lida no boot + atualizada pelo sinal (sem poll — passo 3).
+    battery: Option<(u8, bool)>,
 }
 
 #[to_layer_message]
@@ -53,6 +56,9 @@ enum Message {
     WindowsLoaded(Vec<(u64, String, String, bool)>),
     /// Clique num botão de janela → foca/levanta no compositor.
     ActivateWindow(u64),
+    /// Bateria lida no boot / mudada pelo sinal: `(present, capacity, charging)`.
+    BatteryLoaded((bool, u8, bool)),
+    BatteryChanged((bool, u8, bool)),
 }
 
 fn now_hm() -> String {
@@ -65,11 +71,13 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_accent(), Message::AccentLoaded),
         Task::perform(ipc::read_high_contrast(), Message::HighContrastLoaded),
         Task::perform(ipc::read_windows(), Message::WindowsLoaded),
+        Task::perform(ipc::read_battery(), Message::BatteryLoaded),
     ]);
     (
         Bar {
             clock: now_hm(),
             windows: Vec::new(),
+            battery: None,
         },
         read,
     )
@@ -106,6 +114,11 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::ActivateWindow(id) => {
             return Task::perform(ipc::activate_window(id), |_| Message::PollWindows);
         }
+        // Bateria (passo 3): boot e sinal aplicam igual. `present=false` =
+        // sem bateria (esconde o applet).
+        Message::BatteryLoaded((present, cap, chg)) | Message::BatteryChanged((present, cap, chg)) => {
+            state.battery = present.then_some((cap, chg));
+        }
         _ => {}
     }
     Task::none()
@@ -126,6 +139,67 @@ fn resolve_label(title: &str, app_id: &str) -> String {
     } else {
         raw.to_string()
     }
+}
+
+/// Applet de bateria: corpo com fill proporcional + terminal + "%". Carregando
+/// = fill sage (verde); baixa (<20% e descarregando) = coral (alerta próprio,
+/// não o acento); normal = creme.
+fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
+    let pal = libluma::tokens::Palette::for_contrast(libluma::tokens::high_contrast());
+    let cream = libluma::tokens::to_iced(pal.cream);
+    let coral = libluma::tokens::to_iced(pal.coral);
+    let sage = libluma::tokens::to_iced(pal.sage);
+    let fill_color = if charging {
+        sage
+    } else if cap < 20 {
+        coral
+    } else {
+        cream
+    };
+
+    let body_w = 22.0;
+    let body_h = 11.0;
+    let pad = 2.0;
+    let fill_w = ((body_w - 2.0 * pad) * (cap as f32 / 100.0)).max(2.0);
+
+    let fill = container(Space::new().width(Length::Fixed(fill_w)).height(Length::Fill)).style(
+        move |_theme| container::Style {
+            background: Some(Background::Color(fill_color)),
+            border: Border {
+                radius: 1.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let body = container(row![fill, Space::new().width(Length::Fill)])
+        .width(Length::Fixed(body_w))
+        .height(Length::Fixed(body_h))
+        .padding(pad)
+        .style(move |_theme| container::Style {
+            border: Border {
+                color: cream,
+                width: 1.0,
+                radius: 3.0.into(),
+            },
+            ..Default::default()
+        });
+    let nub = container(Space::new().width(Length::Fixed(2.0)).height(Length::Fixed(5.0))).style(
+        move |_theme| container::Style {
+            background: Some(Background::Color(cream)),
+            border: Border {
+                radius: 1.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let icon = row![body, nub].spacing(1).align_y(iced::Alignment::Center);
+
+    row![icon, text(format!("{cap}%")).size(13.0).color(fill_color)]
+        .spacing(6)
+        .align_y(iced::Alignment::Center)
+        .into()
 }
 
 fn view(state: &Bar) -> Element<'_, Message> {
@@ -179,11 +253,20 @@ fn view(state: &Bar) -> Element<'_, Message> {
         .spacing(6)
         .align_y(iced::Alignment::Center);
 
+    // Applet de bateria (direita), só se há bateria. Segue o tema; baixa tem
+    // cor de alerta própria (coral), carregando fica sage — não o acento.
+    let battery_el: Element<Message> = match state.battery {
+        Some((cap, charging)) => battery_applet(cap, charging),
+        None => Space::new().width(Length::Fixed(0.0)).into(),
+    };
+
     let content = container(
         row![
             Space::new().width(Length::Fixed(12.0)),
             windows_row,
             Space::new().width(Length::Fill),
+            battery_el,
+            Space::new().width(Length::Fixed(14.0)),
             dot,
             text(state.clock.clone()).size(15.0).color(accent),
             Space::new().width(Length::Fixed(16.0)),
@@ -220,7 +303,22 @@ fn subscription(_state: &Bar) -> iced::Subscription<Message> {
         iced::time::every(Duration::from_millis(500)).map(|_| Message::PollWindows),
         iced::Subscription::run(accent_subscription),
         iced::Subscription::run(high_contrast_subscription),
+        iced::Subscription::run(battery_subscription),
     ])
+}
+
+fn battery_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::battery_signal_stream().await {
+            Ok(s) => s.map(Message::BatteryChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-bar: subscription de bateria falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 fn accent_subscription() -> impl iced::futures::Stream<Item = Message> {

@@ -70,6 +70,11 @@ pub struct LumaState {
     /// Contador de id estável por janela (luma-bar passo 2). Cada toplevel
     /// novo ganha um, guardado no `UserDataMap` da Window via [`WindowId`].
     pub next_window_id: u64,
+    /// Canal `watch` da bateria pro applet da luma-bar (passo 3): `(present,
+    /// capacity, charging)`. O compositor manda no `refresh` quando muda
+    /// (send síncrono, do calloop); a task async do D-Bus emite o sinal no
+    /// `changed()`. `watch` = "estado que muda, notifica + carrega o último".
+    pub battery_tx: tokio::sync::watch::Sender<(bool, u8, bool)>,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -788,6 +793,9 @@ impl LumaState {
         let viewporter_state = ViewporterState::new::<LumaState>(&dh);
         let shm_state = ShmState::new::<LumaState>(&dh, vec![]);
         let windows = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        // Bateria: inicia o watch já com o estado atual (a barra lê no boot).
+        let (battery_tx, _) =
+            tokio::sync::watch::channel(crate::dbus_server::battery_tuple(crate::tray::read_battery()));
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -892,6 +900,7 @@ impl LumaState {
             viewporter_state,
             windows,
             next_window_id: 1,
+            battery_tx,
             shm_state,
             output_manager_state,
             seat_state,

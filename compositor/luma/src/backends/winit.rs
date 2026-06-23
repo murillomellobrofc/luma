@@ -688,7 +688,17 @@ pub fn init_winit(
                 )> = {
                     // H33.taskbar.SVG: refresh dos sensores se >= 3s + load
                     // dos SVGs corretos pra cada estado.
+                    let bat_before = data.state.tray.battery_info;
                     crate::tray::refresh_if_stale(&mut data.state.tray);
+                    // Bateria mudou? Manda no watch → o D-Bus emite o sinal
+                    // pro applet da luma-bar (passo 3). Só no delta (a bateria
+                    // muda pouco), sem spam.
+                    if data.state.tray.battery_info != bat_before {
+                        let _ = data
+                            .state
+                            .battery_tx
+                            .send(crate::dbus_server::battery_tuple(data.state.tray.battery_info));
+                    }
                     // H50.icons.7: polling 2s do ~/Desktop. Re-scan e
                     // só atualiza o layer se mudou (path/mtime). Cheap:
                     // read_dir + sort ordena 5-50 entries em <1ms.
