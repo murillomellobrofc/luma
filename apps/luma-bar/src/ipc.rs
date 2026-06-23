@@ -74,6 +74,21 @@ pub trait Compositor {
     async fn connect_device(&self, mac: String) -> zbus::Result<()>;
     /// Desconecta um dispositivo pela MAC.
     async fn disconnect_device(&self, mac: String) -> zbus::Result<()>;
+
+    /// Varredura (modo adicionar): liga/desliga a procura.
+    async fn start_scan(&self) -> zbus::Result<()>;
+    async fn stop_scan(&self) -> zbus::Result<()>;
+    /// Lista do modo varredura: pareados + descobertos `(mac, nome, pareado,
+    /// conectado)`.
+    async fn scan_devices(&self) -> zbus::Result<Vec<(String, String, bool, bool)>>;
+    /// Pareia um device pela MAC (com o agent do código).
+    async fn pair_device(&self, mac: String) -> zbus::Result<()>;
+    /// Responde a confirmação de código (confirma/cancela).
+    async fn confirm_pairing(&self, ok: bool) -> zbus::Result<()>;
+    /// Fase do pareamento `(fase, passkey, mensagem)`.
+    async fn pairing_state(&self) -> zbus::Result<(u8, u32, String)>;
+    /// Volta a fase pra ociosa.
+    async fn reset_pairing(&self) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -341,6 +356,62 @@ pub async fn disconnect_device(mac: String) -> BtState {
     }
     tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
     read_bluetooth_state().await
+}
+
+// ─── Bluetooth: pareamento (refino) ───────────────────────────────────
+
+/// Fase do pareamento `(fase, passkey, mensagem)`.
+pub type PairState = (u8, u32, String);
+
+async fn proxy() -> zbus::Result<CompositorProxy<'static>> {
+    let conn = zbus::Connection::session().await?;
+    CompositorProxy::new(&conn).await
+}
+
+/// Liga a varredura (modo adicionar).
+pub async fn start_scan() {
+    if let Ok(p) = proxy().await {
+        let _ = p.start_scan().await;
+    }
+}
+
+/// Desliga a varredura e zera a fase.
+pub async fn stop_scan() {
+    if let Ok(p) = proxy().await {
+        let _ = p.stop_scan().await;
+        let _ = p.reset_pairing().await;
+    }
+}
+
+/// Lê a lista do modo varredura (pareados + descobertos).
+pub async fn read_scan_devices() -> Vec<(String, String, bool, bool)> {
+    match proxy().await {
+        Ok(p) => p.scan_devices().await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Lê a fase do pareamento.
+pub async fn read_pairing_state() -> PairState {
+    match proxy().await {
+        Ok(p) => p.pairing_state().await.unwrap_or((0, 0, String::new())),
+        Err(_) => (0, 0, String::new()),
+    }
+}
+
+/// Dispara o pareamento de um device (fire-and-forget; acompanhe por
+/// `read_pairing_state`).
+pub async fn pair_device(mac: String) {
+    if let Ok(p) = proxy().await {
+        let _ = p.pair_device(mac).await;
+    }
+}
+
+/// Responde a confirmação de código.
+pub async fn confirm_pairing(ok: bool) {
+    if let Ok(p) = proxy().await {
+        let _ = p.confirm_pairing(ok).await;
+    }
 }
 
 // ─── Rede (passo 5) ───────────────────────────────────────────────────

@@ -539,27 +539,23 @@ pra polish pré-v1.
 
 ## H57.3 Bluetooth: agent BlueZ pra PIN/passkey
 
-**Status:** adiado.
+**Status:** parcial — feito o caso comum, falta o PIN digitado.
 
-O popup H57.3 entrega o ciclo Just Works: pareia devices que não
-exigem PIN/passkey (fones modernos, mouses, teclados Bluetooth
-recentes). Quando o device pede PIN (alguns teclados antigos,
-carros, periféricos com display) o pair falha sem feedback útil.
+O agent BlueZ foi implementado (`compositor/luma/src/bt_agent.rs`):
+org.bluez.Agent1 registrado como default agent, capability
+DisplayYesNo. Cobre o caso moderno **RequestConfirmation** (a
+confirmação de código numérico — o popup mostra o código e o usuário
+confirma) + RequestAuthorization/AuthorizeService (auto) +
+DisplayPasskey. O pareamento roda via Device1.Pair.
 
-Pra cobrir esse caso, o Luma precisa registrar um **agent BlueZ**
-via D-Bus (org.bluez.AgentManager1.RegisterAgent) com handlers pra
-RequestPinCode, RequestPasskey, DisplayPinCode, DisplayPasskey,
-RequestConfirmation, RequestAuthorization. Cada um exige um popup
-modal pequeno pra coletar/exibir o código.
+**Falta** (refino): os casos de **entrada de texto** —
+RequestPinCode / RequestPasskey (aparelhos legados que pedem um PIN
+DIGITADO). Hoje o agent recusa esses com motivo claro; cobrir exige
+um campo de texto no popup (teclado vem no passo 4). A maioria dos
+aparelhos modernos usa RequestConfirmation, já coberto.
 
-É peça de bom tamanho:
-- Implementar o agent service (zbus interface).
-- Roteamento dos métodos pro Luma main loop (via mpsc?).
-- 5+ popups pequenos pra cada caso (com timeout).
-
-**Quando desbloqueia:** pós-v1.0 OU quando algum periférico que
-exige PIN virar prioridade. Hoje a maioria dos devices comuns
-funciona via Just Works.
+**Quando desbloqueia:** quando o teclado/entrada de texto do popup
+existir (passo 4) ou um periférico de PIN digitado virar prioridade.
 
 ## H57.3 Bluetooth: glyphs como text (sem SVG por tipo)
 
