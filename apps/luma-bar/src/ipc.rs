@@ -32,6 +32,9 @@ pub trait Compositor {
     /// Mostrar área de trabalho — toggle com memória (passo 7).
     async fn show_desktop(&self) -> zbus::Result<()>;
 
+    /// Abre/fecha o luma-menu (botão da barra / Super). Emite `menu_toggle`.
+    async fn show_menu(&self) -> zbus::Result<()>;
+
     /// Estado da bateria (passo 3): `(present, capacity 0–100, charging)`.
     async fn battery(&self) -> zbus::Result<(bool, u8, bool)>;
     #[zbus(signal)]
@@ -139,6 +142,15 @@ pub async fn show_desktop() {
     let conn = zbus::Connection::session().await;
     window_cmd("show_desktop", async move {
         CompositorProxy::new(&conn?).await?.show_desktop().await
+    })
+    .await;
+}
+
+/// Abre/fecha o luma-menu (botão da barra). Fire-and-forget.
+pub async fn show_menu() {
+    let conn = zbus::Connection::session().await;
+    window_cmd("show_menu", async move {
+        CompositorProxy::new(&conn?).await?.show_menu().await
     })
     .await;
 }

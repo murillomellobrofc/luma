@@ -6,8 +6,8 @@
 
 mod ipc;
 
-use iced::widget::{column, container, mouse_area, stack, text, Space};
-use iced::{Background, Border, Color, Element, Length, Task};
+use iced::widget::{button, column, container, mouse_area, row, stack, svg, text, Space};
+use iced::{Background, Border, Color, Element, Length, Padding, Task};
 use iced_layershell::reexport::{
     Anchor, IcedId, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
 };
@@ -113,15 +113,152 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
     Task::none()
 }
 
+/// Fonte display (Fraunces), pra saudação e títulos.
+fn display_font(weight: iced::font::Weight) -> iced::Font {
+    iced::Font {
+        family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
+        weight,
+        ..iced::Font::DEFAULT
+    }
+}
+
+/// Inicial do usuário, pro avatar.
+fn user_initial() -> String {
+    std::env::var("USER")
+        .ok()
+        .and_then(|u| u.chars().next())
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_string())
+}
+
+/// Handle do SVG de um ícone dos assets (tingido no uso).
+fn icon_handle(name: &str) -> svg::Handle {
+    let bytes: &'static [u8] = match name {
+        "file-executable" => {
+            include_bytes!("../../../assets/branding/icons/file-executable.svg")
+        }
+        "file-text" => include_bytes!("../../../assets/branding/icons/file-text.svg"),
+        "file-image" => include_bytes!("../../../assets/branding/icons/file-image.svg"),
+        "file-folder" => include_bytes!("../../../assets/branding/icons/file-folder.svg"),
+        "places-computer" => {
+            include_bytes!("../../../assets/branding/icons/places-computer.svg")
+        }
+        "ctx-settings" => include_bytes!("../../../assets/branding/icons/icon-ctx-settings.svg"),
+        "desligar" => include_bytes!("../../../assets/branding/icons/icon-desligar.svg"),
+        "reiniciar" => include_bytes!("../../../assets/branding/icons/icon-reiniciar.svg"),
+        "suspender" => include_bytes!("../../../assets/branding/icons/icon-suspender.svg"),
+        "bloquear" => include_bytes!("../../../assets/branding/icons/icon-bloquear.svg"),
+        _ => include_bytes!("../../../assets/branding/icons/file-generic.svg"),
+    };
+    svg::Handle::from_memory(bytes)
+}
+
+/// Ícone SVG tingido, tamanho fixo.
+fn svg_icon<'a>(name: &str, size: f32, color: Color) -> Element<'a, Message> {
+    svg(icon_handle(name))
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .style(move |_theme, _status| svg::Style { color: Some(color) })
+        .into()
+}
+
+/// Rótulo de seção ("Mais usados", "Recentes") — pequeno, secundário.
+fn section_label<'a>(s: &'a str, color: Color) -> Element<'a, Message> {
+    container(text(s).size(11.0).color(color))
+        .padding(Padding::from([6.0, 10.0]))
+        .into()
+}
+
+/// Divisória horizontal sutil.
+fn divider<'a>(color: Color) -> Element<'a, Message> {
+    container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+        .padding(Padding::from([2.0, 8.0]))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(Color { a: 0.18, ..color })),
+            ..Default::default()
+        })
+        .into()
+}
+
+/// Divisória vertical entre as duas colunas.
+fn vdivider<'a>(color: Color) -> Element<'a, Message> {
+    container(Space::new().width(Length::Fixed(1.0)).height(Length::Fill))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(Color { a: 0.15, ..color })),
+            ..Default::default()
+        })
+        .into()
+}
+
+/// Botão de linha (ícone + rótulo) com hover no acento. on_press placeholder
+/// (o abrir de verdade vem no 2b).
+fn row_button<'a>(name: &str, label: &'a str, color: Color) -> Element<'a, Message> {
+    let content = row![svg_icon(name, 20.0, color), text(label).size(14.0).color(color)]
+        .spacing(10.0)
+        .align_y(iced::Alignment::Center);
+    button(content)
+        .on_press(Message::Noop)
+        .width(Length::Fill)
+        .padding(Padding::from([7.0, 10.0]))
+        .style(|_theme, status| {
+            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            button::Style {
+                background: hover.then(|| {
+                    Background::Color(Color {
+                        a: 0.12,
+                        ..libluma::tokens::accent()
+                    })
+                }),
+                text_color: libluma::tokens::to_iced(libluma::tokens::semantic_default().text),
+                border: Border {
+                    radius: 8.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+/// Botão só-ícone (sessão secundária / reiniciar, suspender, bloquear).
+fn icon_button<'a>(name: &str, color: Color) -> Element<'a, Message> {
+    button(container(svg_icon(name, 18.0, color)).center_x(Length::Fill).center_y(Length::Fill))
+        .on_press(Message::Noop)
+        .width(Length::Fixed(34.0))
+        .height(Length::Fixed(34.0))
+        .padding(0)
+        .style(|_theme, status| {
+            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            button::Style {
+                background: hover.then(|| {
+                    Background::Color(Color {
+                        a: 0.12,
+                        ..libluma::tokens::accent()
+                    })
+                }),
+                border: Border {
+                    radius: 8.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
 fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
     let sem = libluma::tokens::semantic_default();
-    let surface = libluma::tokens::to_iced(sem.surface);
+    // As duas colunas ficam no MESMO fundo ESCURO (`background`) — é onde o
+    // creme tem o contraste alto que a direita já tinha. A esquerda antes
+    // ficava no `surface` (mais claro), que tirava contraste do texto. A
+    // separação das colunas vem da divisória vertical. A11y > duas tonalidades.
+    let panel_bg = libluma::tokens::to_iced(sem.background);
+    let field_bg = libluma::tokens::to_iced(sem.surface);
     let cream = libluma::tokens::to_iced(sem.text);
     let secondary = libluma::tokens::to_iced(sem.text_secondary);
     let accent = libluma::tokens::accent();
-    let input_bg = libluma::tokens::to_iced(sem.background);
 
-    // Backdrop escuro full-screen — clique fecha (clique fora do card).
+    // Backdrop escuro full-screen — clique fora fecha.
     let backdrop = mouse_area(
         container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
             container::Style {
@@ -129,7 +266,7 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
                     r: 0.0,
                     g: 0.0,
                     b: 0.0,
-                    a: 0.55,
+                    a: 0.5,
                 })),
                 ..Default::default()
             }
@@ -137,56 +274,136 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
     )
     .on_press(Message::Close);
 
-    // Busca (esqueleto visual): caixa com placeholder, borda no acento.
-    let search = container(text("Buscar…").size(15.0).color(secondary))
-        .padding(iced::Padding::from([11.0, 16.0]))
-        .width(Length::Fixed(440.0))
+    // ─── Coluna esquerda: programas (placeholder) + busca no rodapé ────
+    // Busca (a marca do W7) vive no rodapé da coluna esquerda. Esqueleto.
+    let search = container(text("Buscar programas e arquivos…").size(13.0).color(secondary))
+        .padding(Padding::from([10.0, 14.0]))
+        .width(Length::Fill)
         .style(move |_theme| container::Style {
-            background: Some(Background::Color(input_bg)),
+            background: Some(Background::Color(field_bg)),
             border: Border {
-                radius: 12.0.into(),
+                radius: 10.0.into(),
                 width: 1.5,
                 color: accent,
             },
             ..Default::default()
         });
 
-    // Card: saudação (Fraunces) + busca. mouse_area(Noop) captura o clique
-    // no card pra não vazar pro backdrop (não fecha ao clicar dentro).
-    let card_inner = column![
+    let left = container(
+        column![
+            section_label("Mais usados", secondary),
+            row_button("file-executable", "Navegador", cream),
+            row_button("file-executable", "Terminal", cream),
+            row_button("file-executable", "Editor de texto", cream),
+            section_label("Recentes", secondary),
+            row_button("file-text", "Documento.txt", cream),
+            row_button("file-image", "Foto.png", cream),
+            Space::new().height(Length::Fill),
+            divider(secondary),
+            row_button("file-folder", "Todos os programas", cream),
+            Space::new().height(Length::Fixed(6.0)),
+            search,
+        ]
+        .spacing(2.0),
+    )
+    .width(Length::Fixed(338.0))
+    .height(Length::Fill)
+    .padding(12);
+
+    // ─── Coluna direita: lugares + sessão ──────────────────────────────
+    let avatar = container(
+        text(user_initial())
+            .size(22.0)
+            .color(panel_bg)
+            .font(display_font(iced::font::Weight::Bold)),
+    )
+    .width(Length::Fixed(52.0))
+    .height(Length::Fixed(52.0))
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
+    .style(move |_theme| container::Style {
+        background: Some(Background::Color(accent)),
+        border: Border {
+            radius: 26.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    let header = column![
+        avatar,
         text(state.greeting.clone())
-            .size(28.0)
+            .size(15.0)
             .color(cream)
-            .font(iced::Font {
-                family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
-                weight: iced::font::Weight::Semibold,
-                ..iced::Font::DEFAULT
-            }),
-        search,
+            .font(display_font(iced::font::Weight::Semibold)),
     ]
-    .spacing(20)
-    .align_x(iced::Alignment::Center);
-    let card = mouse_area(
-        container(card_inner)
-            .padding(30)
+    .spacing(10.0)
+    .align_x(iced::Alignment::Center)
+    .width(Length::Fill);
+
+    // Sessão (placeholder; wiring no passo 3): Desligar + reiniciar/suspender/bloquear.
+    let session = row![
+        row_button("desligar", "Desligar", cream),
+        icon_button("reiniciar", secondary),
+        icon_button("suspender", secondary),
+        icon_button("bloquear", secondary),
+    ]
+    .spacing(4.0)
+    .align_y(iced::Alignment::Center);
+
+    let right = container(
+        column![
+            header,
+            divider(secondary),
+            row_button("places-computer", "Pasta pessoal", cream),
+            row_button("file-folder", "Documentos", cream),
+            row_button("file-image", "Imagens", cream),
+            row_button("ctx-settings", "Configurações do Luma", cream),
+            Space::new().height(Length::Fill),
+            divider(secondary),
+            session,
+        ]
+        .spacing(4.0),
+    )
+    .width(Length::Fixed(230.0))
+    .height(Length::Fill)
+    .padding(14);
+
+    // Painel: duas colunas no mesmo fundo escuro, divisória vertical entre
+    // elas, cantos arredondados + borda sutil pra a carta destacar do backdrop.
+    let panel = mouse_area(
+        container(row![left, vdivider(secondary), right].spacing(0))
+            .width(Length::Fixed(580.0))
+            .height(Length::Fixed(560.0))
             .style(move |_theme| container::Style {
-                background: Some(Background::Color(surface)),
+                background: Some(Background::Color(panel_bg)),
                 border: Border {
-                    radius: 20.0.into(),
-                    ..Default::default()
+                    radius: 16.0.into(),
+                    width: 1.0,
+                    color: Color { a: 0.22, ..cream },
                 },
                 ..Default::default()
             }),
     )
     .on_press(Message::Noop);
 
+    // Ancora no canto SUPERIOR-esquerdo, descendo colado embaixo da luma-bar
+    // (que mora no topo). A surface já nasce abaixo da zona exclusiva da
+    // barra, então a margem de topo é só um respiro. Assim a sessão (no fim
+    // do painel) cabe inteira, sem bater nas barras velhas de baixo.
     stack![
         backdrop,
-        container(card)
+        container(panel)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
+            .align_x(iced::alignment::Horizontal::Left)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(Padding {
+                top: 8.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 12.0,
+            }),
     ]
     .into()
 }
