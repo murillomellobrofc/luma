@@ -61,6 +61,27 @@ pub struct BluetoothState {
     pub devices: Vec<BtDevice>,
 }
 
+/// Nome do ícone do estado, pro applet da barra (luma-bar). Leve: só roda
+/// `bluetoothctl show` (sem enumerar devices). Mapeia pro SVG de assets:
+/// sem controller → "" (esconde); Powered:yes → "bluetooth-on"; senão
+/// "bluetooth-off". (Só há on/off nos assets — "conectado" usa on.)
+pub fn icon_name() -> &'static str {
+    match Command::new("bluetoothctl").arg("show").output() {
+        Ok(o) => {
+            let text = String::from_utf8_lossy(&o.stdout);
+            if !text.contains("Controller ") {
+                return "";
+            }
+            if text.lines().any(|l| l.trim().starts_with("Powered: yes")) {
+                "bluetooth-on"
+            } else {
+                "bluetooth-off"
+            }
+        }
+        Err(_) => "",
+    }
+}
+
 /// Lê estado do controller default + lista de devices. Se
 /// `include_unpaired=true`, lista TODOS conhecidos (paired +
 /// descobertos via scan). Se false, só os pareados.

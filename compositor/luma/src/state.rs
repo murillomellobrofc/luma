@@ -89,6 +89,10 @@ pub struct LumaState {
     /// compositor manda quando muda (refresh do tray); a barra renderiza o
     /// SVG correspondente.
     pub network_tx: tokio::sync::watch::Sender<String>,
+    /// Canal `watch` do bluetooth pro applet da luma-bar: o **nome do ícone**
+    /// (`bluetooth::icon_name`: "bluetooth-on", "bluetooth-off", ou "" se não
+    /// há controller). Inicia no estado do boot (mesmo molde de rede/bateria).
+    pub bluetooth_tx: tokio::sync::watch::Sender<String>,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -944,6 +948,9 @@ impl LumaState {
         // Rede: o nome do ícone do estado atual (ethernet/wifi/off).
         let (network_tx, _) =
             tokio::sync::watch::channel(crate::tray::network_icon_name(crate::tray::read_network()).to_string());
+        // Bluetooth: o nome do ícone do estado atual (on/off, ou "" sem hw).
+        let (bluetooth_tx, _) =
+            tokio::sync::watch::channel(crate::bluetooth::icon_name().to_string());
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1052,6 +1059,7 @@ impl LumaState {
             battery_tx,
             volume_tx,
             network_tx,
+            bluetooth_tx,
             shm_state,
             output_manager_state,
             seat_state,
