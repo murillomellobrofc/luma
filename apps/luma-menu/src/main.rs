@@ -4,9 +4,12 @@
 //! backdrop escuro + saudação + busca (esqueleto), e fecha no clique fora.
 //! Sem grade de apps (passo 2), sessão (3) nem teclado/busca real (4).
 
+mod apps;
 mod ipc;
 
-use iced::widget::{button, column, container, mouse_area, row, stack, svg, text, Space};
+use iced::widget::{
+    button, column, container, image, mouse_area, row, scrollable, stack, svg, text, Space,
+};
 use iced::{Background, Border, Color, Element, Length, Padding, Task};
 use iced_layershell::reexport::{
     Anchor, IcedId, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
@@ -14,11 +17,26 @@ use iced_layershell::reexport::{
 use iced_layershell::settings::{LayerShellSettings, Settings, StartMode};
 use iced_layershell::to_layer_message;
 
+/// Qual painel a coluna esquerda mostra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pane {
+    /// Início: mais usados + recentes.
+    Home,
+    /// "Todos os programas": a lista cheia, rolável.
+    All,
+}
+
 struct Menu {
     /// Id da surface overlay aberta, ou `None` (menu fechado).
     overlay: Option<IcedId>,
     /// Saudação ("Boa noite, user"), recalculada a cada abertura.
     greeting: String,
+    /// Todos os apps descobertos (alfabético).
+    apps: Vec<apps::App>,
+    /// Favoritos pra "Mais usados".
+    favorites: Vec<apps::App>,
+    /// Painel atual da coluna esquerda.
+    pane: Pane,
 }
 
 #[to_layer_message(multi)]
@@ -30,6 +48,14 @@ enum Message {
     Close,
     /// Captura clique no card (não fecha).
     Noop,
+    /// Clica num app → roda o Exec desanexado e fecha o menu.
+    LaunchApp(String),
+    /// Abre um caminho no gerenciador de arquivos e fecha o menu.
+    OpenPath(String),
+    /// Abre o luma-config e fecha o menu.
+    OpenSettings,
+    /// Alterna a coluna esquerda entre Início e "Todos os programas".
+    SetPane(Pane),
     AccentLoaded(Result<String, String>),
     AccentChanged(String),
     HighContrastLoaded(Result<bool, String>),
@@ -76,13 +102,27 @@ fn boot() -> (Menu, Task<Message>) {
         Task::perform(ipc::read_accent(), Message::AccentLoaded),
         Task::perform(ipc::read_high_contrast(), Message::HighContrastLoaded),
     ]);
+    // Descobre os apps uma vez no boot (o menu é daemon persistente).
+    let all = apps::load();
+    let favorites = apps::favorites(&all, 6);
     (
         Menu {
             overlay: None,
             greeting: greeting(),
+            apps: all,
+            favorites,
+            pane: Pane::Home,
         },
         read,
     )
+}
+
+/// Fecha o menu (remove a surface), se aberto.
+fn close(state: &mut Menu) -> Task<Message> {
+    if let Some(id) = state.overlay.take() {
+        return Task::done(Message::RemoveWindow(id));
+    }
+    Task::none()
 }
 
 fn update(state: &mut Menu, message: Message) -> Task<Message> {
@@ -92,16 +132,26 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
                 return Task::done(Message::RemoveWindow(id));
             }
             state.greeting = greeting();
+            state.pane = Pane::Home; // sempre reabre no Início
             let (id, task) = Message::layershell_open(overlay_settings());
             state.overlay = Some(id);
             return task;
         }
-        Message::Close => {
-            if let Some(id) = state.overlay.take() {
-                return Task::done(Message::RemoveWindow(id));
-            }
-        }
+        Message::Close => return close(state),
         Message::Noop => {}
+        Message::LaunchApp(exec) => {
+            apps::launch(&exec);
+            return close(state);
+        }
+        Message::OpenPath(path) => {
+            apps::open_path(&path);
+            return close(state);
+        }
+        Message::OpenSettings => {
+            apps::launch_config();
+            return close(state);
+        }
+        Message::SetPane(pane) => state.pane = pane,
         Message::AccentLoaded(Ok(id)) => libluma::tokens::set_accent_id(&id),
         Message::AccentLoaded(Err(e)) => eprintln!("luma-menu: ler acento falhou: {e}"),
         Message::AccentChanged(id) => libluma::tokens::set_accent_id(&id),
@@ -163,9 +213,16 @@ fn svg_icon<'a>(name: &str, size: f32, color: Color) -> Element<'a, Message> {
 }
 
 /// Rótulo de seção ("Mais usados", "Recentes") — pequeno, secundário.
-fn section_label<'a>(s: &'a str, color: Color) -> Element<'a, Message> {
-    container(text(s).size(11.0).color(color))
+fn section_label<'a>(s: impl Into<String>, color: Color) -> Element<'a, Message> {
+    container(text(s.into()).size(11.0).color(color))
         .padding(Padding::from([6.0, 10.0]))
+        .into()
+}
+
+/// Linha de texto apagada (estado vazio: "Nenhum recente").
+fn muted_line<'a>(s: impl Into<String>, color: Color) -> Element<'a, Message> {
+    container(text(s.into()).size(13.0).color(color))
+        .padding(Padding::from([6.0, 12.0]))
         .into()
 }
 
@@ -190,14 +247,10 @@ fn vdivider<'a>(color: Color) -> Element<'a, Message> {
         .into()
 }
 
-/// Botão de linha (ícone + rótulo) com hover no acento. on_press placeholder
-/// (o abrir de verdade vem no 2b).
-fn row_button<'a>(name: &str, label: &'a str, color: Color) -> Element<'a, Message> {
-    let content = row![svg_icon(name, 20.0, color), text(label).size(14.0).color(color)]
-        .spacing(10.0)
-        .align_y(iced::Alignment::Center);
+/// Linha clicável genérica (conteúdo arbitrário) com hover no acento.
+fn clickable_row<'a>(content: Element<'a, Message>, msg: Message) -> Element<'a, Message> {
     button(content)
-        .on_press(Message::Noop)
+        .on_press(msg)
         .width(Length::Fill)
         .padding(Padding::from([7.0, 10.0]))
         .style(|_theme, status| {
@@ -218,6 +271,69 @@ fn row_button<'a>(name: &str, label: &'a str, color: Color) -> Element<'a, Messa
             }
         })
         .into()
+}
+
+/// Botão de linha (ícone de asset + rótulo) — lugares, "Todos os programas".
+fn row_button<'a>(name: &str, label: impl Into<String>, color: Color, msg: Message) -> Element<'a, Message> {
+    let content = row![svg_icon(name, 20.0, color), text(label.into()).size(14.0).color(color)]
+        .spacing(10.0)
+        .align_y(iced::Alignment::Center)
+        .into();
+    clickable_row(content, msg)
+}
+
+/// Ícone real de um app (SVG ou raster), com fallback num quadrado + inicial.
+fn app_icon_el<'a>(app: &apps::App, size: f32) -> Element<'a, Message> {
+    match &app.icon_path {
+        Some(apps::IconKind::Svg(p)) => svg(svg::Handle::from_path(p.clone()))
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .into(),
+        Some(apps::IconKind::Raster(p)) => image(image::Handle::from_path(p.clone()))
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .into(),
+        None => fallback_icon(&app.name, size),
+    }
+}
+
+/// Quadradinho de acento com a inicial do app (ícone ausente).
+fn fallback_icon<'a>(name: &str, size: f32) -> Element<'a, Message> {
+    let initial = name
+        .chars()
+        .next()
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_string());
+    let accent = libluma::tokens::accent();
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    container(
+        text(initial)
+            .size(size * 0.6)
+            .color(cream)
+            .font(display_font(iced::font::Weight::Semibold)),
+    )
+    .width(Length::Fixed(size))
+    .height(Length::Fixed(size))
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
+    .style(move |_theme| container::Style {
+        background: Some(Background::Color(Color { a: 0.30, ..accent })),
+        border: Border {
+            radius: 6.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .into()
+}
+
+/// Botão de um app real: ícone + nome, clique lança o Exec.
+fn app_button<'a>(app: &apps::App, color: Color) -> Element<'a, Message> {
+    let content = row![app_icon_el(app, 22.0), text(app.name.clone()).size(14.0).color(color)]
+        .spacing(10.0)
+        .align_y(iced::Alignment::Center)
+        .into();
+    clickable_row(content, Message::LaunchApp(app.exec.clone()))
 }
 
 /// Botão só-ícone (sessão secundária / reiniciar, suspender, bloquear).
@@ -289,26 +405,51 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
             ..Default::default()
         });
 
-    let left = container(
-        column![
-            section_label("Mais usados", secondary),
-            row_button("file-executable", "Navegador", cream),
-            row_button("file-executable", "Terminal", cream),
-            row_button("file-executable", "Editor de texto", cream),
-            section_label("Recentes", secondary),
-            row_button("file-text", "Documento.txt", cream),
-            row_button("file-image", "Foto.png", cream),
-            Space::new().height(Length::Fill),
-            divider(secondary),
-            row_button("file-folder", "Todos os programas", cream),
-            Space::new().height(Length::Fixed(6.0)),
-            search,
-        ]
-        .spacing(2.0),
-    )
-    .width(Length::Fixed(338.0))
-    .height(Length::Fill)
-    .padding(12);
+    let mut left_items: Vec<Element<Message>> = Vec::new();
+    match state.pane {
+        Pane::Home => {
+            left_items.push(section_label("Mais usados", secondary));
+            if state.favorites.is_empty() {
+                left_items.push(muted_line("Nenhum app encontrado", secondary));
+            } else {
+                for app in &state.favorites {
+                    left_items.push(app_button(app, cream));
+                }
+            }
+            left_items.push(section_label("Recentes", secondary));
+            left_items.push(muted_line("Nenhum item recente", secondary));
+            left_items.push(Space::new().height(Length::Fill).into());
+            left_items.push(divider(secondary));
+            left_items.push(row_button(
+                "file-folder",
+                "Todos os programas",
+                cream,
+                Message::SetPane(Pane::All),
+            ));
+        }
+        Pane::All => {
+            left_items.push(row_button(
+                "file-folder",
+                "‹ Voltar",
+                cream,
+                Message::SetPane(Pane::Home),
+            ));
+            left_items.push(section_label(
+                format!("Todos os programas ({})", state.apps.len()),
+                secondary,
+            ));
+            let list = iced::widget::column(state.apps.iter().map(|a| app_button(a, cream)))
+                .spacing(2.0);
+            left_items.push(scrollable(list).height(Length::Fill).into());
+        }
+    }
+    left_items.push(Space::new().height(Length::Fixed(6.0)).into());
+    left_items.push(search.into());
+
+    let left = container(iced::widget::column(left_items).spacing(2.0))
+        .width(Length::Fixed(338.0))
+        .height(Length::Fill)
+        .padding(12);
 
     // ─── Coluna direita: lugares + sessão ──────────────────────────────
     let avatar = container(
@@ -343,7 +484,7 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
 
     // Sessão (placeholder; wiring no passo 3): Desligar + reiniciar/suspender/bloquear.
     let session = row![
-        row_button("desligar", "Desligar", cream),
+        row_button("desligar", "Desligar", cream, Message::Noop),
         icon_button("reiniciar", secondary),
         icon_button("suspender", secondary),
         icon_button("bloquear", secondary),
@@ -355,10 +496,30 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
         column![
             header,
             divider(secondary),
-            row_button("places-computer", "Pasta pessoal", cream),
-            row_button("file-folder", "Documentos", cream),
-            row_button("file-image", "Imagens", cream),
-            row_button("ctx-settings", "Configurações do Luma", cream),
+            row_button(
+                "places-computer",
+                "Pasta pessoal",
+                cream,
+                Message::OpenPath(apps::home_dir())
+            ),
+            row_button(
+                "file-folder",
+                "Documentos",
+                cream,
+                Message::OpenPath(apps::documents_dir())
+            ),
+            row_button(
+                "file-image",
+                "Imagens",
+                cream,
+                Message::OpenPath(apps::pictures_dir())
+            ),
+            row_button(
+                "ctx-settings",
+                "Configurações do Luma",
+                cream,
+                Message::OpenSettings
+            ),
             Space::new().height(Length::Fill),
             divider(secondary),
             session,
