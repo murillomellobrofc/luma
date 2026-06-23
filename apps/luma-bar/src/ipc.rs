@@ -89,6 +89,16 @@ pub trait Compositor {
     async fn pairing_state(&self) -> zbus::Result<(u8, u32, String)>;
     /// Volta a fase pra ociosa.
     async fn reset_pairing(&self) -> zbus::Result<()>;
+
+    /// Rede popup: `(wifi_ligado, tem_placa, cabeada ou "", [(ssid, sinal,
+    /// protegida, conectada)])`.
+    async fn network_devices(&self) -> zbus::Result<(bool, bool, String, Vec<(String, u8, bool, bool)>)>;
+    /// Conecta numa rede wi-fi pelo SSID.
+    async fn connect_wifi(&self, ssid: String) -> zbus::Result<()>;
+    /// Liga/desliga o rádio wi-fi.
+    async fn set_wifi_radio(&self, on: bool) -> zbus::Result<()>;
+    /// Pede um rescan das redes.
+    async fn wifi_rescan(&self) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -412,6 +422,41 @@ pub async fn confirm_pairing(ok: bool) {
     if let Ok(p) = proxy().await {
         let _ = p.confirm_pairing(ok).await;
     }
+}
+
+// ─── Rede: popup (conexões) ───────────────────────────────────────────
+
+/// `(wifi_ligado, tem_placa, cabeada, [(ssid, sinal, protegida, conectada)])`.
+pub type NetState = (bool, bool, String, Vec<(String, u8, bool, bool)>);
+
+/// Lê o estado de rede pro popup. Pede um rescan antes (lista mais fresca).
+pub async fn read_network_devices() -> NetState {
+    if let Ok(p) = proxy().await {
+        let _ = p.wifi_rescan().await;
+        return p
+            .network_devices()
+            .await
+            .unwrap_or((false, false, String::new(), Vec::new()));
+    }
+    (false, false, String::new(), Vec::new())
+}
+
+/// Conecta numa rede wi-fi + relê (connect leva alguns segundos).
+pub async fn connect_wifi(ssid: String) -> NetState {
+    if let Ok(p) = proxy().await {
+        let _ = p.connect_wifi(ssid).await;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    read_network_devices().await
+}
+
+/// Liga/desliga o rádio wi-fi + relê.
+pub async fn set_wifi_radio(on: bool) -> NetState {
+    if let Ok(p) = proxy().await {
+        let _ = p.set_wifi_radio(on).await;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    read_network_devices().await
 }
 
 // ─── Rede (passo 5) ───────────────────────────────────────────────────

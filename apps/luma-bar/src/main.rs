@@ -37,6 +37,17 @@ struct WinEntry {
 enum PopupKind {
     Volume,
     Bluetooth,
+    Network,
+}
+
+/// Uma rede wi-fi no popup de rede.
+#[derive(Debug, Clone)]
+struct WifiNet {
+    ssid: String,
+    /// Sinal 0–100.
+    signal: u8,
+    protected: bool,
+    in_use: bool,
 }
 
 /// Um dispositivo bluetooth no popup.
@@ -97,6 +108,11 @@ struct Bar {
     /// Fase do pareamento `(fase, passkey, mensagem)`. Fase: 0 ocioso,
     /// 1 pareando, 2 confere o código, 3 deu certo, 4 falhou.
     bt_pairing: (u8, u32, String),
+    /// Rede: wi-fi ligado, tem placa, device cabeado (ou ""), redes wi-fi.
+    net_wifi_on: bool,
+    net_has_wifi: bool,
+    net_eth: String,
+    net_wifi: Vec<WifiNet>,
 }
 
 #[to_layer_message(multi)]
@@ -176,6 +192,16 @@ enum Message {
     PairDev(String),
     /// Responde a confirmação de código (confirma/cancela).
     BtConfirm(bool),
+    /// Clique no applet de rede → abre/fecha o popup de rede.
+    OpenNetworkPopup,
+    /// Estado de rede carregado/recarregado.
+    NetworkDevicesLoaded(ipc::NetState),
+    /// Poll do popup de rede (relê a lista enquanto aberto).
+    NetPoll,
+    /// Conecta numa rede wi-fi pelo SSID.
+    ConnectWifi(String),
+    /// Liga/desliga o rádio wi-fi.
+    SetWifiRadio(bool),
 }
 
 fn now_hm() -> String {
@@ -259,6 +285,10 @@ fn boot() -> (Bar, Task<Message>) {
             bt_adding: false,
             bt_scan: Vec::new(),
             bt_pairing: (0, 0, String::new()),
+            net_wifi_on: false,
+            net_has_wifi: false,
+            net_eth: String::new(),
+            net_wifi: Vec::new(),
         },
         read,
     )
@@ -315,6 +345,9 @@ fn load_popup(kind: PopupKind) -> Task<Message> {
         PopupKind::Volume => Task::perform(ipc::read_audio_devices(), Message::MixerLoaded),
         PopupKind::Bluetooth => {
             Task::perform(ipc::read_bluetooth_state(), Message::BluetoothStateLoaded)
+        }
+        PopupKind::Network => {
+            Task::perform(ipc::read_network_devices(), Message::NetworkDevicesLoaded)
         }
     }
 }
@@ -524,6 +557,33 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::BtConfirm(ok) => {
             return Task::perform(ipc::confirm_pairing(ok), |_| Message::BtPoll);
         }
+        Message::OpenNetworkPopup => return open_popup(state, PopupKind::Network),
+        Message::NetworkDevicesLoaded((wifi_on, has_wifi, eth, nets)) => {
+            state.net_wifi_on = wifi_on;
+            state.net_has_wifi = has_wifi;
+            state.net_eth = eth;
+            state.net_wifi = nets
+                .into_iter()
+                .map(|(ssid, signal, protected, in_use)| WifiNet {
+                    ssid,
+                    signal,
+                    protected,
+                    in_use,
+                })
+                .collect();
+        }
+        Message::NetPoll => {
+            if matches!(state.popup, Some((_, PopupKind::Network))) {
+                return Task::perform(ipc::read_network_devices(), Message::NetworkDevicesLoaded);
+            }
+        }
+        Message::ConnectWifi(ssid) => {
+            return Task::perform(ipc::connect_wifi(ssid), Message::NetworkDevicesLoaded);
+        }
+        Message::SetWifiRadio(on) => {
+            state.net_wifi_on = on; // otimista
+            return Task::perform(ipc::set_wifi_radio(on), Message::NetworkDevicesLoaded);
+        }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
         Message::BluetoothLoaded(icon) | Message::BluetoothChanged(icon) => {
@@ -631,11 +691,14 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
     .into()
 }
 
-/// Applet de rede: o SVG do estado (tipo + força), tingido pelo tema.
-/// Nome no hover fica pra depois (o estado atual não traz SSID).
+/// Applet de rede: o SVG do estado (tipo + força), tingido pelo tema. Clique
+/// abre o popup de rede.
 fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    applet_icon(icon, 18.0, cream)
+    mouse_area(applet_icon(icon, 18.0, cream))
+        .on_press(Message::OpenNetworkPopup)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
 }
 
 /// Applet de bluetooth: o SVG do estado (on/off), tingido pelo tema. (Só há
@@ -702,6 +765,7 @@ fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
             return match kind {
                 PopupKind::Volume => popup_frame(volume_popup_body(state), 60.0),
                 PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 200.0),
+                PopupKind::Network => popup_frame(network_popup_body(state), 130.0),
             };
         }
     }
@@ -1217,6 +1281,122 @@ fn bt_device_row<'a>(d: &BtDev) -> Element<'a, Message> {
     .into()
 }
 
+/// Corpo do popup de rede: cabeada (se houver) + wi-fi (toggle + lista).
+fn network_popup_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+    let accent = libluma::tokens::accent();
+
+    let mut items: Vec<Element<Message>> = Vec::new();
+    items.push(popup_title("Rede", cream));
+
+    // Com fio (informativo, conectada no acento).
+    if !state.net_eth.is_empty() {
+        items.push(text("Com fio").size(11.0).color(secondary).into());
+        let eth = state.net_eth.clone();
+        items.push(
+            container(
+                column![
+                    text("Conectado").size(14.0).color(accent),
+                    text(eth).size(11.0).color(secondary),
+                ]
+                .spacing(2),
+            )
+            .width(Length::Fill)
+            .padding(Padding::from([8.0, 10.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(Color { a: 0.06, ..cream })),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .into(),
+        );
+    }
+
+    // Wi-Fi.
+    if state.net_has_wifi {
+        items.push(libluma::toggle_row(
+            "Wi-Fi",
+            state.net_wifi_on,
+            Message::SetWifiRadio,
+        ));
+        if !state.net_wifi_on {
+            items.push(text("Wi-Fi desligado").size(13.0).color(secondary).into());
+        } else if state.net_wifi.is_empty() {
+            items.push(text("Procurando redes…").size(13.0).color(secondary).into());
+        } else {
+            items.push(text("Redes").size(11.0).color(secondary).into());
+            for n in &state.net_wifi {
+                items.push(wifi_row(n));
+            }
+        }
+    } else if state.net_eth.is_empty() {
+        items.push(text("Sem conexão").size(13.0).color(secondary).into());
+    }
+
+    scrollable(column(items).spacing(12.0)).into()
+}
+
+/// Linha de uma rede wi-fi: ícone do sinal + nome + estado; clique conecta.
+/// A conectada fica destacada no acento.
+fn wifi_row<'a>(n: &WifiNet) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let accent = libluma::tokens::accent();
+
+    let icon = if n.signal >= 66 {
+        "wifi-full"
+    } else if n.signal >= 33 {
+        "wifi-low"
+    } else {
+        "wifi-none"
+    };
+    let color = if n.in_use { accent } else { cream };
+    let sub = if n.in_use {
+        "conectada".to_string()
+    } else {
+        format!(
+            "{}% · {}",
+            n.signal,
+            if n.protected { "protegida" } else { "aberta" }
+        )
+    };
+    let sub_color = if n.in_use { accent } else { secondary };
+
+    let content = row![
+        applet_icon(icon, 18.0, color),
+        column![
+            text(n.ssid.clone()).size(14.0).color(color),
+            text(sub).size(11.0).color(sub_color),
+        ]
+        .spacing(2),
+    ]
+    .spacing(10)
+    .align_y(iced::Alignment::Center);
+
+    mouse_area(
+        container(content)
+            .width(Length::Fill)
+            .padding(Padding::from([8.0, 10.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(Color { a: 0.06, ..cream })),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::ConnectWifi(n.ssid.clone()))
+    .interaction(iced::mouse::Interaction::Pointer)
+    .into()
+}
+
 fn subscription(state: &Bar) -> iced::Subscription<Message> {
     let mut subs = vec![
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
@@ -1233,6 +1413,10 @@ fn subscription(state: &Bar) -> iced::Subscription<Message> {
     // Modo adicionar: poll dos descobertos + fase do pareamento a cada 2s.
     if state.bt_adding {
         subs.push(iced::time::every(Duration::from_millis(2000)).map(|_| Message::BtPoll));
+    }
+    // Popup de rede aberto: relê a lista a cada 3s (o scan do wifi demora).
+    if matches!(state.popup, Some((_, PopupKind::Network))) {
+        subs.push(iced::time::every(Duration::from_millis(3000)).map(|_| Message::NetPoll));
     }
     iced::Subscription::batch(subs)
 }

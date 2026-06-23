@@ -607,6 +607,41 @@ impl CompositorService {
         crate::bt_agent::reset(&self.pairing);
     }
 
+    // ─── Rede: popup (conexões) ───────────────────────────────────────
+
+    /// Estado de rede pro popup: `(wifi_ligado, tem_placa_wifi, device_cabeado
+    /// ou "", [(ssid, sinal 0–100, protegida, conectada)])`. Lê via nmcli.
+    async fn network_devices(&self) -> (bool, bool, String, Vec<(String, u8, bool, bool)>) {
+        let st = crate::wifi::read_state();
+        let eth = st.ethernet.map(|e| e.device).unwrap_or_default();
+        let nets = st
+            .networks
+            .into_iter()
+            .map(|n| {
+                let protected = n.is_protected();
+                (n.ssid, n.signal, protected, n.in_use)
+            })
+            .collect();
+        (st.enabled, st.has_hardware, eth, nets)
+    }
+
+    /// Conecta numa rede wi-fi pelo SSID (rede aberta ou com perfil salvo;
+    /// senha de rede nova é refino). Fire-and-forget; relê depois.
+    async fn connect_wifi(&self, ssid: String) {
+        let outbox = std::sync::Arc::new(std::sync::Mutex::new(None));
+        crate::wifi::connect_async(outbox, ssid, None);
+    }
+
+    /// Liga/desliga o rádio wi-fi.
+    async fn set_wifi_radio(&self, on: bool) {
+        crate::wifi::set_enabled(on);
+    }
+
+    /// Pede um rescan das redes (ao abrir o popup).
+    async fn wifi_rescan(&self) {
+        crate::wifi::request_scan();
+    }
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu
