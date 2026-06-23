@@ -2556,6 +2556,7 @@ dependencies = [
  "iced",
  "iced_layershell",
  "libluma",
+ "tokio",
  "zbus",
 ]
 

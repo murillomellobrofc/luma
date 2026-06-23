@@ -24,3 +24,6 @@ iced = { version = "0.14", default-features = false, features = [
 zbus = { version = "5", features = ["tokio"] }
 # Relógio (conteúdo simples do passo 1). Mesma config do compositor.
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# Delay curto antes de reler o estado do bluetooth (deixa o bluetoothctl
+# assentar). Só `time`.
+tokio = { version = "1", features = ["time"] }

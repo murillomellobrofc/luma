@@ -184,6 +184,23 @@ fn read_device_info(mac: &str) -> (bool, bool, BtIconKind) {
     (connected, paired, icon_kind)
 }
 
+/// Conecta um dispositivo pela MAC (fire-and-forget num thread que reapeia o
+/// processo, sem zumbi). Pode levar segundos; o popup relê depois.
+pub fn connect(mac: &str) {
+    let mac = mac.to_string();
+    std::thread::spawn(move || {
+        let _ = Command::new("bluetoothctl").args(["connect", &mac]).status();
+    });
+}
+
+/// Desconecta um dispositivo pela MAC (idem).
+pub fn disconnect(mac: &str) {
+    let mac = mac.to_string();
+    std::thread::spawn(move || {
+        let _ = Command::new("bluetoothctl").args(["disconnect", &mac]).status();
+    });
+}
+
 /// Liga/desliga o controller.
 pub fn set_enabled(on: bool) {
     let arg = if on { "on" } else { "off" };

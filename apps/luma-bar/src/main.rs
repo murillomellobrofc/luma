@@ -32,6 +32,23 @@ struct WinEntry {
     minimized: bool,
 }
 
+/// Qual popup está aberto (um de cada vez).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PopupKind {
+    Volume,
+    Bluetooth,
+}
+
+/// Um dispositivo bluetooth no popup.
+#[derive(Debug, Clone)]
+struct BtDev {
+    mac: String,
+    name: String,
+    #[allow(dead_code)]
+    paired: bool,
+    connected: bool,
+}
+
 /// Um dispositivo de áudio no mixer do popup de volume.
 #[derive(Debug, Clone)]
 struct AudioDev {
@@ -63,10 +80,16 @@ struct Bar {
     /// Bluetooth: nome do ícone ("bluetooth-on"/"bluetooth-off"). Vazio =
     /// sem controller → esconde o applet. Boot + sinal.
     bluetooth: String,
-    /// Id do popup de volume aberto, ou `None` (fechado).
-    popup: Option<IcedId>,
-    /// Dispositivos do mixer (carregados ao abrir o popup).
+    /// Popup aberto `(id, tipo)`, ou `None` (fechado). Um de cada vez.
+    popup: Option<(IcedId, PopupKind)>,
+    /// Dispositivos do mixer (carregados ao abrir o popup de volume).
     mixer: Vec<AudioDev>,
+    /// Bluetooth ligado (toggle do popup).
+    bt_enabled: bool,
+    /// Há controller de bluetooth.
+    bt_has_hw: bool,
+    /// Dispositivos bluetooth (carregados ao abrir o popup).
+    bt_devices: Vec<BtDev>,
 }
 
 #[to_layer_message(multi)]
@@ -114,8 +137,10 @@ enum Message {
     BluetoothChanged(String),
     /// Clique no applet de volume → abre/fecha o popup do mixer.
     OpenVolumePopup,
-    /// Fecha o popup (clique fora).
-    CloseVolumePopup,
+    /// Clique no applet de bluetooth → abre/fecha o popup do bluetooth.
+    OpenBluetoothPopup,
+    /// Fecha o popup aberto (clique fora).
+    ClosePopup,
     /// Lista de dispositivos do mixer carregada/recarregada.
     MixerLoaded(Vec<(u32, String, u32, bool, bool, bool)>),
     /// Slider de um dispositivo mexendo (ao vivo, só a UI): `(id, vol%)`.
@@ -124,6 +149,13 @@ enum Message {
     DeviceVolumeRelease(u32),
     /// Botão de mudo de um dispositivo → alterna no D-Bus.
     DeviceMute(u32),
+    /// Estado do bluetooth carregado/recarregado.
+    BluetoothStateLoaded(ipc::BtState),
+    /// Toggle de energia do bluetooth.
+    SetBtPower(bool),
+    /// Conecta/desconecta um dispositivo bluetooth pela MAC.
+    ConnectDev(String),
+    DisconnectDev(String),
 }
 
 fn now_hm() -> String {
@@ -201,6 +233,9 @@ fn boot() -> (Bar, Task<Message>) {
             bluetooth: String::new(),
             popup: None,
             mixer: Vec::new(),
+            bt_enabled: false,
+            bt_has_hw: false,
+            bt_devices: Vec::new(),
         },
         read,
     )
@@ -221,9 +256,36 @@ fn bar_settings() -> NewLayerShellSettings {
     }
 }
 
-/// Settings do popup do volume: surface full-screen (pra o backdrop fechar no
-/// clique fora), camada Overlay. O card é posicionado perto do applet via
-/// alinhamento no view (canto superior-direito, sob o cluster de applets).
+/// Abre um popup (um de cada vez). Clicar no mesmo applet fecha (toggle);
+/// clicar noutro troca. Carrega o conteúdo do tipo.
+fn open_popup(state: &mut Bar, kind: PopupKind) -> Task<Message> {
+    if let Some((id, k)) = state.popup.take() {
+        let close = Task::done(Message::RemoveWindow(id));
+        if k == kind {
+            return close; // toggle: fecha o mesmo
+        }
+        let (nid, open) = Message::layershell_open(popup_settings());
+        state.popup = Some((nid, kind));
+        return Task::batch([close, open, load_popup(kind)]);
+    }
+    let (nid, open) = Message::layershell_open(popup_settings());
+    state.popup = Some((nid, kind));
+    Task::batch([open, load_popup(kind)])
+}
+
+/// Carrega o conteúdo do popup conforme o tipo.
+fn load_popup(kind: PopupKind) -> Task<Message> {
+    match kind {
+        PopupKind::Volume => Task::perform(ipc::read_audio_devices(), Message::MixerLoaded),
+        PopupKind::Bluetooth => {
+            Task::perform(ipc::read_bluetooth_state(), Message::BluetoothStateLoaded)
+        }
+    }
+}
+
+/// Settings do popup: surface full-screen (pra o backdrop fechar no clique
+/// fora), camada Overlay. O card é posicionado perto do applet via alinhamento
+/// no view (canto superior-direito, sob o cluster de applets).
 fn popup_settings() -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: None,
@@ -317,20 +379,11 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
             state.volume.1 = !state.volume.1; // otimista
             return Task::perform(ipc::toggle_mute(), |_| Message::Noop);
         }
-        // Popup do mixer: abre/fecha + carrega/ajusta dispositivos.
-        Message::OpenVolumePopup => {
-            if let Some(id) = state.popup.take() {
-                return Task::done(Message::RemoveWindow(id));
-            }
-            let (id, open) = Message::layershell_open(popup_settings());
-            state.popup = Some(id);
-            return Task::batch([
-                open,
-                Task::perform(ipc::read_audio_devices(), Message::MixerLoaded),
-            ]);
-        }
-        Message::CloseVolumePopup => {
-            if let Some(id) = state.popup.take() {
+        // Popups: abre/fecha (um de cada vez) + carrega o conteúdo.
+        Message::OpenVolumePopup => return open_popup(state, PopupKind::Volume),
+        Message::OpenBluetoothPopup => return open_popup(state, PopupKind::Bluetooth),
+        Message::ClosePopup => {
+            if let Some((id, _)) = state.popup.take() {
                 return Task::done(Message::RemoveWindow(id));
             }
         }
@@ -364,6 +417,29 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::DeviceMute(id) => {
             return Task::perform(ipc::set_device_mute(id), Message::MixerLoaded);
+        }
+        Message::BluetoothStateLoaded((enabled, has_hw, devices)) => {
+            state.bt_enabled = enabled;
+            state.bt_has_hw = has_hw;
+            state.bt_devices = devices
+                .into_iter()
+                .map(|(mac, name, paired, connected)| BtDev {
+                    mac,
+                    name,
+                    paired,
+                    connected,
+                })
+                .collect();
+        }
+        Message::SetBtPower(on) => {
+            state.bt_enabled = on; // otimista
+            return Task::perform(ipc::set_bluetooth_power(on), Message::BluetoothStateLoaded);
+        }
+        Message::ConnectDev(mac) => {
+            return Task::perform(ipc::connect_device(mac), Message::BluetoothStateLoaded);
+        }
+        Message::DisconnectDev(mac) => {
+            return Task::perform(ipc::disconnect_device(mac), Message::BluetoothStateLoaded);
         }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
@@ -481,9 +557,13 @@ fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
 
 /// Applet de bluetooth: o SVG do estado (on/off), tingido pelo tema. (Só há
 /// on/off nos assets — "conectado" usa on.) Escondido se não há controller.
+/// Clique abre o popup do bluetooth.
 fn bluetooth_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    applet_icon(icon, 18.0, cream)
+    mouse_area(applet_icon(icon, 18.0, cream))
+        .on_press(Message::OpenBluetoothPopup)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
 }
 
 /// Applet de volume: o SVG do estado (alto/médio/baixo/mudo) + "%". **scroll**
@@ -532,13 +612,17 @@ fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
 }
 
 /// Dispatch do daemon: a surface da barra renderiza a barra; a do popup
-/// renderiza o mixer.
+/// renderiza o conteúdo do tipo aberto.
 fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
-    if state.popup == Some(id) {
-        popup_view(state)
-    } else {
-        bar_view(state)
+    if let Some((pid, kind)) = &state.popup {
+        if *pid == id {
+            return match kind {
+                PopupKind::Volume => popup_frame(volume_popup_body(state), 60.0),
+                PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 200.0),
+            };
+        }
     }
+    bar_view(state)
 }
 
 fn bar_view(state: &Bar) -> Element<'_, Message> {
@@ -744,16 +828,29 @@ fn device_row<'a>(d: &AudioDev) -> Element<'a, Message> {
     .into()
 }
 
-/// View do popup do mixer: backdrop (clique fora fecha) + card perto do applet
-/// (canto superior-direito, sob o cluster). Saídas e entradas com sliders.
-fn popup_view(state: &Bar) -> Element<'_, Message> {
+/// Título de popup (Fraunces, semibold).
+fn popup_title<'a>(s: &'a str, color: Color) -> Element<'a, Message> {
+    text(s)
+        .size(16.0)
+        .color(color)
+        .font(iced::Font {
+            family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
+            weight: iced::font::Weight::Semibold,
+            ..iced::Font::DEFAULT
+        })
+        .into()
+}
+
+/// Moldura comum dos popups: backdrop transparente (clique-fora fecha) + card
+/// no canto superior-direito, abaixo da barra, com margem direita por tipo
+/// (perto do applet que abriu). `body` é o conteúdo (já rolável).
+fn popup_frame<'a>(body: Element<'a, Message>, right_margin: f32) -> Element<'a, Message> {
     let sem = libluma::tokens::semantic_default();
     let surface = libluma::tokens::to_iced(sem.surface);
     let cream = libluma::tokens::to_iced(sem.text);
-    let secondary = libluma::tokens::to_iced(sem.text_secondary);
 
     // Backdrop TRANSPARENTE: cobre a tela só pra capturar o clique-fora (fecha),
-    // sem escurecer nada (o usuário não quer o dim sobre o wallpaper).
+    // sem escurecer nada.
     let backdrop = mouse_area(
         container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
             container::Style {
@@ -762,20 +859,50 @@ fn popup_view(state: &Bar) -> Element<'_, Message> {
             }
         }),
     )
-    .on_press(Message::CloseVolumePopup);
+    .on_press(Message::ClosePopup);
+
+    let card = mouse_area(
+        container(body)
+            .width(Length::Fixed(340.0))
+            .max_height(520.0)
+            .padding(18)
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 16.0.into(),
+                    width: 1.0,
+                    color: Color { a: 0.22, ..cream },
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::Noop);
+
+    stack![
+        backdrop,
+        container(card)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(Padding {
+                top: (BAR_HEIGHT + ACCENT_LINE) as f32 + 6.0,
+                right: right_margin,
+                bottom: 0.0,
+                left: 0.0,
+            }),
+    ]
+    .into()
+}
+
+/// Corpo do popup do volume: saídas e entradas com sliders.
+fn volume_popup_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
 
     let mut items: Vec<Element<Message>> = Vec::new();
-    items.push(
-        text("Volume")
-            .size(16.0)
-            .color(cream)
-            .font(iced::Font {
-                family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
-                weight: iced::font::Weight::Semibold,
-                ..iced::Font::DEFAULT
-            })
-            .into(),
-    );
+    items.push(popup_title("Volume", cream));
 
     let sinks: Vec<&AudioDev> = state.mixer.iter().filter(|d| !d.is_source).collect();
     let sources: Vec<&AudioDev> = state.mixer.iter().filter(|d| d.is_source).collect();
@@ -796,39 +923,85 @@ fn popup_view(state: &Bar) -> Element<'_, Message> {
         items.push(text("Sem dispositivos de áudio").size(13.0).color(secondary).into());
     }
 
-    let card = mouse_area(
-        container(scrollable(column(items).spacing(12.0)))
-            .width(Length::Fixed(340.0))
-            .max_height(520.0)
-            .padding(18)
+    scrollable(column(items).spacing(12.0)).into()
+}
+
+/// Corpo do popup do bluetooth: toggle de energia + lista de dispositivos
+/// (clique conecta/desconecta os pareados).
+fn bluetooth_popup_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    let mut items: Vec<Element<Message>> = Vec::new();
+    items.push(popup_title("Bluetooth", cream));
+
+    if !state.bt_has_hw {
+        items.push(text("Sem controller de bluetooth").size(13.0).color(secondary).into());
+        return scrollable(column(items).spacing(12.0)).into();
+    }
+
+    // Toggle de energia (linha do libluma).
+    items.push(libluma::toggle_row(
+        "Bluetooth",
+        state.bt_enabled,
+        Message::SetBtPower,
+    ));
+
+    if !state.bt_enabled {
+        items.push(text("Ligue pra ver os dispositivos").size(13.0).color(secondary).into());
+    } else if state.bt_devices.is_empty() {
+        items.push(text("Nenhum dispositivo pareado").size(13.0).color(secondary).into());
+    } else {
+        items.push(text("Dispositivos").size(11.0).color(secondary).into());
+        for d in &state.bt_devices {
+            items.push(bt_device_row(d));
+        }
+    }
+
+    scrollable(column(items).spacing(12.0)).into()
+}
+
+/// Uma linha de dispositivo bluetooth: nome + estado; clique conecta/desconecta.
+fn bt_device_row<'a>(d: &BtDev) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let accent = libluma::tokens::accent();
+
+    let mac = d.mac.clone();
+    let msg = if d.connected {
+        Message::DisconnectDev(mac)
+    } else {
+        Message::ConnectDev(mac)
+    };
+    let state_label = if d.connected { "conectado" } else { "tocar pra conectar" };
+    let state_color = if d.connected { accent } else { secondary };
+
+    let content = column![
+        text(d.name.clone()).size(14.0).color(cream),
+        text(state_label).size(11.0).color(state_color),
+    ]
+    .spacing(2);
+
+    mouse_area(
+        container(content)
+            .width(Length::Fill)
+            .padding(Padding::from([8.0, 10.0]))
             .style(move |_theme| container::Style {
-                background: Some(Background::Color(surface)),
+                background: Some(Background::Color(Color {
+                    a: 0.06,
+                    ..cream
+                })),
                 border: Border {
-                    radius: 16.0.into(),
-                    width: 1.0,
-                    color: Color { a: 0.22, ..cream },
+                    radius: 10.0.into(),
+                    ..Default::default()
                 },
                 ..Default::default()
             }),
     )
-    .on_press(Message::Noop);
-
-    // Card no canto superior-direito, logo abaixo da barra, sob o cluster de
-    // applets (perto do ícone de volume).
-    stack![
-        backdrop,
-        container(card)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Right)
-            .align_y(iced::alignment::Vertical::Top)
-            .padding(Padding {
-                top: (BAR_HEIGHT + ACCENT_LINE) as f32 + 6.0,
-                right: 60.0,
-                bottom: 0.0,
-                left: 0.0,
-            }),
-    ]
+    .on_press(msg)
+    .interaction(iced::mouse::Interaction::Pointer)
     .into()
 }
 
