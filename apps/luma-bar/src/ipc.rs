@@ -37,6 +37,11 @@ pub trait Compositor {
     async fn toggle_mute(&self) -> zbus::Result<()>;
     #[zbus(signal)]
     fn volume_changed(&self, level: u8, muted: bool) -> zbus::Result<()>;
+
+    /// Rede (passo 5): nome do ícone do estado ("ethernet-on", "wifi-full"…).
+    async fn network(&self) -> zbus::Result<String>;
+    #[zbus(signal)]
+    fn network_changed(&self, icon: &str) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -169,4 +174,25 @@ pub async fn volume_signal_stream() -> zbus::Result<impl iced::futures::Stream<I
     let proxy = CompositorProxy::new(&conn).await?;
     let signals = proxy.receive_volume_changed().await?;
     Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| (*a.level(), *a.muted())) }))
+}
+
+// ─── Rede (passo 5) ───────────────────────────────────────────────────
+
+/// Lê o nome do ícone de rede no boot.
+pub async fn read_network() -> String {
+    async fn inner() -> zbus::Result<String> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.network().await
+    }
+    inner().await.unwrap_or_default()
+}
+
+/// Stream do sinal `network_changed` — o nome do ícone novo.
+pub async fn network_signal_stream() -> zbus::Result<impl iced::futures::Stream<Item = String>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_network_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| a.icon().to_string()) }))
 }

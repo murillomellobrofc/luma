@@ -49,7 +49,7 @@ impl Default for WifiState {
 /// independente do wifi. Senão cai pro wifi normal. `ethernet_present`
 /// indica se há ao menos uma placa ethernet — usada pra escolher entre
 /// `ethernet-off` e `wifi-off` quando tudo está desconectado.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NetworkState {
     pub ethernet_up: bool,
     pub ethernet_present: bool,
