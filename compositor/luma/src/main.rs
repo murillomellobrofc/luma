@@ -99,6 +99,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     dbus_server::IpcCommand::ActivateWindow(id) => {
                         data.state.activate_window_by_id(id);
                     }
+                    dbus_server::IpcCommand::SetVolume(pct) => {
+                        crate::input::shortcuts::set_volume_abs(&mut data.state, pct);
+                    }
+                    dbus_server::IpcCommand::ToggleMute => {
+                        crate::input::shortcuts::volume_mute_toggle(&mut data.state);
+                    }
                 }
             }
         })
@@ -130,7 +136,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Receiver da bateria (luma-bar passo 3): o servidor emite o sinal no
     // `changed()`; o compositor manda no refresh quando muda.
     let battery_rx = data.state.battery_tx.subscribe();
-    dbus_server::spawn(dbus_tx, available, notifications_slot, windows_slot, battery_rx);
+    // Receiver do volume (luma-bar passo 4): mesmo esquema da bateria.
+    let volume_rx = data.state.volume_tx.subscribe();
+    dbus_server::spawn(
+        dbus_tx,
+        available,
+        notifications_slot,
+        windows_slot,
+        battery_rx,
+        volume_rx,
+    );
 
     info!("luma pronto, entrando no loop principal");
 

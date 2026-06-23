@@ -30,6 +30,13 @@ pub trait Compositor {
     async fn battery(&self) -> zbus::Result<(bool, u8, bool)>;
     #[zbus(signal)]
     fn battery_changed(&self, present: bool, capacity: u8, charging: bool) -> zbus::Result<()>;
+
+    /// Volume (passo 4): `(level 0–100, muted)`. Mão dupla: set + toggle.
+    async fn volume(&self) -> zbus::Result<(u8, bool)>;
+    async fn set_volume(&self, level: u8) -> zbus::Result<()>;
+    async fn toggle_mute(&self) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn volume_changed(&self, level: u8, muted: bool) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -117,4 +124,49 @@ pub async fn battery_signal_stream(
     Ok(signals.filter_map(|sig| async move {
         sig.args().ok().map(|a| (*a.present(), *a.capacity(), *a.charging()))
     }))
+}
+
+// ─── Volume (passo 4) ─────────────────────────────────────────────────
+
+/// Lê o volume no boot: `(level 0–100, muted)`.
+pub async fn read_volume() -> (u8, bool) {
+    async fn inner() -> zbus::Result<(u8, bool)> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.volume().await
+    }
+    inner().await.unwrap_or((0, false))
+}
+
+/// Seta o volume (scroll). Erro só loga.
+pub async fn set_volume(level: u8) {
+    async fn inner(level: u8) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.set_volume(level).await
+    }
+    if let Err(e) = inner(level).await {
+        eprintln!("luma-bar: set_volume({level}) falhou: {e}");
+    }
+}
+
+/// Alterna mudo (clique). Erro só loga.
+pub async fn toggle_mute() {
+    async fn inner() -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.toggle_mute().await
+    }
+    if let Err(e) = inner().await {
+        eprintln!("luma-bar: toggle_mute falhou: {e}");
+    }
+}
+
+/// Stream do sinal `volume_changed` — `(level, muted)`.
+pub async fn volume_signal_stream() -> zbus::Result<impl iced::futures::Stream<Item = (u8, bool)>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_volume_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| (*a.level(), *a.muted())) }))
 }

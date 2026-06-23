@@ -48,7 +48,7 @@ libc = "0.2"
 zbus = { version = "5", features = ["tokio"] }
 # 3b.IPC: runtime tokio só pra thread do servidor D-Bus. current_thread
 # basta — net+time pelo zbus, sync pra futuros oneshots vindos do calloop.
-tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync", "macros"] }
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay.git"

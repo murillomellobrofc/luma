@@ -32,6 +32,10 @@ pub enum IpcCommand {
     /// Ativa (foca + levanta) a janela com este id. Fire-and-forget — a
     /// taskbar (luma-bar) não espera resposta. luma-bar passo 2.
     ActivateWindow(u64),
+    /// Seta o volume do default sink (0–150%). luma-bar passo 4 (scroll).
+    SetVolume(u8),
+    /// Alterna mudo do default sink. luma-bar passo 4 (clique).
+    ToggleMute,
 }
 
 /// Uma janela aberta, pra a taskbar (luma-bar passo 2). `id` é estável por
@@ -78,6 +82,8 @@ struct CompositorService {
     /// Receptor `watch` do estado da bateria (luma-bar passo 3). O `battery`
     /// lê o último valor (`borrow`); o loop do sinal usa outro clone.
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
+    /// Receptor `watch` do volume (luma-bar passo 4): `(level 0–100, muted)`.
+    volume: tokio::sync::watch::Receiver<(u8, bool)>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -375,6 +381,38 @@ impl CompositorService {
         charging: bool,
     ) -> zbus::Result<()>;
 
+    // ─── Volume / applet (luma-bar passo 4) ───────────────────────────
+
+    /// Estado atual do volume: `(level 0–100, muted)`. A barra lê no boot e
+    /// depois escuta o sinal.
+    async fn volume(&self) -> (u8, bool) {
+        *self.volume.borrow()
+    }
+
+    /// Seta o volume do default sink (0–150%). Mão dupla: a barra manda no
+    /// scroll. Fire-and-forget pro calloop; o sinal reflete o novo estado.
+    async fn set_volume(&self, level: u8) {
+        if self.cmd_tx.send(IpcCommand::SetVolume(level)).is_err() {
+            error!("D-Bus: calloop fechado ao setar volume");
+        }
+    }
+
+    /// Alterna mudo do default sink. A barra manda no clique.
+    async fn toggle_mute(&self) {
+        if self.cmd_tx.send(IpcCommand::ToggleMute).is_err() {
+            error!("D-Bus: calloop fechado ao alternar mudo");
+        }
+    }
+
+    /// **Sinal de mudança** do volume — emitido pelo loop quando o `watch`
+    /// muda (tecla, set, ou mudança externa pega no refresh).
+    #[zbus(signal)]
+    async fn volume_changed(
+        emitter: &SignalEmitter<'_>,
+        level: u8,
+        muted: bool,
+    ) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -517,10 +555,11 @@ pub fn spawn(
     notifications: NotificationsSlot,
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
+    volume: tokio::sync::watch::Receiver<(u8, bool)>,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
     if let Err(err) =
-        builder.spawn(move || run(cmd_tx, available, notifications, windows, battery))
+        builder.spawn(move || run(cmd_tx, available, notifications, windows, battery, volume))
     {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
@@ -532,6 +571,7 @@ fn run(
     notifications: NotificationsSlot,
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
+    volume: tokio::sync::watch::Receiver<(u8, bool)>,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -544,7 +584,7 @@ fn run(
         }
     };
     rt.block_on(async move {
-        if let Err(err) = serve(cmd_tx, available, notifications, windows, battery).await {
+        if let Err(err) = serve(cmd_tx, available, notifications, windows, battery, volume).await {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
     });
@@ -556,6 +596,7 @@ async fn serve(
     notifications: NotificationsSlot,
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
+    volume: tokio::sync::watch::Receiver<(u8, bool)>,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
@@ -563,6 +604,7 @@ async fn serve(
         notifications,
         windows,
         battery: battery.clone(),
+        volume: volume.clone(),
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -571,22 +613,32 @@ async fn serve(
         .await?;
     info!("D-Bus: {BUS_NAME} registrado no session bus em {OBJECT_PATH}");
 
-    // Loop do sinal de bateria (luma-bar passo 3): emite `battery_changed`
-    // quando o `watch` muda. Isso também mantém a conexão viva (o `changed()`
-    // pende pra sempre enquanto o compositor — dono do sender — vive).
+    // Loop dos sinais de sensores (bateria passo 3 + volume passo 4): emite
+    // o sinal certo quando o `watch` respectivo muda. Mantém a conexão viva
+    // (os `changed()` pendem enquanto o compositor — dono dos senders — vive).
     let emitter = SignalEmitter::new(&conn, OBJECT_PATH)?;
     let mut battery = battery;
+    let mut volume = volume;
     loop {
-        if battery.changed().await.is_err() {
-            // Sender dropado (compositor saindo) — segura a conexão mesmo
-            // assim, pra não derrubar o nome/clientes.
-            std::future::pending::<()>().await;
-            break;
-        }
-        let (present, capacity, charging) = *battery.borrow();
-        if let Err(err) = emitter.battery_changed(present, capacity, charging).await {
-            error!("D-Bus: falha ao emitir sinal de bateria: {err}");
+        tokio::select! {
+            r = battery.changed() => {
+                if r.is_err() { break; }
+                let (present, capacity, charging) = *battery.borrow();
+                if let Err(err) = emitter.battery_changed(present, capacity, charging).await {
+                    error!("D-Bus: falha ao emitir sinal de bateria: {err}");
+                }
+            }
+            r = volume.changed() => {
+                if r.is_err() { break; }
+                let (level, muted) = *volume.borrow();
+                if let Err(err) = emitter.volume_changed(level, muted).await {
+                    error!("D-Bus: falha ao emitir sinal de volume: {err}");
+                }
+            }
         }
     }
+    // Sender dropado (compositor saindo) — segura a conexão pra não derrubar
+    // o nome/clientes durante o shutdown.
+    std::future::pending::<()>().await;
     Ok(())
 }

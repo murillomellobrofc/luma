@@ -1,7 +1,7 @@
 pub mod grabs;
 mod keyboard;
 mod pointer;
-mod shortcuts;
+pub(crate) mod shortcuts;
 
 use smithay::backend::input::{InputBackend, InputEvent};
 
