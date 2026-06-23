@@ -41,6 +41,7 @@ enum PopupKind {
     Bluetooth,
     Network,
     Notifications,
+    TrayOverflow,
 }
 
 /// Um item da bandeja (SNI).
@@ -250,6 +251,8 @@ enum Message {
     TrayLoaded(Vec<(String, String, String, String, String)>),
     /// Clique num ícone da bandeja → ativa o app.
     TrayActivate(String, String),
+    /// Clique na setinha → abre/fecha o popup de overflow.
+    OpenTrayOverflow,
 }
 
 fn now_hm() -> String {
@@ -407,6 +410,8 @@ fn load_popup(kind: PopupKind) -> Task<Message> {
             Task::perform(ipc::read_notification_status(), Message::NotifStatusLoaded),
             Task::perform(ipc::read_notifications(), Message::NotifListLoaded),
         ]),
+        // Overflow lê de state.tray (já no poll); nada a carregar.
+        PopupKind::TrayOverflow => Task::none(),
     }
 }
 
@@ -687,10 +692,19 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
                     icon_path,
                 })
                 .collect();
+            // Bandeja esvaziou com o popup aberto → recolhe (some a setinha).
+            if state.tray.is_empty()
+                && matches!(state.popup, Some((_, PopupKind::TrayOverflow)))
+            {
+                if let Some((id, _)) = state.popup.take() {
+                    return Task::done(Message::RemoveWindow(id));
+                }
+            }
         }
         Message::TrayActivate(service, path) => {
             return Task::perform(ipc::tray_activate(service, path), |_| Message::Noop);
         }
+        Message::OpenTrayOverflow => return open_popup(state, PopupKind::TrayOverflow),
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
         Message::BluetoothLoaded(icon) | Message::BluetoothChanged(icon) => {
@@ -754,6 +768,13 @@ fn applet_svg(name: &str) -> svg::Handle {
         "bell-normal" => include_bytes!("../../../assets/branding/icons/icon-bell-normal.svg"),
         "bell-alert" => include_bytes!("../../../assets/branding/icons/icon-bell-alert.svg"),
         "bell-dnd" => include_bytes!("../../../assets/branding/icons/icon-bell-dnd.svg"),
+        // bandeja: setinha de overflow
+        "tray-overflow-down" => {
+            include_bytes!("../../../assets/branding/icons/icon-tray-overflow-down.svg")
+        }
+        "tray-overflow-up" => {
+            include_bytes!("../../../assets/branding/icons/icon-tray-overflow-up.svg")
+        }
         _ => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
     };
     svg::Handle::from_memory(bytes)
@@ -840,42 +861,73 @@ fn tray_icon<'a>(path: &str) -> Element<'a, Message> {
     }
 }
 
-/// A bandeja: um ícone por item, clique ativa, tooltip no hover. Vazia = nada.
-fn tray_view(items: &[TrayItem]) -> Element<'_, Message> {
+/// Um ícone de bandeja com tooltip + clique-ativa (usado na barra e no popup).
+fn tray_icon_button<'a>(it: &TrayItem) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().background);
+    let btn = mouse_area(tray_icon(&it.icon_path))
+        .on_press(Message::TrayActivate(it.service.clone(), it.path.clone()))
+        .interaction(iced::mouse::Interaction::Pointer);
+    let tip = if it.tooltip.trim().is_empty() {
+        it.service.clone()
+    } else {
+        it.tooltip.clone()
+    };
+    tooltip(
+        btn,
+        container(text(tip).size(12.0).color(cream))
+            .padding(Padding::from([4.0, 8.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 8.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        tooltip::Position::Bottom,
+    )
+    .into()
+}
+
+/// A bandeja na barra é uma **gaveta**: só a setinha (quando há itens); todos
+/// os ícones moram no popup. Setinha pra cima quando aberto, pra baixo fechado.
+/// Vazia = nada (sem setinha).
+fn tray_view(items: &[TrayItem], open: bool) -> Element<'_, Message> {
     if items.is_empty() {
         return Space::new().width(Length::Fixed(0.0)).into();
     }
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().background);
-    let icons: Vec<Element<Message>> = items
-        .iter()
-        .map(|it| {
-            let btn = mouse_area(tray_icon(&it.icon_path))
-                .on_press(Message::TrayActivate(it.service.clone(), it.path.clone()))
-                .interaction(iced::mouse::Interaction::Pointer);
-            let tip = if it.tooltip.trim().is_empty() {
-                it.service.clone()
-            } else {
-                it.tooltip.clone()
-            };
-            tooltip(
-                btn,
-                container(text(tip).size(12.0).color(cream))
-                    .padding(Padding::from([4.0, 8.0]))
-                    .style(move |_theme| container::Style {
-                        background: Some(Background::Color(surface)),
-                        border: Border {
-                            radius: 8.0.into(),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }),
-                tooltip::Position::Bottom,
-            )
-            .into()
-        })
-        .collect();
-    row(icons).spacing(10).align_y(iced::Alignment::Center).into()
+    let arrow = if open {
+        "tray-overflow-up"
+    } else {
+        "tray-overflow-down"
+    };
+    mouse_area(applet_icon(arrow, 16.0, cream))
+        .on_press(Message::OpenTrayOverflow)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Corpo do popup da bandeja: TODOS os ícones (com tooltip + clique-ativa).
+fn tray_overflow_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let mut items: Vec<Element<Message>> = Vec::new();
+    items.push(popup_title("Bandeja", cream));
+    if state.tray.is_empty() {
+        items.push(
+            text("Sem itens")
+                .size(13.0)
+                .color(libluma::tokens::to_iced(sem.text_secondary))
+                .into(),
+        );
+    } else {
+        let icons: Vec<Element<Message>> =
+            state.tray.iter().map(|it| tray_icon_button(it)).collect();
+        items.push(row(icons).spacing(14).align_y(iced::Alignment::Center).into());
+    }
+    column(items).spacing(12.0).into()
 }
 
 /// Applet do sino: o SVG do estado (normal/alerta/dnd), tingido pelo tema.
@@ -957,6 +1009,7 @@ fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
                 PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 200.0),
                 PopupKind::Network => popup_frame(network_popup_body(state), 130.0),
                 PopupKind::Notifications => popup_frame(notif_popup_body(state), 30.0),
+                PopupKind::TrayOverflow => popup_frame(tray_overflow_body(state), 100.0),
             };
         }
     }
@@ -1092,7 +1145,10 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
             .spacing(8)
             .align_y(iced::Alignment::Center),
             Space::new().width(Length::Fixed(14.0)),
-            tray_view(&state.tray),
+            tray_view(
+                &state.tray,
+                matches!(state.popup, Some((_, PopupKind::TrayOverflow))),
+            ),
             Space::new().width(Length::Fixed(14.0)),
             notification_applet(&state.notif_icon),
             Space::new().width(Length::Fixed(14.0)),
