@@ -15,7 +15,7 @@ libluma = { path = "../../libs/libluma" }
 # demanda. Suporta iced 0.14.
 iced_layershell = "0.18"
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg", "image",
 ] }
 # Canal D-Bus (gatilho menu_toggle + acento/HC). `tokio` pro executor.
 zbus = { version = "5", features = ["tokio"] }
