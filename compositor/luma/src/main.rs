@@ -99,6 +99,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     dbus_server::IpcCommand::ActivateWindow(id) => {
                         data.state.activate_window_by_id(id);
                     }
+                    dbus_server::IpcCommand::MinimizeWindow(id) => {
+                        data.state.minimize_window_by_id(id);
+                    }
+                    dbus_server::IpcCommand::CloseWindow(id) => {
+                        data.state.close_window_by_id(id);
+                    }
+                    dbus_server::IpcCommand::ShowDesktop => {
+                        data.state.toggle_show_desktop();
+                    }
                     dbus_server::IpcCommand::SetVolume(pct) => {
                         crate::input::shortcuts::set_volume_abs(&mut data.state, pct);
                     }

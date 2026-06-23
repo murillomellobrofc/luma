@@ -70,6 +70,10 @@ pub struct LumaState {
     /// Contador de id estável por janela (luma-bar passo 2). Cada toplevel
     /// novo ganha um, guardado no `UserDataMap` da Window via [`WindowId`].
     pub next_window_id: u64,
+    /// Show-desktop com memória (luma-bar passo 7): ids das janelas que o
+    /// show-desktop minimizou. Vazio = modo desligado. Restaura EXATAMENTE
+    /// essas (não as que o usuário minimizou à mão).
+    pub show_desktop_set: Vec<u64>,
     /// Canal `watch` da bateria pro applet da luma-bar (passo 3): `(present,
     /// capacity, charging)`. O compositor manda no `refresh` quando muda
     /// (send síncrono, do calloop); a task async do D-Bus emite o sinal no
@@ -560,20 +564,84 @@ impl LumaState {
     /// (state.desktop_visible=false). Acionado por click no botão F da
     /// taskbar OU Super+D. H33.taskbar.F.17.
     pub fn toggle_show_desktop(&mut self) {
-        let any_visible = self
+        if self.show_desktop_set.is_empty() {
+            // ENTRA: minimiza as VISÍVEIS agora e lembra exatamente quais.
+            // (Janela já minimizada à mão não entra — não será restaurada.)
+            let visible: Vec<(crate::window::LumaWindow, u64)> = self
+                .space
+                .elements()
+                .filter_map(|i| i.as_window())
+                .filter(|w| !crate::decoration::is_minimized(w.window()))
+                .filter_map(|w| {
+                    w.window()
+                        .user_data()
+                        .get::<WindowId>()
+                        .map(|id| (w.clone(), id.0))
+                })
+                .collect();
+            for (w, id) in visible {
+                crate::decoration::with_decoration(w.window(), |d| d.minimized = true);
+                self.show_desktop_set.push(id);
+            }
+            if !self.show_desktop_set.is_empty() {
+                if let Some(kb) = self.seat.get_keyboard() {
+                    let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+                    kb.set_focus(
+                        self,
+                        None::<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+                        serial,
+                    );
+                }
+            }
+        } else {
+            // SAI: restaura EXATAMENTE as lembradas (as que ainda vivem).
+            // Janela nova aberta no meio não estava no set → fica como está.
+            let set = std::mem::take(&mut self.show_desktop_set);
+            let restore: Vec<crate::window::LumaWindow> = self
+                .space
+                .elements()
+                .filter_map(|i| i.as_window())
+                .filter(|w| {
+                    w.window()
+                        .user_data()
+                        .get::<WindowId>()
+                        .map(|id| set.contains(&id.0))
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+            for w in restore {
+                crate::decoration::with_decoration(w.window(), |d| d.minimized = false);
+            }
+        }
+        // `desktop_visible` (lido pelo botão da barra velha): modo ligado =
+        // set não-vazio.
+        self.desktop_visible = !self.show_desktop_set.is_empty();
+        tracing::info!("show-desktop toggle: desktop_visible={}", self.desktop_visible);
+    }
+
+    /// Minimiza a janela com esta id (luma-bar passo 7). Se era a focada,
+    /// tira o foco do teclado. Id desconhecida = no-op.
+    pub fn minimize_window_by_id(&mut self, id: u64) {
+        let window = self
             .space
             .elements()
             .filter_map(|i| i.as_window())
-            .any(|w| !crate::decoration::is_minimized(w.window()));
-        let windows: Vec<_> = self
-            .space
-            .elements()
-            .filter_map(|i| i.as_window().cloned())
-            .collect();
-        for w in &windows {
-            crate::decoration::with_decoration(w.window(), |d| d.minimized = any_visible);
-        }
-        if any_visible {
+            .find(|w| w.window().user_data().get::<WindowId>().map(|x| x.0) == Some(id))
+            .cloned();
+        let Some(window) = window else {
+            return;
+        };
+        crate::decoration::with_decoration(window.window(), |d| d.minimized = true);
+        // Se essa era a janela focada, solta o foco.
+        let was_focused = self
+            .seat
+            .get_keyboard()
+            .and_then(|k| k.current_focus())
+            .zip(window.window().toplevel().map(|t| t.wl_surface().clone()))
+            .map(|(f, s)| f == s)
+            .unwrap_or(false);
+        if was_focused {
             if let Some(kb) = self.seat.get_keyboard() {
                 let serial = smithay::utils::SERIAL_COUNTER.next_serial();
                 kb.set_focus(
@@ -583,8 +651,22 @@ impl LumaState {
                 );
             }
         }
-        self.desktop_visible = any_visible;
-        tracing::info!("show-desktop toggle: desktop_visible={any_visible}");
+    }
+
+    /// Fecha (envia close) a janela com esta id (luma-bar passo 7). Id
+    /// desconhecida = no-op. O cliente decide se fecha de fato.
+    pub fn close_window_by_id(&mut self, id: u64) {
+        let window = self
+            .space
+            .elements()
+            .filter_map(|i| i.as_window())
+            .find(|w| w.window().user_data().get::<WindowId>().map(|x| x.0) == Some(id))
+            .cloned();
+        if let Some(window) = window {
+            if let Some(toplevel) = window.window().toplevel() {
+                toplevel.send_close();
+            }
+        }
     }
 
     pub fn snap_half(&mut self, window: &crate::window::LumaWindow, left: bool) {
@@ -792,11 +874,13 @@ impl LumaState {
                     .unwrap_or_default()
             });
             let focused = focused.as_ref() == Some(surface);
+            let minimized = crate::decoration::is_minimized(window.window());
             list.push(crate::dbus_server::WindowEntry {
                 id,
                 title,
                 app_id,
                 focused,
+                minimized,
             });
         }
         if let Ok(mut g) = self.windows.lock() {
@@ -825,6 +909,8 @@ impl LumaState {
         let Some(window) = window else {
             return;
         };
+        // Restaura se estava minimizada (clique numa minimizada = restaurar).
+        crate::decoration::with_decoration(window.window(), |d| d.minimized = false);
         self.space
             .raise_element(&crate::space_item::SpaceItem::Window(window.clone()), true);
         if let (Some(keyboard), Some(toplevel)) =
@@ -962,6 +1048,7 @@ impl LumaState {
             viewporter_state,
             windows,
             next_window_id: 1,
+            show_desktop_set: Vec::new(),
             battery_tx,
             volume_tx,
             network_tx,
