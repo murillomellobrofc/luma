@@ -642,6 +642,62 @@ impl CompositorService {
         crate::wifi::request_scan();
     }
 
+    // ─── Notificações: sino + central ─────────────────────────────────
+
+    /// Estado pro sino: `(ícone, contagem, dnd, som)`. Ícone: "bell-dnd" se
+    /// DND, "bell-alert" se há notificação/toast, senão "bell-normal".
+    async fn notification_status(&self) -> (String, u32, bool, bool) {
+        match self.notifications.lock() {
+            Ok(g) => {
+                let count = g.history.len() as u32;
+                let icon = if g.dnd_enabled {
+                    "bell-dnd"
+                } else if count > 0 || !g.visible.is_empty() {
+                    "bell-alert"
+                } else {
+                    "bell-normal"
+                };
+                (icon.to_string(), count, g.dnd_enabled, g.sound_enabled)
+            }
+            Err(_) => ("bell-normal".to_string(), 0, false, false),
+        }
+    }
+
+    /// Lista da central (histórico), mais recente primeiro: `(id, app,
+    /// resumo, corpo)`.
+    async fn notifications(&self) -> Vec<(u32, String, String, String)> {
+        match self.notifications.lock() {
+            Ok(g) => g
+                .history
+                .iter()
+                .rev()
+                .map(|h| (h.id, h.app_name.clone(), h.summary.clone(), h.body.clone()))
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Alterna o Não Perturbe.
+    async fn toggle_dnd(&self) {
+        if let Ok(mut g) = self.notifications.lock() {
+            crate::notifications::toggle_dnd(&mut g);
+        }
+    }
+
+    /// Alterna o som das notificações.
+    async fn toggle_notification_sound(&self) {
+        if let Ok(mut g) = self.notifications.lock() {
+            crate::notifications::toggle_sound(&mut g);
+        }
+    }
+
+    /// Limpa a central (histórico).
+    async fn clear_notifications(&self) {
+        if let Ok(mut g) = self.notifications.lock() {
+            g.history.clear();
+        }
+    }
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu

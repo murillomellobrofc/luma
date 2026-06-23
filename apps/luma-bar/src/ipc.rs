@@ -99,6 +99,17 @@ pub trait Compositor {
     async fn set_wifi_radio(&self, on: bool) -> zbus::Result<()>;
     /// Pede um rescan das redes.
     async fn wifi_rescan(&self) -> zbus::Result<()>;
+
+    /// Sino: `(ícone, contagem, dnd, som)`.
+    async fn notification_status(&self) -> zbus::Result<(String, u32, bool, bool)>;
+    /// Central (histórico): `(id, app, resumo, corpo)`, mais recente primeiro.
+    async fn notifications(&self) -> zbus::Result<Vec<(u32, String, String, String)>>;
+    /// Alterna Não Perturbe.
+    async fn toggle_dnd(&self) -> zbus::Result<()>;
+    /// Alterna o som das notificações.
+    async fn toggle_notification_sound(&self) -> zbus::Result<()>;
+    /// Limpa a central.
+    async fn clear_notifications(&self) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -457,6 +468,46 @@ pub async fn set_wifi_radio(on: bool) -> NetState {
     }
     tokio::time::sleep(std::time::Duration::from_millis(700)).await;
     read_network_devices().await
+}
+
+// ─── Notificações: sino + central ─────────────────────────────────────
+
+/// `(ícone, contagem, dnd, som)`.
+pub type NotifStatus = (String, u32, bool, bool);
+
+pub async fn read_notification_status() -> NotifStatus {
+    match proxy().await {
+        Ok(p) => p
+            .notification_status()
+            .await
+            .unwrap_or_else(|_| ("bell-normal".to_string(), 0, false, false)),
+        Err(_) => ("bell-normal".to_string(), 0, false, false),
+    }
+}
+
+pub async fn read_notifications() -> Vec<(u32, String, String, String)> {
+    match proxy().await {
+        Ok(p) => p.notifications().await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub async fn toggle_dnd() {
+    if let Ok(p) = proxy().await {
+        let _ = p.toggle_dnd().await;
+    }
+}
+
+pub async fn toggle_notification_sound() {
+    if let Ok(p) = proxy().await {
+        let _ = p.toggle_notification_sound().await;
+    }
+}
+
+pub async fn clear_notifications() {
+    if let Ok(p) = proxy().await {
+        let _ = p.clear_notifications().await;
+    }
 }
 
 // ─── Rede (passo 5) ───────────────────────────────────────────────────
