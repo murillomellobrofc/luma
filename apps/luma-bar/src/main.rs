@@ -8,10 +8,12 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{column, container, mouse_area, row, svg, text, Space};
-use iced::{Background, Border, Color, Element, Length, Task};
-use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
-use iced_layershell::settings::{LayerShellSettings, Settings};
+use iced::widget::{column, container, mouse_area, row, scrollable, stack, svg, text, Space};
+use iced::{Background, Border, Color, Element, Length, Padding, Task};
+use iced_layershell::reexport::{
+    Anchor, IcedId, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
+};
+use iced_layershell::settings::{LayerShellSettings, Settings, StartMode};
 use iced_layershell::to_layer_message;
 
 /// Altura do conteúdo da barra (px).
@@ -28,6 +30,18 @@ struct WinEntry {
     label: String,
     focused: bool,
     minimized: bool,
+}
+
+/// Um dispositivo de áudio no mixer do popup de volume.
+#[derive(Debug, Clone)]
+struct AudioDev {
+    id: u32,
+    name: String,
+    /// Volume 0–150 (%). Ajustado ao vivo pelo slider; commita no soltar.
+    volume: u32,
+    muted: bool,
+    is_source: bool,
+    is_default: bool,
 }
 
 struct Bar {
@@ -49,9 +63,13 @@ struct Bar {
     /// Bluetooth: nome do ícone ("bluetooth-on"/"bluetooth-off"). Vazio =
     /// sem controller → esconde o applet. Boot + sinal.
     bluetooth: String,
+    /// Id do popup de volume aberto, ou `None` (fechado).
+    popup: Option<IcedId>,
+    /// Dispositivos do mixer (carregados ao abrir o popup).
+    mixer: Vec<AudioDev>,
 }
 
-#[to_layer_message]
+#[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 enum Message {
     /// Tick de 1s — atualiza o relógio.
@@ -94,6 +112,18 @@ enum Message {
     /// Bluetooth lido no boot / mudado pelo sinal: nome do ícone.
     BluetoothLoaded(String),
     BluetoothChanged(String),
+    /// Clique no applet de volume → abre/fecha o popup do mixer.
+    OpenVolumePopup,
+    /// Fecha o popup (clique fora).
+    CloseVolumePopup,
+    /// Lista de dispositivos do mixer carregada/recarregada.
+    MixerLoaded(Vec<(u32, String, u32, bool, bool, bool)>),
+    /// Slider de um dispositivo mexendo (ao vivo, só a UI): `(id, vol%)`.
+    DeviceVolume(u32, u32),
+    /// Slider solto → commita o volume daquele dispositivo no D-Bus.
+    DeviceVolumeRelease(u32),
+    /// Botão de mudo de um dispositivo → alterna no D-Bus.
+    DeviceMute(u32),
 }
 
 fn now_hm() -> String {
@@ -146,8 +176,12 @@ fn month_pt_br(m: u32) -> &'static str {
 }
 
 fn boot() -> (Bar, Task<Message>) {
+    // Daemon: abre a surface principal da barra no boot (StartMode::Background
+    // não cria nenhuma; a barra abre a sua, e o popup abre sob demanda).
+    let (_bar_id, open_bar) = Message::layershell_open(bar_settings());
     // Lê acento + HC + janelas no boot pra a barra abrir já no estado certo.
     let read = Task::batch([
+        open_bar,
         Task::perform(ipc::read_accent(), Message::AccentLoaded),
         Task::perform(ipc::read_high_contrast(), Message::HighContrastLoaded),
         Task::perform(ipc::read_windows(), Message::WindowsLoaded),
@@ -165,9 +199,43 @@ fn boot() -> (Bar, Task<Message>) {
             volume: (0, false),
             network: String::new(),
             bluetooth: String::new(),
+            popup: None,
+            mixer: Vec::new(),
         },
         read,
     )
+}
+
+/// Settings da surface principal da barra: topo, full-width, zona exclusiva.
+fn bar_settings() -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        size: Some((0, BAR_HEIGHT + ACCENT_LINE)),
+        layer: Layer::Top,
+        anchor: Anchor::Top | Anchor::Left | Anchor::Right,
+        exclusive_zone: Some((BAR_HEIGHT + ACCENT_LINE) as i32),
+        margin: None,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        output_option: OutputOption::LastOutput,
+        events_transparent: false,
+        namespace: Some("luma-bar".to_string()),
+    }
+}
+
+/// Settings do popup do volume: surface full-screen (pra o backdrop fechar no
+/// clique fora), camada Overlay. O card é posicionado perto do applet via
+/// alinhamento no view (canto superior-direito, sob o cluster de applets).
+fn popup_settings() -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        size: None,
+        layer: Layer::Overlay,
+        anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+        exclusive_zone: Some(0),
+        margin: None,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        output_option: OutputOption::LastOutput,
+        events_transparent: false,
+        namespace: Some("luma-volume-popup".to_string()),
+    }
 }
 
 fn update(state: &mut Bar, message: Message) -> Task<Message> {
@@ -248,6 +316,54 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::ToggleMute => {
             state.volume.1 = !state.volume.1; // otimista
             return Task::perform(ipc::toggle_mute(), |_| Message::Noop);
+        }
+        // Popup do mixer: abre/fecha + carrega/ajusta dispositivos.
+        Message::OpenVolumePopup => {
+            if let Some(id) = state.popup.take() {
+                return Task::done(Message::RemoveWindow(id));
+            }
+            let (id, open) = Message::layershell_open(popup_settings());
+            state.popup = Some(id);
+            return Task::batch([
+                open,
+                Task::perform(ipc::read_audio_devices(), Message::MixerLoaded),
+            ]);
+        }
+        Message::CloseVolumePopup => {
+            if let Some(id) = state.popup.take() {
+                return Task::done(Message::RemoveWindow(id));
+            }
+        }
+        Message::MixerLoaded(list) => {
+            state.mixer = list
+                .into_iter()
+                .map(|(id, name, volume, muted, is_source, is_default)| AudioDev {
+                    id,
+                    name,
+                    volume,
+                    muted,
+                    is_source,
+                    is_default,
+                })
+                .collect();
+        }
+        Message::DeviceVolume(id, pct) => {
+            // Ao vivo: só a UI (o commit vem no soltar).
+            if let Some(d) = state.mixer.iter_mut().find(|d| d.id == id) {
+                d.volume = pct;
+            }
+        }
+        Message::DeviceVolumeRelease(id) => {
+            if let Some(d) = state.mixer.iter().find(|d| d.id == id) {
+                let pct = d.volume;
+                return Task::perform(
+                    ipc::set_device_volume(id, pct),
+                    Message::MixerLoaded,
+                );
+            }
+        }
+        Message::DeviceMute(id) => {
+            return Task::perform(ipc::set_device_mute(id), Message::MixerLoaded);
         }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
@@ -410,12 +526,22 @@ fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
 
     mouse_area(content)
         .on_scroll(Message::VolumeScroll)
-        .on_press(Message::ToggleMute)
+        .on_press(Message::OpenVolumePopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
 }
 
-fn view(state: &Bar) -> Element<'_, Message> {
+/// Dispatch do daemon: a surface da barra renderiza a barra; a do popup
+/// renderiza o mixer.
+fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
+    if state.popup == Some(id) {
+        popup_view(state)
+    } else {
+        bar_view(state)
+    }
+}
+
+fn bar_view(state: &Bar) -> Element<'_, Message> {
     let sem = libluma::tokens::semantic_default();
     let bar_bg = libluma::tokens::to_iced(sem.surface);
     let accent = libluma::tokens::accent();
@@ -571,6 +697,141 @@ fn view(state: &Bar) -> Element<'_, Message> {
         .into()
 }
 
+/// Uma linha do mixer: nome (+ default) + botão de mudo + slider de volume.
+fn device_row<'a>(d: &AudioDev) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let id = d.id;
+
+    // Nome + marca de default.
+    let title = if d.is_default {
+        format!("{}  ·  padrão", d.name)
+    } else {
+        d.name.clone()
+    };
+    let name_color = if d.is_default { cream } else { secondary };
+
+    // Botão de mudo: ícone do estado, clique alterna.
+    let mute_name = if d.muted { "volume-muted" } else { "volume-high" };
+    let mute_color = if d.muted {
+        Color { a: 0.5, ..cream }
+    } else {
+        cream
+    };
+    let mute_btn = mouse_area(applet_icon(mute_name, 18.0, mute_color))
+        .on_press(Message::DeviceMute(id))
+        .interaction(iced::mouse::Interaction::Pointer);
+
+    // Slider 0–150% (libluma): ao vivo na UI, commita no soltar.
+    let slider = libluma::slider_row(
+        "",
+        d.volume as f32,
+        0.0..=150.0,
+        1.0,
+        "%",
+        move |v| Message::DeviceVolume(id, v.round() as u32),
+        Some(Message::DeviceVolumeRelease(id)),
+    );
+
+    column![
+        row![text(title).size(13.0).color(name_color), Space::new().width(Length::Fill), mute_btn]
+            .spacing(8)
+            .align_y(iced::Alignment::Center),
+        slider,
+    ]
+    .spacing(4)
+    .into()
+}
+
+/// View do popup do mixer: backdrop (clique fora fecha) + card perto do applet
+/// (canto superior-direito, sob o cluster). Saídas e entradas com sliders.
+fn popup_view(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    // Backdrop TRANSPARENTE: cobre a tela só pra capturar o clique-fora (fecha),
+    // sem escurecer nada (o usuário não quer o dim sobre o wallpaper).
+    let backdrop = mouse_area(
+        container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
+            container::Style {
+                background: None,
+                ..Default::default()
+            }
+        }),
+    )
+    .on_press(Message::CloseVolumePopup);
+
+    let mut items: Vec<Element<Message>> = Vec::new();
+    items.push(
+        text("Volume")
+            .size(16.0)
+            .color(cream)
+            .font(iced::Font {
+                family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
+                weight: iced::font::Weight::Semibold,
+                ..iced::Font::DEFAULT
+            })
+            .into(),
+    );
+
+    let sinks: Vec<&AudioDev> = state.mixer.iter().filter(|d| !d.is_source).collect();
+    let sources: Vec<&AudioDev> = state.mixer.iter().filter(|d| d.is_source).collect();
+
+    if !sinks.is_empty() {
+        items.push(text("Saídas").size(11.0).color(secondary).into());
+        for d in sinks {
+            items.push(device_row(d));
+        }
+    }
+    if !sources.is_empty() {
+        items.push(text("Entradas").size(11.0).color(secondary).into());
+        for d in sources {
+            items.push(device_row(d));
+        }
+    }
+    if state.mixer.is_empty() {
+        items.push(text("Sem dispositivos de áudio").size(13.0).color(secondary).into());
+    }
+
+    let card = mouse_area(
+        container(scrollable(column(items).spacing(12.0)))
+            .width(Length::Fixed(340.0))
+            .max_height(520.0)
+            .padding(18)
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 16.0.into(),
+                    width: 1.0,
+                    color: Color { a: 0.22, ..cream },
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::Noop);
+
+    // Card no canto superior-direito, logo abaixo da barra, sob o cluster de
+    // applets (perto do ícone de volume).
+    stack![
+        backdrop,
+        container(card)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(Padding {
+                top: (BAR_HEIGHT + ACCENT_LINE) as f32 + 6.0,
+                right: 60.0,
+                bottom: 0.0,
+                left: 0.0,
+            }),
+    ]
+    .into()
+}
+
 fn subscription(_state: &Bar) -> iced::Subscription<Message> {
     iced::Subscription::batch([
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
@@ -671,25 +932,27 @@ fn high_contrast_subscription() -> impl iced::futures::Stream<Item = Message> {
 }
 
 fn main() -> Result<(), iced_layershell::Error> {
+    // Daemon (multi-surface): começa sem surface (Background); o boot abre a
+    // barra (bar_settings) e o popup do volume abre sob demanda. Precisa ser
+    // daemon pra abrir o popup — application só tem uma surface.
     let settings = Settings {
         layer_settings: LayerShellSettings {
-            // Topo, full-width (âncora L+R), camada Top, com zona exclusiva =
-            // altura → janelas não sobrepõem. Coexiste com a barra velha
-            // (que fica embaixo), pra comparar lado a lado.
-            anchor: Anchor::Top | Anchor::Left | Anchor::Right,
-            layer: Layer::Top,
-            exclusive_zone: (BAR_HEIGHT + ACCENT_LINE) as i32,
-            size: Some((0, BAR_HEIGHT + ACCENT_LINE)),
-            margin: (0, 0, 0, 0),
-            keyboard_interactivity: KeyboardInteractivity::None,
+            start_mode: StartMode::Background,
             ..Default::default()
         },
         ..Default::default()
     };
 
-    iced_layershell::application(boot, "luma-bar", update, view)
+    iced_layershell::daemon(boot, "luma-bar", update, view)
         .settings(settings)
-        .theme(|_state: &Bar| libluma::golden_hour_theme())
+        .theme(|_state: &Bar, _id| libluma::golden_hour_theme())
+        // Surface transparente: o "clear color" padrão é o fundo do tema
+        // (escuro), que pintava a tela toda no popup. A barra pinta o próprio
+        // fundo (container), então fica opaca; o popup deixa o wallpaper passar.
+        .style(|_state: &Bar, theme: &iced::Theme| iced::theme::Style {
+            background_color: Color::TRANSPARENT,
+            text_color: theme.palette().text,
+        })
         .subscription(subscription)
         .run()
 }

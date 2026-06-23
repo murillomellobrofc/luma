@@ -56,6 +56,14 @@ pub trait Compositor {
     async fn bluetooth(&self) -> zbus::Result<String>;
     #[zbus(signal)]
     fn bluetooth_changed(&self, icon: &str) -> zbus::Result<()>;
+
+    /// Mixer: dispositivos de áudio `(id, nome, vol% 0–150, mudo, é_entrada,
+    /// é_default)`. Lido ao abrir o popup + após cada ajuste.
+    async fn audio_devices(&self) -> zbus::Result<Vec<(u32, String, u32, bool, bool, bool)>>;
+    /// Define o volume (0–150%) de um dispositivo pela id.
+    async fn set_device_volume(&self, id: u32, percent: u32) -> zbus::Result<()>;
+    /// Alterna o mudo de um dispositivo pela id.
+    async fn set_device_mute(&self, id: u32) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -228,6 +236,44 @@ pub async fn volume_signal_stream() -> zbus::Result<impl iced::futures::Stream<I
     let proxy = CompositorProxy::new(&conn).await?;
     let signals = proxy.receive_volume_changed().await?;
     Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| (*a.level(), *a.muted())) }))
+}
+
+// ─── Mixer (popup do volume) ──────────────────────────────────────────
+
+/// Lê a lista de dispositivos de áudio (saídas + entradas) com vol/mudo.
+pub async fn read_audio_devices() -> Vec<(u32, String, u32, bool, bool, bool)> {
+    async fn inner() -> zbus::Result<Vec<(u32, String, u32, bool, bool, bool)>> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.audio_devices().await
+    }
+    inner().await.unwrap_or_default()
+}
+
+/// Define o volume (0–150%) de um dispositivo. Depois relê a lista.
+pub async fn set_device_volume(id: u32, percent: u32) -> Vec<(u32, String, u32, bool, bool, bool)> {
+    async fn inner(id: u32, percent: u32) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.set_device_volume(id, percent).await
+    }
+    if let Err(e) = inner(id, percent).await {
+        eprintln!("luma-bar: set_device_volume({id},{percent}) falhou: {e}");
+    }
+    read_audio_devices().await
+}
+
+/// Alterna o mudo de um dispositivo. Depois relê a lista.
+pub async fn set_device_mute(id: u32) -> Vec<(u32, String, u32, bool, bool, bool)> {
+    async fn inner(id: u32) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.set_device_mute(id).await
+    }
+    if let Err(e) = inner(id).await {
+        eprintln!("luma-bar: set_device_mute({id}) falhou: {e}");
+    }
+    read_audio_devices().await
 }
 
 // ─── Rede (passo 5) ───────────────────────────────────────────────────

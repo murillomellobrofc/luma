@@ -453,6 +453,47 @@ impl CompositorService {
         muted: bool,
     ) -> zbus::Result<()>;
 
+    // ─── Mixer de áudio (popup do volume) ─────────────────────────────
+
+    /// Lista os dispositivos de áudio (saídas + entradas) com volume/mudo de
+    /// cada um, pro popup do mixer da luma-bar. Cada item:
+    /// `(id, nome, volume% 0–150, mudo, é_entrada, é_default)`. Lê via wpctl.
+    async fn audio_devices(&self) -> Vec<(u32, String, u32, bool, bool, bool)> {
+        let (sinks, sources) = crate::audio::list_devices();
+        let mut out = Vec::with_capacity(sinks.len() + sources.len());
+        for d in sinks {
+            out.push((
+                d.id,
+                d.description,
+                (d.volume * 100.0).round() as u32,
+                d.muted,
+                false,
+                d.is_default,
+            ));
+        }
+        for d in sources {
+            out.push((
+                d.id,
+                d.description,
+                (d.volume * 100.0).round() as u32,
+                d.muted,
+                true,
+                d.is_default,
+            ));
+        }
+        out
+    }
+
+    /// Define o volume (0–150%) de um dispositivo pela id (mixer).
+    async fn set_device_volume(&self, id: u32, percent: u32) {
+        crate::audio::set_volume(id, percent.min(150) as u8);
+    }
+
+    /// Alterna o mudo de um dispositivo pela id (mixer).
+    async fn set_device_mute(&self, id: u32) {
+        crate::audio::toggle_mute(id);
+    }
+
     // ─── Rede / applet (luma-bar passo 5) ─────────────────────────────
 
     /// Nome do ícone do estado de rede atual ("ethernet-on", "wifi-full",
