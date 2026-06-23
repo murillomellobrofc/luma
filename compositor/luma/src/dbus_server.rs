@@ -521,6 +521,34 @@ impl CompositorService {
     #[zbus(signal)]
     async fn bluetooth_changed(emitter: &SignalEmitter<'_>, icon: &str) -> zbus::Result<()>;
 
+    /// Estado do bluetooth pro popup: `(ligado, tem_hardware, dispositivos)`,
+    /// cada dispositivo `(mac, nome, pareado, conectado)`. Lê via BlueZ
+    /// (bluetoothctl). Lista os pareados quando ligado.
+    async fn bluetooth_state(&self) -> (bool, bool, Vec<(String, String, bool, bool)>) {
+        let st = crate::bluetooth::read_state(false);
+        let devices = st
+            .devices
+            .into_iter()
+            .map(|d| (d.mac, d.name, d.paired, d.connected))
+            .collect();
+        (st.enabled, st.has_hardware, devices)
+    }
+
+    /// Liga/desliga o controller de bluetooth (toggle do popup).
+    async fn set_bluetooth_power(&self, on: bool) {
+        crate::bluetooth::set_enabled(on);
+    }
+
+    /// Conecta um dispositivo pareado pela MAC.
+    async fn connect_device(&self, mac: String) {
+        crate::bluetooth::connect(&mac);
+    }
+
+    /// Desconecta um dispositivo pela MAC.
+    async fn disconnect_device(&self, mac: String) {
+        crate::bluetooth::disconnect(&mac);
+    }
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu

@@ -64,6 +64,16 @@ pub trait Compositor {
     async fn set_device_volume(&self, id: u32, percent: u32) -> zbus::Result<()>;
     /// Alterna o mudo de um dispositivo pela id.
     async fn set_device_mute(&self, id: u32) -> zbus::Result<()>;
+
+    /// Bluetooth popup: `(ligado, tem_hardware, [(mac, nome, pareado,
+    /// conectado)])`.
+    async fn bluetooth_state(&self) -> zbus::Result<(bool, bool, Vec<(String, String, bool, bool)>)>;
+    /// Liga/desliga o controller.
+    async fn set_bluetooth_power(&self, on: bool) -> zbus::Result<()>;
+    /// Conecta um dispositivo pareado pela MAC.
+    async fn connect_device(&self, mac: String) -> zbus::Result<()>;
+    /// Desconecta um dispositivo pela MAC.
+    async fn disconnect_device(&self, mac: String) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -274,6 +284,63 @@ pub async fn set_device_mute(id: u32) -> Vec<(u32, String, u32, bool, bool, bool
         eprintln!("luma-bar: set_device_mute({id}) falhou: {e}");
     }
     read_audio_devices().await
+}
+
+// ─── Bluetooth (popup) ────────────────────────────────────────────────
+
+/// Estado do bluetooth: `(ligado, tem_hardware, [(mac, nome, pareado,
+/// conectado)])`.
+pub type BtState = (bool, bool, Vec<(String, String, bool, bool)>);
+
+pub async fn read_bluetooth_state() -> BtState {
+    async fn inner() -> zbus::Result<BtState> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.bluetooth_state().await
+    }
+    inner().await.unwrap_or((false, false, Vec::new()))
+}
+
+/// Liga/desliga + relê (com um respiro pro bluetoothctl assentar).
+pub async fn set_bluetooth_power(on: bool) -> BtState {
+    async fn inner(on: bool) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.set_bluetooth_power(on).await
+    }
+    if let Err(e) = inner(on).await {
+        eprintln!("luma-bar: set_bluetooth_power falhou: {e}");
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    read_bluetooth_state().await
+}
+
+/// Conecta + relê (connect leva alguns segundos; relê depois pra refletir).
+pub async fn connect_device(mac: String) -> BtState {
+    async fn inner(mac: String) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.connect_device(mac).await
+    }
+    if let Err(e) = inner(mac).await {
+        eprintln!("luma-bar: connect_device falhou: {e}");
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    read_bluetooth_state().await
+}
+
+/// Desconecta + relê.
+pub async fn disconnect_device(mac: String) -> BtState {
+    async fn inner(mac: String) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.disconnect_device(mac).await
+    }
+    if let Err(e) = inner(mac).await {
+        eprintln!("luma-bar: disconnect_device falhou: {e}");
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+    read_bluetooth_state().await
 }
 
 // ─── Rede (passo 5) ───────────────────────────────────────────────────
