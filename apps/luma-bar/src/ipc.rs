@@ -25,6 +25,11 @@ pub trait Compositor {
     async fn list_windows(&self) -> zbus::Result<Vec<(u64, String, String, bool)>>;
     /// Foca/levanta a janela pela id.
     async fn activate_window(&self, id: u64) -> zbus::Result<()>;
+
+    /// Estado da bateria (passo 3): `(present, capacity 0–100, charging)`.
+    async fn battery(&self) -> zbus::Result<(bool, u8, bool)>;
+    #[zbus(signal)]
+    fn battery_changed(&self, present: bool, capacity: u8, charging: bool) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -87,4 +92,29 @@ pub async fn activate_window(id: u64) {
     if let Err(e) = inner(id).await {
         eprintln!("luma-bar: activate_window({id}) falhou: {e}");
     }
+}
+
+// ─── Bateria (passo 3) ────────────────────────────────────────────────
+
+/// Lê o estado da bateria no boot: `(present, capacity, charging)`. Erro =
+/// sem bateria.
+pub async fn read_battery() -> (bool, u8, bool) {
+    async fn inner() -> zbus::Result<(bool, u8, bool)> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.battery().await
+    }
+    inner().await.unwrap_or((false, 0, false))
+}
+
+/// Stream do sinal `battery_changed` — `(present, capacity, charging)`.
+pub async fn battery_signal_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = (bool, u8, bool)>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_battery_changed().await?;
+    Ok(signals.filter_map(|sig| async move {
+        sig.args().ok().map(|a| (*a.present(), *a.capacity(), *a.charging()))
+    }))
 }

@@ -49,6 +49,15 @@ pub struct WindowEntry {
 /// do `NotificationsSlot`.
 pub type WindowsSlot = std::sync::Arc<std::sync::Mutex<Vec<WindowEntry>>>;
 
+/// Converte o `BatteryInfo` interno na tupla do D-Bus `(present, capacity,
+/// charging)` (luma-bar passo 3). `None` (sem bateria) = `(false, 0, false)`.
+pub fn battery_tuple(info: Option<crate::tray::BatteryInfo>) -> (bool, u8, bool) {
+    match info {
+        Some(b) => (true, b.capacity, b.charging),
+        None => (false, 0, false),
+    }
+}
+
 struct CompositorService {
     /// Catálogo dos tipos de widget conhecidos no boot. Imutável após
     /// init — o registry não cresce em runtime hoje (third-party é
@@ -66,6 +75,9 @@ struct CompositorService {
     /// Lista de janelas compartilhada (luma-bar passo 2). O compositor
     /// escreve a cada frame; `list_windows` lê direto, sem roundtrip.
     windows: WindowsSlot,
+    /// Receptor `watch` do estado da bateria (luma-bar passo 3). O `battery`
+    /// lê o último valor (`borrow`); o loop do sinal usa outro clone.
+    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -345,6 +357,24 @@ impl CompositorService {
         }
     }
 
+    // ─── Bateria / applet (luma-bar passo 3) ──────────────────────────
+
+    /// Estado atual da bateria: `(present, capacity 0–100, charging)`. Lê o
+    /// último valor do `watch`; a barra lê no boot e depois escuta o sinal.
+    async fn battery(&self) -> (bool, u8, bool) {
+        *self.battery.borrow()
+    }
+
+    /// **Sinal de mudança** da bateria (por sinal, sem poll — o estado muda
+    /// pouco). Emitido pelo loop do servidor quando o `watch` muda.
+    #[zbus(signal)]
+    async fn battery_changed(
+        emitter: &SignalEmitter<'_>,
+        present: bool,
+        capacity: u8,
+        charging: bool,
+    ) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -486,9 +516,12 @@ pub fn spawn(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
+    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
-    if let Err(err) = builder.spawn(move || run(cmd_tx, available, notifications, windows)) {
+    if let Err(err) =
+        builder.spawn(move || run(cmd_tx, available, notifications, windows, battery))
+    {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
 }
@@ -498,6 +531,7 @@ fn run(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
+    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -510,7 +544,7 @@ fn run(
         }
     };
     rt.block_on(async move {
-        if let Err(err) = serve(cmd_tx, available, notifications, windows).await {
+        if let Err(err) = serve(cmd_tx, available, notifications, windows, battery).await {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
     });
@@ -521,21 +555,38 @@ async fn serve(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
+    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
         cmd_tx,
         notifications,
         windows,
+        battery: battery.clone(),
     };
-    let _conn = zbus::connection::Builder::session()?
+    let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
         .serve_at(OBJECT_PATH, service)?
         .build()
         .await?;
     info!("D-Bus: {BUS_NAME} registrado no session bus em {OBJECT_PATH}");
-    // Mantém a conexão viva pela vida do compositor. Dropar `_conn`
-    // libera o nome e desconecta clientes — não queremos isso.
-    std::future::pending::<()>().await;
+
+    // Loop do sinal de bateria (luma-bar passo 3): emite `battery_changed`
+    // quando o `watch` muda. Isso também mantém a conexão viva (o `changed()`
+    // pende pra sempre enquanto o compositor — dono do sender — vive).
+    let emitter = SignalEmitter::new(&conn, OBJECT_PATH)?;
+    let mut battery = battery;
+    loop {
+        if battery.changed().await.is_err() {
+            // Sender dropado (compositor saindo) — segura a conexão mesmo
+            // assim, pra não derrubar o nome/clientes.
+            std::future::pending::<()>().await;
+            break;
+        }
+        let (present, capacity, charging) = *battery.borrow();
+        if let Err(err) = emitter.battery_changed(present, capacity, charging).await {
+            error!("D-Bus: falha ao emitir sinal de bateria: {err}");
+        }
+    }
     Ok(())
 }

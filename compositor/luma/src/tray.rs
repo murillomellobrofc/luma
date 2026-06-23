@@ -14,7 +14,7 @@ use smithay::{
 };
 
 /// Informação corrente da bateria principal do sistema.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BatteryInfo {
     /// 0..100.
     pub capacity: u8,

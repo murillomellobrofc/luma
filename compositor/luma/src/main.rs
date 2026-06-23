@@ -127,7 +127,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notifications_slot = data.state.notifications.clone();
     // Slot de janelas (luma-bar passo 2): o servidor D-Bus lê via list_windows.
     let windows_slot = data.state.windows.clone();
-    dbus_server::spawn(dbus_tx, available, notifications_slot, windows_slot);
+    // Receiver da bateria (luma-bar passo 3): o servidor emite o sinal no
+    // `changed()`; o compositor manda no refresh quando muda.
+    let battery_rx = data.state.battery_tx.subscribe();
+    dbus_server::spawn(dbus_tx, available, notifications_slot, windows_slot, battery_rx);
 
     info!("luma pronto, entrando no loop principal");
 
