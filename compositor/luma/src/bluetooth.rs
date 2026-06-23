@@ -201,6 +201,58 @@ pub fn disconnect(mac: &str) {
     });
 }
 
+/// Path D-Bus do device pela MAC: `<adapter>/dev_AA_BB_..`. None se sem adapter.
+fn device_path(mac: &str) -> Option<String> {
+    let adapter = adapter_path()?;
+    Some(format!("{}/dev_{}", adapter, mac.replace(':', "_")))
+}
+
+/// Pareia um device via `Device1.Pair()` (usa o nosso agent default pro código)
+/// + trust + connect no sucesso. Roda num thread (Pair bloqueia até a conversa
+/// com o agent terminar). Atualiza a fase no `slot` pro popup acompanhar.
+pub fn pair(mac: &str, slot: crate::bt_agent::PairingSlot) {
+    let mac = mac.to_string();
+    std::thread::Builder::new()
+        .name("luma-bt-pair".into())
+        .spawn(move || {
+            slot.lock().unwrap().phase = crate::bt_agent::Phase::Pairing;
+            let Some(path) = device_path(&mac) else {
+                slot.lock().unwrap().phase =
+                    crate::bt_agent::Phase::Failed("sem adapter".into());
+                return;
+            };
+            let conn = match zbus::blocking::Connection::system() {
+                Ok(c) => c,
+                Err(e) => {
+                    slot.lock().unwrap().phase = crate::bt_agent::Phase::Failed(format!("{e}"));
+                    return;
+                }
+            };
+            let dev = match zbus::blocking::Proxy::new(&conn, "org.bluez", path, "org.bluez.Device1")
+            {
+                Ok(p) => p,
+                Err(e) => {
+                    slot.lock().unwrap().phase = crate::bt_agent::Phase::Failed(format!("{e}"));
+                    return;
+                }
+            };
+            match dev.call::<_, _, ()>("Pair", &()) {
+                Ok(()) => {
+                    let _ = dev.set_property("Trusted", true);
+                    let _ = dev.call::<_, _, ()>("Connect", &());
+                    slot.lock().unwrap().phase = crate::bt_agent::Phase::Done;
+                    tracing::info!("bt pair ok: {mac}");
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    tracing::warn!("bt pair falhou {mac}: {msg}");
+                    slot.lock().unwrap().phase = crate::bt_agent::Phase::Failed(msg);
+                }
+            }
+        })
+        .ok();
+}
+
 /// Liga/desliga o controller.
 pub fn set_enabled(on: bool) {
     let arg = if on { "on" } else { "off" };
@@ -210,19 +262,53 @@ pub fn set_enabled(on: bool) {
     tracing::info!("bluetooth: power {arg}");
 }
 
-/// Liga discovery via D-Bus direto no Adapter1. Mais confiável que
-/// spawn de bluetoothctl (que sai rápido e o BlueZ pode encerrar
-/// o discovery depois do timeout default). H57.3 fix.
+/// Liga/desliga o discovery via Adapter1, na **conexão persistente** passada
+/// (o do agent). BlueZ amarra Start/StopDiscovery à conexão que pediu — por
+/// isso precisa ser a MESMA, não uma nova a cada chamada. Async (roda na
+/// runtime do D-Bus, sem blocking).
+pub async fn set_discovery(conn: &zbus::Connection, on: bool) -> zbus::Result<()> {
+    use zbus::zvariant::OwnedObjectPath;
+    let om = zbus::Proxy::new(conn, "org.bluez", "/", "org.freedesktop.DBus.ObjectManager").await?;
+    let managed: std::collections::HashMap<
+        OwnedObjectPath,
+        std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+        >,
+    > = om.call("GetManagedObjects", &()).await?;
+    let Some(adapter) = managed
+        .iter()
+        .find(|(_, ifaces)| ifaces.contains_key("org.bluez.Adapter1"))
+        .map(|(p, _)| p.clone())
+    else {
+        return Ok(());
+    };
+    let ad = zbus::Proxy::new(conn, "org.bluez", &adapter, "org.bluez.Adapter1").await?;
+    let method = if on { "StartDiscovery" } else { "StopDiscovery" };
+    ad.call::<_, _, ()>(method, &()).await?;
+    tracing::info!("bluetooth: {method} ok");
+    Ok(())
+}
+
+/// Liga/desliga discovery (versão blocking pro popup legado do compositor).
+/// O novo popup da luma-bar usa `set_discovery` na conexão persistente.
 pub fn scan_on() {
     if let Some(path) = adapter_path() {
-        let _ = with_adapter_call(&path, "StartDiscovery");
+        let _ = blocking_adapter_call(&path, "StartDiscovery");
     }
 }
 
 pub fn scan_off() {
     if let Some(path) = adapter_path() {
-        let _ = with_adapter_call(&path, "StopDiscovery");
+        let _ = blocking_adapter_call(&path, "StopDiscovery");
     }
+}
+
+fn blocking_adapter_call(path: &str, method: &str) -> Result<(), zbus::Error> {
+    let conn = zbus::blocking::Connection::system()?;
+    let proxy = zbus::blocking::Proxy::new(&conn, "org.bluez", path, "org.bluez.Adapter1")?;
+    proxy.call::<_, _, ()>(method, &())?;
+    Ok(())
 }
 
 /// Encontra o path do adapter default via ObjectManager. Usualmente
@@ -251,19 +337,6 @@ fn adapter_path() -> Option<String> {
         }
     }
     None
-}
-
-fn with_adapter_call(path: &str, method: &str) -> Result<(), zbus::Error> {
-    let conn = zbus::blocking::Connection::system()?;
-    let proxy = zbus::blocking::Proxy::new(
-        &conn,
-        "org.bluez",
-        path,
-        "org.bluez.Adapter1",
-    )?;
-    proxy.call::<_, _, ()>(method, &())?;
-    tracing::info!("bluetooth: {method} ok");
-    Ok(())
 }
 
 /// Outcome do connect/pair quando o command termina (pode levar

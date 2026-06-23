@@ -90,6 +90,13 @@ struct Bar {
     bt_has_hw: bool,
     /// Dispositivos bluetooth (carregados ao abrir o popup).
     bt_devices: Vec<BtDev>,
+    /// Modo "adicionar dispositivo" (varredura ativa).
+    bt_adding: bool,
+    /// Descobertos na varredura (não-pareados).
+    bt_scan: Vec<BtDev>,
+    /// Fase do pareamento `(fase, passkey, mensagem)`. Fase: 0 ocioso,
+    /// 1 pareando, 2 confere o código, 3 deu certo, 4 falhou.
+    bt_pairing: (u8, u32, String),
 }
 
 #[to_layer_message(multi)]
@@ -156,6 +163,19 @@ enum Message {
     /// Conecta/desconecta um dispositivo bluetooth pela MAC.
     ConnectDev(String),
     DisconnectDev(String),
+    /// Entra/sai do modo "adicionar dispositivo" (varredura).
+    BtAddMode,
+    BtExitAdd,
+    /// Tick de poll enquanto procura (relê descobertos + fase).
+    BtPoll,
+    /// Lista do scan carregada.
+    BtScanLoaded(Vec<(String, String, bool, bool)>),
+    /// Fase do pareamento lida.
+    BtPairingLoaded((u8, u32, String)),
+    /// Inicia o pareamento de um device.
+    PairDev(String),
+    /// Responde a confirmação de código (confirma/cancela).
+    BtConfirm(bool),
 }
 
 fn now_hm() -> String {
@@ -236,6 +256,9 @@ fn boot() -> (Bar, Task<Message>) {
             bt_enabled: false,
             bt_has_hw: false,
             bt_devices: Vec::new(),
+            bt_adding: false,
+            bt_scan: Vec::new(),
+            bt_pairing: (0, 0, String::new()),
         },
         read,
     )
@@ -256,21 +279,34 @@ fn bar_settings() -> NewLayerShellSettings {
     }
 }
 
+/// Sai do modo "adicionar dispositivo" se estava ativo: para a varredura,
+/// zera a fase e limpa os descobertos.
+fn stop_adding(state: &mut Bar) -> Task<Message> {
+    if state.bt_adding {
+        state.bt_adding = false;
+        state.bt_scan.clear();
+        state.bt_pairing = (0, 0, String::new());
+        return Task::perform(ipc::stop_scan(), |_| Message::Noop);
+    }
+    Task::none()
+}
+
 /// Abre um popup (um de cada vez). Clicar no mesmo applet fecha (toggle);
-/// clicar noutro troca. Carrega o conteúdo do tipo.
+/// clicar noutro troca. Carrega o conteúdo do tipo. Sair do BT para a procura.
 fn open_popup(state: &mut Bar, kind: PopupKind) -> Task<Message> {
+    let cleanup = stop_adding(state);
     if let Some((id, k)) = state.popup.take() {
         let close = Task::done(Message::RemoveWindow(id));
         if k == kind {
-            return close; // toggle: fecha o mesmo
+            return Task::batch([cleanup, close]); // toggle: fecha o mesmo
         }
         let (nid, open) = Message::layershell_open(popup_settings());
         state.popup = Some((nid, kind));
-        return Task::batch([close, open, load_popup(kind)]);
+        return Task::batch([cleanup, close, open, load_popup(kind)]);
     }
     let (nid, open) = Message::layershell_open(popup_settings());
     state.popup = Some((nid, kind));
-    Task::batch([open, load_popup(kind)])
+    Task::batch([cleanup, open, load_popup(kind)])
 }
 
 /// Carrega o conteúdo do popup conforme o tipo.
@@ -383,9 +419,11 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::OpenVolumePopup => return open_popup(state, PopupKind::Volume),
         Message::OpenBluetoothPopup => return open_popup(state, PopupKind::Bluetooth),
         Message::ClosePopup => {
+            let cleanup = stop_adding(state);
             if let Some((id, _)) = state.popup.take() {
-                return Task::done(Message::RemoveWindow(id));
+                return Task::batch([cleanup, Task::done(Message::RemoveWindow(id))]);
             }
+            return cleanup;
         }
         Message::MixerLoaded(list) => {
             state.mixer = list
@@ -440,6 +478,51 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::DisconnectDev(mac) => {
             return Task::perform(ipc::disconnect_device(mac), Message::BluetoothStateLoaded);
+        }
+        Message::BtAddMode => {
+            state.bt_adding = true;
+            state.bt_scan.clear();
+            state.bt_pairing = (0, 0, String::new());
+            return Task::perform(ipc::start_scan(), |_| Message::BtPoll);
+        }
+        Message::BtExitAdd => return stop_adding(state),
+        Message::BtPoll => {
+            if state.bt_adding {
+                return Task::batch([
+                    Task::perform(ipc::read_scan_devices(), Message::BtScanLoaded),
+                    Task::perform(ipc::read_pairing_state(), Message::BtPairingLoaded),
+                ]);
+            }
+        }
+        Message::BtScanLoaded(list) => {
+            // Só os não-pareados (os pareados já estão na lista principal).
+            state.bt_scan = list
+                .into_iter()
+                .filter(|(_, _, paired, _)| !paired)
+                .map(|(mac, name, paired, connected)| BtDev {
+                    mac,
+                    name,
+                    paired,
+                    connected,
+                })
+                .collect();
+        }
+        Message::BtPairingLoaded((phase, passkey, msg)) => {
+            state.bt_pairing = (phase, passkey, msg);
+            // Pareou: sai do modo e recarrega a lista de pareados.
+            if phase == 3 {
+                let leave = stop_adding(state);
+                return Task::batch([
+                    leave,
+                    Task::perform(ipc::read_bluetooth_state(), Message::BluetoothStateLoaded),
+                ]);
+            }
+        }
+        Message::PairDev(mac) => {
+            return Task::perform(ipc::pair_device(mac), |_| Message::BtPoll);
+        }
+        Message::BtConfirm(ok) => {
+            return Task::perform(ipc::confirm_pairing(ok), |_| Message::BtPoll);
         }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
@@ -926,40 +1009,169 @@ fn volume_popup_body(state: &Bar) -> Element<'_, Message> {
     scrollable(column(items).spacing(12.0)).into()
 }
 
-/// Corpo do popup do bluetooth: toggle de energia + lista de dispositivos
-/// (clique conecta/desconecta os pareados).
+/// Botão-pílula simples (Confirmar/Cancelar/Adicionar/Voltar).
+fn pill_button<'a>(label: &'a str, msg: Message, filled: bool) -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let bg = libluma::tokens::to_iced(sem.background);
+    let accent = libluma::tokens::accent();
+    let (fill, fg) = if filled {
+        (accent, bg)
+    } else {
+        (Color { a: 0.10, ..cream }, cream)
+    };
+    mouse_area(
+        container(text(label).size(13.0).color(fg))
+            .padding(Padding::from([7.0, 14.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(fill)),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(msg)
+    .interaction(iced::mouse::Interaction::Pointer)
+    .into()
+}
+
+/// Banner do estado do pareamento (procurando/pareando/confere/deu certo/falhou).
+fn pairing_banner<'a>(state: &Bar) -> Option<Element<'a, Message>> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+    let accent = libluma::tokens::accent();
+    let (phase, passkey, msg) = &state.bt_pairing;
+    match phase {
+        1 => Some(text("Pareando…").size(13.0).color(secondary).into()),
+        2 => Some(
+            column![
+                text("Confere o código no aparelho:").size(13.0).color(cream),
+                text(format!("{:06}", passkey))
+                    .size(26.0)
+                    .color(accent)
+                    .font(iced::Font {
+                        family: iced::font::Family::Name(libluma::tokens::FONT_DISPLAY),
+                        weight: iced::font::Weight::Semibold,
+                        ..iced::Font::DEFAULT
+                    }),
+                row![
+                    pill_button("Confirmar", Message::BtConfirm(true), true),
+                    pill_button("Cancelar", Message::BtConfirm(false), false),
+                ]
+                .spacing(8),
+            ]
+            .spacing(8)
+            .into(),
+        ),
+        3 => Some(text("Pareado!").size(13.0).color(accent).into()),
+        4 => {
+            let why = if msg.is_empty() {
+                "Falhou".to_string()
+            } else {
+                format!("Falhou: {msg}")
+            };
+            Some(text(why).size(13.0).color(secondary).into())
+        }
+        _ => None,
+    }
+}
+
+/// Corpo do popup do bluetooth. Dois modos: lista de pareados (com toggle e
+/// "Adicionar dispositivo") ou modo adicionar (varredura + estados do pair).
 fn bluetooth_popup_body(state: &Bar) -> Element<'_, Message> {
     let sem = libluma::tokens::semantic_default();
     let cream = libluma::tokens::to_iced(sem.text);
     let secondary = libluma::tokens::to_iced(sem.text_secondary);
 
     let mut items: Vec<Element<Message>> = Vec::new();
-    items.push(popup_title("Bluetooth", cream));
 
+    if state.bt_adding {
+        // Modo adicionar: voltar + título + banner do estado + descobertos.
+        items.push(
+            row![
+                pill_button("‹ Voltar", Message::BtExitAdd, false),
+                popup_title("Adicionar", cream),
+            ]
+            .spacing(10)
+            .align_y(iced::Alignment::Center)
+            .into(),
+        );
+        if let Some(b) = pairing_banner(state) {
+            items.push(b);
+        }
+        if state.bt_scan.is_empty() {
+            items.push(text("Procurando aparelhos…").size(13.0).color(secondary).into());
+        } else {
+            items.push(text("Encontrados").size(11.0).color(secondary).into());
+            for d in &state.bt_scan {
+                items.push(bt_scan_row(d));
+            }
+        }
+        return scrollable(column(items).spacing(12.0)).into();
+    }
+
+    // Modo normal.
+    items.push(popup_title("Bluetooth", cream));
     if !state.bt_has_hw {
         items.push(text("Sem controller de bluetooth").size(13.0).color(secondary).into());
         return scrollable(column(items).spacing(12.0)).into();
     }
-
-    // Toggle de energia (linha do libluma).
     items.push(libluma::toggle_row(
         "Bluetooth",
         state.bt_enabled,
         Message::SetBtPower,
     ));
-
     if !state.bt_enabled {
         items.push(text("Ligue pra ver os dispositivos").size(13.0).color(secondary).into());
-    } else if state.bt_devices.is_empty() {
-        items.push(text("Nenhum dispositivo pareado").size(13.0).color(secondary).into());
     } else {
-        items.push(text("Dispositivos").size(11.0).color(secondary).into());
-        for d in &state.bt_devices {
-            items.push(bt_device_row(d));
+        if state.bt_devices.is_empty() {
+            items.push(text("Nenhum dispositivo pareado").size(13.0).color(secondary).into());
+        } else {
+            items.push(text("Dispositivos").size(11.0).color(secondary).into());
+            for d in &state.bt_devices {
+                items.push(bt_device_row(d));
+            }
         }
+        items.push(pill_button("+ Adicionar dispositivo", Message::BtAddMode, false));
     }
 
     scrollable(column(items).spacing(12.0)).into()
+}
+
+/// Linha de um descoberto na varredura: nome + "tocar pra parear".
+fn bt_scan_row<'a>(d: &BtDev) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let name = if d.name.trim().is_empty() {
+        d.mac.clone()
+    } else {
+        d.name.clone()
+    };
+    let content = column![
+        text(name).size(14.0).color(cream),
+        text("tocar pra parear").size(11.0).color(secondary),
+    ]
+    .spacing(2);
+    mouse_area(
+        container(content)
+            .width(Length::Fill)
+            .padding(Padding::from([8.0, 10.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(Color { a: 0.06, ..cream })),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::PairDev(d.mac.clone()))
+    .interaction(iced::mouse::Interaction::Pointer)
+    .into()
 }
 
 /// Uma linha de dispositivo bluetooth: nome + estado; clique conecta/desconecta.
@@ -1005,8 +1217,8 @@ fn bt_device_row<'a>(d: &BtDev) -> Element<'a, Message> {
     .into()
 }
 
-fn subscription(_state: &Bar) -> iced::Subscription<Message> {
-    iced::Subscription::batch([
+fn subscription(state: &Bar) -> iced::Subscription<Message> {
+    let mut subs = vec![
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
         // Poll da lista de janelas (≤500ms de latência — "ao vivo" o bastante
         // pro passo 2; um push-signal dá pra adicionar depois).
@@ -1017,7 +1229,12 @@ fn subscription(_state: &Bar) -> iced::Subscription<Message> {
         iced::Subscription::run(volume_subscription),
         iced::Subscription::run(network_subscription),
         iced::Subscription::run(bluetooth_subscription),
-    ])
+    ];
+    // Modo adicionar: poll dos descobertos + fase do pareamento a cada 2s.
+    if state.bt_adding {
+        subs.push(iced::time::every(Duration::from_millis(2000)).map(|_| Message::BtPoll));
+    }
+    iced::Subscription::batch(subs)
 }
 
 fn bluetooth_subscription() -> impl iced::futures::Stream<Item = Message> {

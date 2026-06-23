@@ -13,7 +13,7 @@ use crate::notifications::NotificationsSlot;
 use luma_ipc::{WidgetInfo, WidgetTarget};
 use smithay::reexports::calloop::channel::Sender;
 use std::thread;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
 
@@ -95,6 +95,11 @@ struct CompositorService {
     network: tokio::sync::watch::Receiver<String>,
     /// Receptor `watch` do bluetooth: nome do ícone do estado (on/off/"").
     bluetooth: tokio::sync::watch::Receiver<String>,
+    /// Estado de pareamento compartilhado com o agent BlueZ (system bus).
+    pairing: crate::bt_agent::PairingSlot,
+    /// Conexão persistente do system bus (a do agent) — usada pra Start/Stop
+    /// Discovery na MESMA conexão (BlueZ amarra discovery ao sender).
+    bt_system: Option<zbus::Connection>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -549,6 +554,59 @@ impl CompositorService {
         crate::bluetooth::disconnect(&mac);
     }
 
+    // ─── Pareamento (refino) ──────────────────────────────────────────
+
+    /// Começa a varredura (modo "adicionar dispositivo"). Os achados aparecem
+    /// no `scan_devices` enquanto procura. Usa a conexão persistente do agent.
+    async fn start_scan(&self) {
+        if let Some(conn) = &self.bt_system {
+            if let Err(e) = crate::bluetooth::set_discovery(conn, true).await {
+                warn!("D-Bus: StartDiscovery falhou: {e}");
+            }
+        }
+    }
+
+    /// Para a varredura (sai do modo / fecha o popup).
+    async fn stop_scan(&self) {
+        if let Some(conn) = &self.bt_system {
+            if let Err(e) = crate::bluetooth::set_discovery(conn, false).await {
+                warn!("D-Bus: StopDiscovery falhou: {e}");
+            }
+        }
+    }
+
+    /// Pareia um device pela MAC (via Device1.Pair + nosso agent pro código).
+    /// Acompanhe o progresso por `PairingState`.
+    async fn pair_device(&self, mac: String) {
+        crate::bluetooth::pair(&mac, self.pairing.clone());
+    }
+
+    /// Responde o pedido de confirmação de código (confirma/cancela).
+    async fn confirm_pairing(&self, ok: bool) {
+        crate::bt_agent::answer(&self.pairing, ok);
+    }
+
+    /// Estado do pareamento: `(fase, passkey, mensagem)`. Fase: 0 ocioso,
+    /// 1 pareando, 2 confere o código, 3 deu certo, 4 falhou.
+    async fn pairing_state(&self) -> (u8, u32, String) {
+        crate::bt_agent::phase_tuple(&self.pairing)
+    }
+
+    /// Dispositivos do modo varredura: pareados + descobertos `(mac, nome,
+    /// pareado, conectado)`. Cresce ao vivo enquanto o scan roda.
+    async fn scan_devices(&self) -> Vec<(String, String, bool, bool)> {
+        crate::bluetooth::read_state(true)
+            .devices
+            .into_iter()
+            .map(|d| (d.mac, d.name, d.paired, d.connected))
+            .collect()
+    }
+
+    /// Limpa a fase de pareamento de volta pra ociosa (ao sair do modo).
+    async fn reset_pairing(&self) {
+        crate::bt_agent::reset(&self.pairing);
+    }
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu
@@ -765,6 +823,27 @@ fn run(
     });
 }
 
+/// Registra o nosso Agent1 no system bus como default agent do BlueZ. Devolve
+/// a conexão (precisa viver enquanto o agent estiver registrado).
+async fn register_bt_agent(
+    pairing: crate::bt_agent::PairingSlot,
+) -> zbus::Result<zbus::Connection> {
+    use zbus::zvariant::ObjectPath;
+    const AGENT_PATH: &str = "/dev/luma/btagent";
+    let agent = crate::bt_agent::Agent { slot: pairing };
+    let conn = zbus::connection::Builder::system()?
+        .serve_at(AGENT_PATH, agent)?
+        .build()
+        .await?;
+    let mgr = zbus::Proxy::new(&conn, "org.bluez", "/org/bluez", "org.bluez.AgentManager1").await?;
+    let path = ObjectPath::try_from(AGENT_PATH)?;
+    // DisplayYesNo: cobre RequestConfirmation (código numérico) + display.
+    mgr.call::<_, _, ()>("RegisterAgent", &(&path, "DisplayYesNo")).await?;
+    mgr.call::<_, _, ()>("RequestDefaultAgent", &(&path,)).await?;
+    info!("D-Bus: agent BlueZ registrado em {AGENT_PATH}");
+    Ok(conn)
+}
+
 async fn serve(
     cmd_tx: Sender<IpcCommand>,
     available: Vec<WidgetInfo>,
@@ -775,6 +854,21 @@ async fn serve(
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
 ) -> zbus::Result<()> {
+    // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
+    // e guarda o oneshot da confirmação; o ConfirmPairing (session bus) lê.
+    let pairing: crate::bt_agent::PairingSlot = Default::default();
+
+    // Registra o agent BlueZ no SYSTEM bus (pro código de pareamento) ANTES de
+    // montar o service — a conexão persistente entra no service pro scan usar a
+    // MESMA conexão (BlueZ amarra discovery ao sender). Drop = desregistra.
+    let bt_system = match register_bt_agent(pairing.clone()).await {
+        Ok(c) => Some(c),
+        Err(err) => {
+            warn!("D-Bus: agent BlueZ não registrado: {err}");
+            None
+        }
+    };
+
     let service = CompositorService {
         available_widgets: available,
         cmd_tx,
@@ -784,6 +878,8 @@ async fn serve(
         volume: volume.clone(),
         network: network.clone(),
         bluetooth: bluetooth.clone(),
+        pairing: pairing.clone(),
+        bt_system: bt_system.clone(),
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -791,6 +887,8 @@ async fn serve(
         .build()
         .await?;
     info!("D-Bus: {BUS_NAME} registrado no session bus em {OBJECT_PATH}");
+    // Segura a conexão do system bus viva enquanto o serve roda.
+    let _bt_agent_conn = bt_system;
 
     // Loop dos sinais de sensores (bateria passo 3 + volume passo 4): emite
     // o sinal certo quando o `watch` respectivo muda. Mantém a conexão viva

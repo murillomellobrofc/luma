@@ -5,6 +5,7 @@ mod brightness;
 mod places;
 mod backends;
 mod bluetooth;
+mod bt_agent;
 mod context_menu;
 mod cursor;
 mod dbus_server;
