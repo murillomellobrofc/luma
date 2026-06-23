@@ -374,16 +374,12 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
     let secondary = libluma::tokens::to_iced(sem.text_secondary);
     let accent = libluma::tokens::accent();
 
-    // Backdrop escuro full-screen — clique fora fecha.
+    // Backdrop TRANSPARENTE full-screen — captura o clique-fora (fecha) sem
+    // escurecer o fundo.
     let backdrop = mouse_area(
         container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
             container::Style {
-                background: Some(Background::Color(Color {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.5,
-                })),
+                background: None,
                 ..Default::default()
             }
         }),
@@ -634,6 +630,13 @@ fn main() -> Result<(), iced_layershell::Error> {
     iced_layershell::daemon(boot, "luma-menu", update, view)
         .settings(settings)
         .theme(|_state: &Menu, _id| libluma::golden_hour_theme())
+        // Surface transparente: o "clear color" padrão (fundo escuro do tema)
+        // pintava a tela toda. Assim só o card pinta; o resto deixa o
+        // wallpaper passar (sem dim).
+        .style(|_state: &Menu, theme: &iced::Theme| iced::theme::Style {
+            background_color: Color::TRANSPARENT,
+            text_color: theme.palette().text,
+        })
         .subscription(subscription)
         .run()
 }
