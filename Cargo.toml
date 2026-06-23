@@ -10,6 +10,7 @@ members = [
     "libs/luma-customize",
     "apps/luma-config",
     "apps/luma-bar",
+    "apps/luma-menu",
 ]
 
 [profile.dev]

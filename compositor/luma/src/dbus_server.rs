@@ -465,6 +465,21 @@ impl CompositorService {
     #[zbus(signal)]
     async fn network_changed(emitter: &SignalEmitter<'_>, icon: &str) -> zbus::Result<()>;
 
+    // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
+
+    /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu
+    /// abre/fecha a surface overlay. Gatilho atual: busctl; no passo 5 vira o
+    /// Super. Stateless (o menu guarda aberto/fechado).
+    async fn show_menu(&self, #[zbus(signal_emitter)] emitter: SignalEmitter<'_>) {
+        if let Err(err) = emitter.menu_toggle().await {
+            error!("D-Bus: falha ao emitir menu_toggle: {err}");
+        }
+    }
+
+    /// **Sinal** de toggle do menu (luma-menu passo 1).
+    #[zbus(signal)]
+    async fn menu_toggle(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.

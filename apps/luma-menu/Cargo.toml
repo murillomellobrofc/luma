@@ -1,0 +1,23 @@
+[package]
+name = "luma-menu"
+version = "0.1.0"
+edition = "2024"
+description = "Menu/launcher do Luma — cliente layer-shell overlay (iced)"
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "luma-menu"
+path = "src/main.rs"
+
+[dependencies]
+libluma = { path = "../../libs/libluma" }
+# Cliente layer-shell. Daemon (multi-surface) pra abrir/fechar a overlay sob
+# demanda. Suporta iced 0.14.
+iced_layershell = "0.18"
+iced = { version = "0.14", default-features = false, features = [
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg",
+] }
+# Canal D-Bus (gatilho menu_toggle + acento/HC). `tokio` pro executor.
+zbus = { version = "5", features = ["tokio"] }
+# Saudação por hora do dia.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
