@@ -100,6 +100,8 @@ struct CompositorService {
     /// Conexão persistente do system bus (a do agent) — usada pra Start/Stop
     /// Discovery na MESMA conexão (BlueZ amarra discovery ao sender).
     bt_system: Option<zbus::Connection>,
+    /// Lista de itens da bandeja (SNI host), compartilhada com o main loop.
+    sni: crate::sni::SniList,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -698,6 +700,34 @@ impl CompositorService {
         }
     }
 
+    // ─── Bandeja (SNI host) ───────────────────────────────────────────
+
+    /// Itens da bandeja pra barra: `(service, object_path, título, tooltip,
+    /// caminho_do_ícone)`. O ícone já vem resolvido pra um arquivo (nome
+    /// temático ou pixmap rasterizado); "" = sem ícone (fallback na barra).
+    async fn tray_items(&self) -> Vec<(String, String, String, String, String)> {
+        match self.sni.lock() {
+            Ok(g) => g
+                .iter()
+                .map(|it| {
+                    (
+                        it.service.clone(),
+                        it.object_path.clone(),
+                        it.title.clone(),
+                        it.tooltip.clone(),
+                        crate::sni::item_icon_path(it),
+                    )
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Clique esquerdo num item da bandeja → manda `Activate` pro app.
+    async fn tray_activate(&self, service: String, path: String) {
+        crate::sni::activate(&service, &path, 0, 0);
+    }
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu
@@ -858,6 +888,7 @@ pub fn spawn(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    sni: crate::sni::SniList,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
     if let Err(err) = builder.spawn(move || {
@@ -870,6 +901,7 @@ pub fn spawn(
             volume,
             network,
             bluetooth,
+            sni,
         )
     }) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
@@ -885,6 +917,7 @@ fn run(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    sni: crate::sni::SniList,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -906,6 +939,7 @@ fn run(
             volume,
             network,
             bluetooth,
+            sni,
         )
         .await
         {
@@ -944,6 +978,7 @@ async fn serve(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    sni: crate::sni::SniList,
 ) -> zbus::Result<()> {
     // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
     // e guarda o oneshot da confirmação; o ConfirmPairing (session bus) lê.
@@ -971,6 +1006,7 @@ async fn serve(
         bluetooth: bluetooth.clone(),
         pairing: pairing.clone(),
         bt_system: bt_system.clone(),
+        sni,
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?

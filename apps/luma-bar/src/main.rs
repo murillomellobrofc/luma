@@ -8,7 +8,9 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{column, container, mouse_area, row, scrollable, stack, svg, text, Space};
+use iced::widget::{
+    column, container, image, mouse_area, row, scrollable, stack, svg, text, tooltip, Space,
+};
 use iced::{Background, Border, Color, Element, Length, Padding, Task};
 use iced_layershell::reexport::{
     Anchor, IcedId, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
@@ -39,6 +41,16 @@ enum PopupKind {
     Bluetooth,
     Network,
     Notifications,
+}
+
+/// Um item da bandeja (SNI).
+#[derive(Debug, Clone)]
+struct TrayItem {
+    service: String,
+    path: String,
+    tooltip: String,
+    /// Caminho do ícone já resolvido pelo compositor (svg/png), ou "".
+    icon_path: String,
 }
 
 /// Uma notificação na central.
@@ -131,6 +143,8 @@ struct Bar {
     notif_sound: bool,
     /// Lista da central (histórico).
     notif_list: Vec<Notif>,
+    /// Itens da bandeja (SNI), poll ao vivo.
+    tray: Vec<TrayItem>,
 }
 
 #[to_layer_message(multi)]
@@ -232,6 +246,10 @@ enum Message {
     ToggleDnd,
     ToggleNotifSound,
     ClearNotifs,
+    /// Lista da bandeja carregada (poll).
+    TrayLoaded(Vec<(String, String, String, String, String)>),
+    /// Clique num ícone da bandeja → ativa o app.
+    TrayActivate(String, String),
 }
 
 fn now_hm() -> String {
@@ -297,6 +315,7 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_volume(), Message::VolumeLoaded),
         Task::perform(ipc::read_network(), Message::NetworkLoaded),
         Task::perform(ipc::read_bluetooth(), Message::BluetoothLoaded),
+        Task::perform(ipc::read_tray_items(), Message::TrayLoaded),
     ]);
     (
         Bar {
@@ -323,6 +342,7 @@ fn boot() -> (Bar, Task<Message>) {
             notif_dnd: false,
             notif_sound: true,
             notif_list: Vec::new(),
+            tray: Vec::new(),
         },
         read,
     )
@@ -624,8 +644,11 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::OpenNotifPopup => return open_popup(state, PopupKind::Notifications),
         Message::NotifPoll => {
-            let mut tasks =
-                vec![Task::perform(ipc::read_notification_status(), Message::NotifStatusLoaded)];
+            // Aproveita o tick de 2s pra o sino E a bandeja (aparece/some ao vivo).
+            let mut tasks = vec![
+                Task::perform(ipc::read_notification_status(), Message::NotifStatusLoaded),
+                Task::perform(ipc::read_tray_items(), Message::TrayLoaded),
+            ];
             if matches!(state.popup, Some((_, PopupKind::Notifications))) {
                 tasks.push(Task::perform(ipc::read_notifications(), Message::NotifListLoaded));
             }
@@ -653,6 +676,20 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::ClearNotifs => {
             return Task::perform(ipc::clear_notifications(), |_| Message::NotifPoll);
+        }
+        Message::TrayLoaded(list) => {
+            state.tray = list
+                .into_iter()
+                .map(|(service, path, _title, tooltip, icon_path)| TrayItem {
+                    service,
+                    path,
+                    tooltip,
+                    icon_path,
+                })
+                .collect();
+        }
+        Message::TrayActivate(service, path) => {
+            return Task::perform(ipc::tray_activate(service, path), |_| Message::Noop);
         }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
@@ -773,6 +810,72 @@ fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
         .on_press(Message::OpenNetworkPopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
+}
+
+/// Ícone de um item da bandeja (do app, best-effort): SVG ou raster do caminho
+/// resolvido; fallback num pontinho de acento se vazio.
+fn tray_icon<'a>(path: &str) -> Element<'a, Message> {
+    if path.ends_with(".svg") {
+        svg(svg::Handle::from_path(path.to_string()))
+            .width(Length::Fixed(18.0))
+            .height(Length::Fixed(18.0))
+            .into()
+    } else if !path.is_empty() {
+        image(image::Handle::from_path(path.to_string()))
+            .width(Length::Fixed(18.0))
+            .height(Length::Fixed(18.0))
+            .into()
+    } else {
+        let accent = libluma::tokens::accent();
+        container(Space::new().width(Length::Fixed(8.0)).height(Length::Fixed(8.0)))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(accent)),
+                border: Border {
+                    radius: 4.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .into()
+    }
+}
+
+/// A bandeja: um ícone por item, clique ativa, tooltip no hover. Vazia = nada.
+fn tray_view(items: &[TrayItem]) -> Element<'_, Message> {
+    if items.is_empty() {
+        return Space::new().width(Length::Fixed(0.0)).into();
+    }
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().background);
+    let icons: Vec<Element<Message>> = items
+        .iter()
+        .map(|it| {
+            let btn = mouse_area(tray_icon(&it.icon_path))
+                .on_press(Message::TrayActivate(it.service.clone(), it.path.clone()))
+                .interaction(iced::mouse::Interaction::Pointer);
+            let tip = if it.tooltip.trim().is_empty() {
+                it.service.clone()
+            } else {
+                it.tooltip.clone()
+            };
+            tooltip(
+                btn,
+                container(text(tip).size(12.0).color(cream))
+                    .padding(Padding::from([4.0, 8.0]))
+                    .style(move |_theme| container::Style {
+                        background: Some(Background::Color(surface)),
+                        border: Border {
+                            radius: 8.0.into(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                tooltip::Position::Bottom,
+            )
+            .into()
+        })
+        .collect();
+    row(icons).spacing(10).align_y(iced::Alignment::Center).into()
 }
 
 /// Applet do sino: o SVG do estado (normal/alerta/dnd), tingido pelo tema.
@@ -988,6 +1091,8 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
+            Space::new().width(Length::Fixed(14.0)),
+            tray_view(&state.tray),
             Space::new().width(Length::Fixed(14.0)),
             notification_applet(&state.notif_icon),
             Space::new().width(Length::Fixed(14.0)),

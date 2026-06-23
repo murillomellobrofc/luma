@@ -18,7 +18,7 @@ iced_layershell = "0.18"
 # `iced` pros widgets/Element/Theme (o iced_layershell cuida do shell). Mesma
 # lista do libluma/luma-config pra unificação de features — executor tokio.
 iced = { version = "0.14", default-features = false, features = [
-    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg",
+    "wgpu", "tiny-skia", "crisp", "web-colors", "tokio", "svg", "image",
 ] }
 # Canal D-Bus (acento/HC ao vivo). `tokio` pra casar com o executor.
 zbus = { version = "5", features = ["tokio"] }
