@@ -138,6 +138,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let battery_rx = data.state.battery_tx.subscribe();
     // Receiver do volume (luma-bar passo 4): mesmo esquema da bateria.
     let volume_rx = data.state.volume_tx.subscribe();
+    let network_rx = data.state.network_tx.subscribe();
     dbus_server::spawn(
         dbus_tx,
         available,
@@ -145,6 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         windows_slot,
         battery_rx,
         volume_rx,
+        network_rx,
     );
 
     info!("luma pronto, entrando no loop principal");

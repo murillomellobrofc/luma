@@ -84,6 +84,8 @@ struct CompositorService {
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     /// Receptor `watch` do volume (luma-bar passo 4): `(level 0–100, muted)`.
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
+    /// Receptor `watch` da rede (luma-bar passo 5): nome do ícone do estado.
+    network: tokio::sync::watch::Receiver<String>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -413,6 +415,20 @@ impl CompositorService {
         muted: bool,
     ) -> zbus::Result<()>;
 
+    // ─── Rede / applet (luma-bar passo 5) ─────────────────────────────
+
+    /// Nome do ícone do estado de rede atual ("ethernet-on", "wifi-full",
+    /// "wifi-low", "wifi-none", "ethernet-off", "wifi-off"). A barra mapeia
+    /// pro SVG. Lê no boot + escuta o sinal.
+    async fn network(&self) -> String {
+        self.network.borrow().clone()
+    }
+
+    /// **Sinal de mudança** da rede — emitido quando o `watch` muda (refresh
+    /// do tray pega conectar/desconectar/trocar).
+    #[zbus(signal)]
+    async fn network_changed(emitter: &SignalEmitter<'_>, icon: &str) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -556,10 +572,11 @@ pub fn spawn(
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
+    network: tokio::sync::watch::Receiver<String>,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
-    if let Err(err) =
-        builder.spawn(move || run(cmd_tx, available, notifications, windows, battery, volume))
+    if let Err(err) = builder
+        .spawn(move || run(cmd_tx, available, notifications, windows, battery, volume, network))
     {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
@@ -572,6 +589,7 @@ fn run(
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
+    network: tokio::sync::watch::Receiver<String>,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -584,7 +602,9 @@ fn run(
         }
     };
     rt.block_on(async move {
-        if let Err(err) = serve(cmd_tx, available, notifications, windows, battery, volume).await {
+        if let Err(err) =
+            serve(cmd_tx, available, notifications, windows, battery, volume, network).await
+        {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
     });
@@ -597,6 +617,7 @@ async fn serve(
     windows: WindowsSlot,
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
+    network: tokio::sync::watch::Receiver<String>,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
@@ -605,6 +626,7 @@ async fn serve(
         windows,
         battery: battery.clone(),
         volume: volume.clone(),
+        network: network.clone(),
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -619,6 +641,7 @@ async fn serve(
     let emitter = SignalEmitter::new(&conn, OBJECT_PATH)?;
     let mut battery = battery;
     let mut volume = volume;
+    let mut network = network;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -633,6 +656,13 @@ async fn serve(
                 let (level, muted) = *volume.borrow();
                 if let Err(err) = emitter.volume_changed(level, muted).await {
                     error!("D-Bus: falha ao emitir sinal de volume: {err}");
+                }
+            }
+            r = network.changed() => {
+                if r.is_err() { break; }
+                let icon = network.borrow().clone();
+                if let Err(err) = emitter.network_changed(&icon).await {
+                    error!("D-Bus: falha ao emitir sinal de rede: {err}");
                 }
             }
         }

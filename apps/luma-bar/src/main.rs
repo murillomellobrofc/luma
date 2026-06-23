@@ -8,7 +8,7 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{button, column, container, mouse_area, row, text, Space};
+use iced::widget::{button, column, container, mouse_area, row, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Task};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -40,6 +40,9 @@ struct Bar {
     /// Volume: `(level 0–100, muted)`. Lido no boot + sinal; mexido por
     /// scroll/clique com update otimista (passo 4).
     volume: (u8, bool),
+    /// Rede: nome do ícone do estado ("ethernet-on", "wifi-full"…). Vazio
+    /// até o boot ler. Lido no boot + sinal (passo 5).
+    network: String,
 }
 
 #[to_layer_message]
@@ -71,6 +74,9 @@ enum Message {
     ToggleMute,
     /// No-op (descarta o resultado de um set fire-and-forget).
     Noop,
+    /// Rede lida no boot / mudada pelo sinal: nome do ícone.
+    NetworkLoaded(String),
+    NetworkChanged(String),
 }
 
 fn now_hm() -> String {
@@ -85,6 +91,7 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_windows(), Message::WindowsLoaded),
         Task::perform(ipc::read_battery(), Message::BatteryLoaded),
         Task::perform(ipc::read_volume(), Message::VolumeLoaded),
+        Task::perform(ipc::read_network(), Message::NetworkLoaded),
     ]);
     (
         Bar {
@@ -92,6 +99,7 @@ fn boot() -> (Bar, Task<Message>) {
             windows: Vec::new(),
             battery: None,
             volume: (0, false),
+            network: String::new(),
         },
         read,
     )
@@ -161,6 +169,10 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
             return Task::perform(ipc::toggle_mute(), |_| Message::Noop);
         }
         Message::Noop => {}
+        // Rede (passo 5): boot/sinal aplicam o nome do ícone.
+        Message::NetworkLoaded(icon) | Message::NetworkChanged(icon) => {
+            state.network = icon;
+        }
         _ => {}
     }
     Task::none()
@@ -241,6 +253,32 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
     row![icon, text(format!("{cap}%")).size(13.0).color(fill_color)]
         .spacing(6)
         .align_y(iced::Alignment::Center)
+        .into()
+}
+
+/// Handle do SVG de rede pro nome do estado. Os SVGs já existem em
+/// `assets/branding/icons/` — bundlados via `include_bytes!`, mapeados por
+/// nome (o compositor manda o nome via `network_icon_name`). Fallback off.
+fn net_svg(icon: &str) -> svg::Handle {
+    let bytes: &'static [u8] = match icon {
+        "ethernet-on" => include_bytes!("../../../assets/branding/icons/icon-ethernet-on.svg"),
+        "ethernet-off" => include_bytes!("../../../assets/branding/icons/icon-ethernet-off.svg"),
+        "wifi-full" => include_bytes!("../../../assets/branding/icons/icon-wifi-full.svg"),
+        "wifi-low" => include_bytes!("../../../assets/branding/icons/icon-wifi-low.svg"),
+        "wifi-none" => include_bytes!("../../../assets/branding/icons/icon-wifi-none.svg"),
+        _ => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
+    };
+    svg::Handle::from_memory(bytes)
+}
+
+/// Applet de rede: o ícone SVG do estado (tipo + força), tingido pelo tema.
+/// Nome no hover fica pra depois (o estado atual não traz SSID).
+fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    svg(net_svg(icon))
+        .width(Length::Fixed(18.0))
+        .height(Length::Fixed(18.0))
+        .style(move |_theme, _status| svg::Style { color: Some(cream) })
         .into()
 }
 
@@ -360,12 +398,20 @@ fn view(state: &Bar) -> Element<'_, Message> {
         Some((cap, charging)) => battery_applet(cap, charging),
         None => Space::new().width(Length::Fixed(0.0)).into(),
     };
+    // Rede: o ícone do estado (vazio até o boot ler).
+    let network_el: Element<Message> = if state.network.is_empty() {
+        Space::new().width(Length::Fixed(0.0)).into()
+    } else {
+        network_applet(&state.network)
+    };
 
     let content = container(
         row![
             Space::new().width(Length::Fixed(12.0)),
             windows_row,
             Space::new().width(Length::Fill),
+            network_el,
+            Space::new().width(Length::Fixed(14.0)),
             volume_applet(state.volume.0, state.volume.1),
             Space::new().width(Length::Fixed(14.0)),
             battery_el,
@@ -408,7 +454,22 @@ fn subscription(_state: &Bar) -> iced::Subscription<Message> {
         iced::Subscription::run(high_contrast_subscription),
         iced::Subscription::run(battery_subscription),
         iced::Subscription::run(volume_subscription),
+        iced::Subscription::run(network_subscription),
     ])
+}
+
+fn network_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::network_signal_stream().await {
+            Ok(s) => s.map(Message::NetworkChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-bar: subscription de rede falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 fn volume_subscription() -> impl iced::futures::Stream<Item = Message> {

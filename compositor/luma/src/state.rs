@@ -80,6 +80,11 @@ pub struct LumaState {
     /// manda quando muda (tecla, set por D-Bus, ou mudança externa via refresh
     /// do tray); a task do D-Bus emite o sinal.
     pub volume_tx: tokio::sync::watch::Sender<(u8, bool)>,
+    /// Canal `watch` da rede pro applet da luma-bar (passo 5): o **nome do
+    /// ícone** (`network_icon_name`: "ethernet-on", "wifi-full", etc.). O
+    /// compositor manda quando muda (refresh do tray); a barra renderiza o
+    /// SVG correspondente.
+    pub network_tx: tokio::sync::watch::Sender<String>,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -850,6 +855,9 @@ impl LumaState {
         // Volume: idem, do estado atual do default sink.
         let vol0 = crate::tray::read_volume();
         let (volume_tx, _) = tokio::sync::watch::channel((vol0.level, vol0.muted));
+        // Rede: o nome do ícone do estado atual (ethernet/wifi/off).
+        let (network_tx, _) =
+            tokio::sync::watch::channel(crate::tray::network_icon_name(crate::tray::read_network()).to_string());
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -956,6 +964,7 @@ impl LumaState {
             next_window_id: 1,
             battery_tx,
             volume_tx,
+            network_tx,
             shm_state,
             output_manager_state,
             seat_state,

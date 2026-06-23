@@ -690,6 +690,7 @@ pub fn init_winit(
                     // dos SVGs corretos pra cada estado.
                     let bat_before = data.state.tray.battery_info;
                     let vol_before = data.state.tray.volume_state;
+                    let net_before = data.state.tray.network;
                     crate::tray::refresh_if_stale(&mut data.state.tray);
                     // Bateria mudou? Manda no watch → o D-Bus emite o sinal
                     // pro applet da luma-bar (passo 3). Só no delta (a bateria
@@ -705,6 +706,12 @@ pub fn init_winit(
                     if data.state.tray.volume_state != vol_before {
                         let vs = data.state.tray.volume_state;
                         let _ = data.state.volume_tx.send((vs.level, vs.muted));
+                    }
+                    // Rede mudou (conectar/desconectar/trocar)? Manda o nome do
+                    // ícone novo → sinal pro applet (passo 5).
+                    if data.state.tray.network != net_before {
+                        let icon = crate::tray::network_icon_name(data.state.tray.network);
+                        let _ = data.state.network_tx.send(icon.to_string());
                     }
                     // H50.icons.7: polling 2s do ~/Desktop. Re-scan e
                     // só atualiza o layer se mudou (path/mtime). Cheap:
