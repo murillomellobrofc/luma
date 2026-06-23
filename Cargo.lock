@@ -2331,6 +2331,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "luma-menu"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "iced",
+ "iced_layershell",
+ "libluma",
+ "zbus",
+]
+
+[[package]]
 name = "luma-theme"
 version = "0.1.0"
 dependencies = [
