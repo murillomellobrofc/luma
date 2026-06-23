@@ -240,15 +240,26 @@ pub fn read_battery() -> Option<BatteryInfo> {
     let entries = fs::read_dir("/sys/class/power_supply").ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        let name = path.file_name()?.to_str()?.to_string();
-        if !name.starts_with("BAT") {
+        // Bateria de SISTEMA: `type=Battery` E `scope != Device`. Detectar por
+        // type+scope (não por nome `BAT*`) pega laptops que expõem a bateria
+        // com nome fora do padrão (CMB0, macsmc-battery, etc.) e exclui
+        // periféricos (mouse/teclado sem fio = scope=Device). Robustez de
+        // baixo custo pro mundo real; sem bateria de sistema aqui = None.
+        let kind = fs::read_to_string(path.join("type")).unwrap_or_default();
+        if kind.trim() != "Battery" {
             continue;
         }
-        let capacity = fs::read_to_string(path.join("capacity"))
-            .ok()?
-            .trim()
-            .parse::<u8>()
-            .ok()?;
+        let scope = fs::read_to_string(path.join("scope")).unwrap_or_default();
+        if scope.trim() == "Device" {
+            continue;
+        }
+        // Leituras por-entrada: falha = pula a entrada (não aborta a busca).
+        let Some(capacity) = fs::read_to_string(path.join("capacity"))
+            .ok()
+            .and_then(|s| s.trim().parse::<u8>().ok())
+        else {
+            continue;
+        };
         let status = fs::read_to_string(path.join("status"))
             .ok()
             .map(|s| s.trim().to_string())
