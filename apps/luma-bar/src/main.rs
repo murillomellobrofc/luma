@@ -71,6 +71,8 @@ enum Message {
     CloseWindow(u64),
     /// Botão "mostrar área de trabalho" (passo 7).
     ShowDesktop,
+    /// Botão de menu (canto esquerdo) → abre/fecha o luma-menu.
+    OpenMenu,
     /// Bateria lida no boot / mudada pelo sinal: `(present, capacity, charging)`.
     BatteryLoaded((bool, u8, bool)),
     BatteryChanged((bool, u8, bool)),
@@ -203,6 +205,9 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::ShowDesktop => {
             return Task::perform(ipc::show_desktop(), |_| Message::PollWindows);
+        }
+        Message::OpenMenu => {
+            return Task::perform(ipc::show_menu(), |_| Message::Noop);
         }
         // Bateria (passo 3): boot e sinal aplicam igual. `present=false` =
         // sem bateria (esconde o applet).
@@ -470,6 +475,19 @@ fn view(state: &Bar) -> Element<'_, Message> {
         .spacing(6)
         .align_y(iced::Alignment::Center);
 
+    // Botão de menu (canto esquerdo): a marca do Luma, tingida no acento.
+    // Clique chama o ShowMenu do compositor (mesmo caminho do Super).
+    let menu_btn = mouse_area(
+        svg(svg::Handle::from_memory(
+            include_bytes!("../../../assets/branding/icons/icon-luma-menu.svg").as_slice(),
+        ))
+        .width(Length::Fixed(18.0))
+        .height(Length::Fixed(18.0))
+        .style(move |_theme, _status| svg::Style { color: Some(accent) }),
+    )
+    .on_press(Message::OpenMenu)
+    .interaction(iced::mouse::Interaction::Pointer);
+
     // Botão "mostrar área de trabalho" (canto direito, como a barra velha).
     let show_desktop_btn = mouse_area(
         svg(svg::Handle::from_memory(
@@ -498,6 +516,8 @@ fn view(state: &Bar) -> Element<'_, Message> {
     let content = container(
         row![
             Space::new().width(Length::Fixed(12.0)),
+            menu_btn,
+            Space::new().width(Length::Fixed(10.0)),
             windows_row,
             Space::new().width(Length::Fill),
             network_el,

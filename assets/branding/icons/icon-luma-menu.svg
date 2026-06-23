@@ -1,0 +1,9 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Marca do Luma (Light Beam) em cor única, pra tingir no tema. -->
+  <!-- Haste vertical (raio de luz) -->
+  <rect x="0" y="0" width="40" height="200" rx="20" fill="#000000"/>
+  <!-- Base horizontal -->
+  <rect x="0" y="160" width="200" height="40" rx="20" fill="#000000"/>
+  <!-- Ponto luminoso na intersecção -->
+  <circle cx="20" cy="180" r="22" fill="#000000"/>
+</svg>
