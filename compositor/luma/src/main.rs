@@ -150,6 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let volume_rx = data.state.volume_tx.subscribe();
     let network_rx = data.state.network_tx.subscribe();
     let bluetooth_rx = data.state.bluetooth_tx.subscribe();
+    let sni_list = data.state.sni_list.clone();
     dbus_server::spawn(
         dbus_tx,
         available,
@@ -159,6 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         volume_rx,
         network_rx,
         bluetooth_rx,
+        sni_list,
     );
 
     info!("luma pronto, entrando no loop principal");

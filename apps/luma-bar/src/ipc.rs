@@ -110,6 +110,11 @@ pub trait Compositor {
     async fn toggle_notification_sound(&self) -> zbus::Result<()>;
     /// Limpa a central.
     async fn clear_notifications(&self) -> zbus::Result<()>;
+
+    /// Bandeja: itens `(service, object_path, título, tooltip, caminho_ícone)`.
+    async fn tray_items(&self) -> zbus::Result<Vec<(String, String, String, String, String)>>;
+    /// Clique esquerdo num item da bandeja → ativa o app.
+    async fn tray_activate(&self, service: String, path: String) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -507,6 +512,21 @@ pub async fn toggle_notification_sound() {
 pub async fn clear_notifications() {
     if let Ok(p) = proxy().await {
         let _ = p.clear_notifications().await;
+    }
+}
+
+// ─── Bandeja (SNI) ────────────────────────────────────────────────────
+
+pub async fn read_tray_items() -> Vec<(String, String, String, String, String)> {
+    match proxy().await {
+        Ok(p) => p.tray_items().await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub async fn tray_activate(service: String, path: String) {
+    if let Ok(p) = proxy().await {
+        let _ = p.tray_activate(service, path).await;
     }
 }
 

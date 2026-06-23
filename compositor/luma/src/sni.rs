@@ -69,6 +69,52 @@ pub struct DBusMenuItem {
 /// cada frame; thread escreve em registers/updates.
 pub type SniList = Arc<Mutex<Vec<SniItem>>>;
 
+/// Resolve o ícone de um item SNI pra um **caminho de arquivo** (pra a
+/// luma-bar renderizar). Best-effort: prioriza o `icon_name` temático (via o
+/// índice de ícones); senão rasteriza o maior pixmap embutido num PNG temp;
+/// senão "" (a barra cai no fallback).
+pub fn item_icon_path(item: &SniItem) -> String {
+    if !item.icon_name.is_empty() {
+        if let Some(p) = crate::apps::resolve_icon_path(&item.icon_name) {
+            return p.to_string_lossy().to_string();
+        }
+    }
+    if let Some(px) = item
+        .icon_pixmaps
+        .iter()
+        .filter(|p| p.width > 0 && p.height > 0)
+        .max_by_key(|p| p.width as i64 * p.height as i64)
+    {
+        if let Some(path) = write_pixmap_png(&item.service, px) {
+            return path;
+        }
+    }
+    String::new()
+}
+
+/// Rasteriza um pixmap ARGB32-BE num PNG em `/tmp/luma-tray/<service>.png`.
+fn write_pixmap_png(service: &str, px: &SniPixmap) -> Option<String> {
+    let (w, h) = (px.width as u32, px.height as u32);
+    if px.data.len() < (w as usize) * (h as usize) * 4 {
+        return None;
+    }
+    // ARGB32 big-endian → RGBA8.
+    let mut rgba = Vec::with_capacity(px.data.len());
+    for chunk in px.data.chunks_exact(4) {
+        rgba.extend_from_slice(&[chunk[1], chunk[2], chunk[3], chunk[0]]);
+    }
+    let img = image::RgbaImage::from_raw(w, h, rgba)?;
+    let dir = std::path::PathBuf::from("/tmp/luma-tray");
+    std::fs::create_dir_all(&dir).ok()?;
+    let safe: String = service
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect();
+    let path = dir.join(format!("{safe}.png"));
+    img.save(&path).ok()?;
+    Some(path.to_string_lossy().to_string())
+}
+
 /// Inicia a thread D-Bus em background. Retorna a lista compartilhada
 /// (vazia até a thread popular). Se a conexão falhar, a thread loga e
 /// sai — o luma continua funcionando, painel só ficará sempre vazio.
