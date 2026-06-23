@@ -46,6 +46,9 @@ struct Bar {
     /// Rede: nome do ícone do estado ("ethernet-on", "wifi-full"…). Vazio
     /// até o boot ler. Lido no boot + sinal (passo 5).
     network: String,
+    /// Bluetooth: nome do ícone ("bluetooth-on"/"bluetooth-off"). Vazio =
+    /// sem controller → esconde o applet. Boot + sinal.
+    bluetooth: String,
 }
 
 #[to_layer_message]
@@ -88,6 +91,9 @@ enum Message {
     /// Rede lida no boot / mudada pelo sinal: nome do ícone.
     NetworkLoaded(String),
     NetworkChanged(String),
+    /// Bluetooth lido no boot / mudado pelo sinal: nome do ícone.
+    BluetoothLoaded(String),
+    BluetoothChanged(String),
 }
 
 fn now_hm() -> String {
@@ -148,6 +154,7 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_battery(), Message::BatteryLoaded),
         Task::perform(ipc::read_volume(), Message::VolumeLoaded),
         Task::perform(ipc::read_network(), Message::NetworkLoaded),
+        Task::perform(ipc::read_bluetooth(), Message::BluetoothLoaded),
     ]);
     (
         Bar {
@@ -157,6 +164,7 @@ fn boot() -> (Bar, Task<Message>) {
             battery: None,
             volume: (0, false),
             network: String::new(),
+            bluetooth: String::new(),
         },
         read,
     )
@@ -243,6 +251,9 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
+        Message::BluetoothLoaded(icon) | Message::BluetoothChanged(icon) => {
+            state.bluetooth = icon;
+        }
         Message::NetworkLoaded(icon) | Message::NetworkChanged(icon) => {
             state.network = icon;
         }
@@ -268,9 +279,52 @@ fn resolve_label(title: &str, app_id: &str) -> String {
     }
 }
 
-/// Applet de bateria: corpo com fill proporcional + terminal + "%". Carregando
-/// = fill sage (verde); baixa (<20% e descarregando) = coral (alerta próprio,
-/// não o acento); normal = creme.
+/// Handle do SVG de um applet por nome de estado. **Todo applet puxa daqui**
+/// — os SVGs vivem em `assets/branding/icons/`, bundlados via `include_bytes!`.
+/// Ninguém desenha ícone na mão. Fallback: wifi-off.
+fn applet_svg(name: &str) -> svg::Handle {
+    let bytes: &'static [u8] = match name {
+        // rede
+        "ethernet-on" => include_bytes!("../../../assets/branding/icons/icon-ethernet-on.svg"),
+        "ethernet-off" => include_bytes!("../../../assets/branding/icons/icon-ethernet-off.svg"),
+        "wifi-full" => include_bytes!("../../../assets/branding/icons/icon-wifi-full.svg"),
+        "wifi-low" => include_bytes!("../../../assets/branding/icons/icon-wifi-low.svg"),
+        "wifi-none" => include_bytes!("../../../assets/branding/icons/icon-wifi-none.svg"),
+        "wifi-off" => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
+        // volume
+        "volume-high" => include_bytes!("../../../assets/branding/icons/icon-volume-high.svg"),
+        "volume-medium" => include_bytes!("../../../assets/branding/icons/icon-volume-medium.svg"),
+        "volume-low" => include_bytes!("../../../assets/branding/icons/icon-volume-low.svg"),
+        "volume-muted" => include_bytes!("../../../assets/branding/icons/icon-volume-muted.svg"),
+        // bateria
+        "battery-charging" => {
+            include_bytes!("../../../assets/branding/icons/icon-battery-charging.svg")
+        }
+        "battery-high" => include_bytes!("../../../assets/branding/icons/icon-battery-high.svg"),
+        "battery-medium" => {
+            include_bytes!("../../../assets/branding/icons/icon-battery-medium.svg")
+        }
+        "battery-low" => include_bytes!("../../../assets/branding/icons/icon-battery-low.svg"),
+        // bluetooth
+        "bluetooth-on" => include_bytes!("../../../assets/branding/icons/icon-bluetooth-on.svg"),
+        "bluetooth-off" => include_bytes!("../../../assets/branding/icons/icon-bluetooth-off.svg"),
+        _ => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
+    };
+    svg::Handle::from_memory(bytes)
+}
+
+/// Ícone SVG de applet, tamanho fixo, tingido pelo tema.
+fn applet_icon<'a>(name: &str, size: f32, color: Color) -> Element<'a, Message> {
+    svg(applet_svg(name))
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .style(move |_theme, _status| svg::Style { color: Some(color) })
+        .into()
+}
+
+/// Applet de bateria: o SVG do estado + "%". Carregando = sage; baixa (<20% e
+/// descarregando) = coral (alerta próprio, não o acento); normal = creme. O
+/// nível mapeia pro arquivo certo (charging/high/medium/low).
 fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
     let pal = libluma::tokens::Palette::for_contrast(libluma::tokens::high_contrast());
     let cream = libluma::tokens::to_iced(pal.cream);
@@ -283,114 +337,58 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
     } else {
         cream
     };
-
-    let body_w = 22.0;
-    let body_h = 11.0;
-    let pad = 2.0;
-    let fill_w = ((body_w - 2.0 * pad) * (cap as f32 / 100.0)).max(2.0);
-
-    let fill = container(Space::new().width(Length::Fixed(fill_w)).height(Length::Fill)).style(
-        move |_theme| container::Style {
-            background: Some(Background::Color(fill_color)),
-            border: Border {
-                radius: 1.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-    );
-    let body = container(row![fill, Space::new().width(Length::Fill)])
-        .width(Length::Fixed(body_w))
-        .height(Length::Fixed(body_h))
-        .padding(pad)
-        .style(move |_theme| container::Style {
-            border: Border {
-                color: cream,
-                width: 1.0,
-                radius: 3.0.into(),
-            },
-            ..Default::default()
-        });
-    let nub = container(Space::new().width(Length::Fixed(2.0)).height(Length::Fixed(5.0))).style(
-        move |_theme| container::Style {
-            background: Some(Background::Color(cream)),
-            border: Border {
-                radius: 1.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-    );
-    let icon = row![body, nub].spacing(1).align_y(iced::Alignment::Center);
-
-    row![icon, text(format!("{cap}%")).size(13.0).color(fill_color)]
-        .spacing(6)
-        .align_y(iced::Alignment::Center)
-        .into()
-}
-
-/// Handle do SVG de rede pro nome do estado. Os SVGs já existem em
-/// `assets/branding/icons/` — bundlados via `include_bytes!`, mapeados por
-/// nome (o compositor manda o nome via `network_icon_name`). Fallback off.
-fn net_svg(icon: &str) -> svg::Handle {
-    let bytes: &'static [u8] = match icon {
-        "ethernet-on" => include_bytes!("../../../assets/branding/icons/icon-ethernet-on.svg"),
-        "ethernet-off" => include_bytes!("../../../assets/branding/icons/icon-ethernet-off.svg"),
-        "wifi-full" => include_bytes!("../../../assets/branding/icons/icon-wifi-full.svg"),
-        "wifi-low" => include_bytes!("../../../assets/branding/icons/icon-wifi-low.svg"),
-        "wifi-none" => include_bytes!("../../../assets/branding/icons/icon-wifi-none.svg"),
-        _ => include_bytes!("../../../assets/branding/icons/icon-wifi-off.svg"),
+    let name = if charging {
+        "battery-charging"
+    } else if cap >= 66 {
+        "battery-high"
+    } else if cap >= 33 {
+        "battery-medium"
+    } else {
+        "battery-low"
     };
-    svg::Handle::from_memory(bytes)
+
+    row![
+        applet_icon(name, 18.0, fill_color),
+        text(format!("{cap}%")).size(13.0).color(fill_color)
+    ]
+    .spacing(6)
+    .align_y(iced::Alignment::Center)
+    .into()
 }
 
-/// Applet de rede: o ícone SVG do estado (tipo + força), tingido pelo tema.
+/// Applet de rede: o SVG do estado (tipo + força), tingido pelo tema.
 /// Nome no hover fica pra depois (o estado atual não traz SSID).
 fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    svg(net_svg(icon))
-        .width(Length::Fixed(18.0))
-        .height(Length::Fixed(18.0))
-        .style(move |_theme, _status| svg::Style { color: Some(cream) })
-        .into()
+    applet_icon(icon, 18.0, cream)
 }
 
-/// Applet de volume: medidor horizontal + "%", **scroll** muda o nível e
-/// **clique** alterna mudo. Mudo = medidor apagado + "mudo". Segue o tema.
+/// Applet de bluetooth: o SVG do estado (on/off), tingido pelo tema. (Só há
+/// on/off nos assets — "conectado" usa on.) Escondido se não há controller.
+fn bluetooth_applet<'a>(icon: &str) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    applet_icon(icon, 18.0, cream)
+}
+
+/// Applet de volume: o SVG do estado (alto/médio/baixo/mudo) + "%". **scroll**
+/// muda o nível e **clique** alterna mudo. Mudo = ícone mudo + "mudo".
 fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
     let pal = libluma::tokens::Palette::for_contrast(libluma::tokens::high_contrast());
     let cream = libluma::tokens::to_iced(pal.cream);
-    let track = Color { a: 0.18, ..cream };
-    let fill_color = if muted {
-        Color { a: 0.30, ..cream }
+    let name = if muted || level == 0 {
+        "volume-muted"
+    } else if level >= 66 {
+        "volume-high"
+    } else if level >= 33 {
+        "volume-medium"
+    } else {
+        "volume-low"
+    };
+    let icon_color = if muted {
+        Color { a: 0.45, ..cream }
     } else {
         cream
     };
-    let bar_w = 30.0;
-    let bar_h = 5.0;
-    let fill_w = (bar_w * (level as f32 / 100.0)).max(1.0);
-
-    let fill = container(Space::new().width(Length::Fixed(fill_w)).height(Length::Fill)).style(
-        move |_theme| container::Style {
-            background: Some(Background::Color(fill_color)),
-            border: Border {
-                radius: 2.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-    );
-    let meter = container(row![fill, Space::new().width(Length::Fill)])
-        .width(Length::Fixed(bar_w))
-        .height(Length::Fixed(bar_h))
-        .style(move |_theme| container::Style {
-            background: Some(Background::Color(track)),
-            border: Border {
-                radius: 2.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
 
     let label = if muted {
         "mudo".to_string()
@@ -403,9 +401,12 @@ fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
         cream
     };
 
-    let content = row![meter, text(label).size(12.0).color(label_color)]
-        .spacing(6)
-        .align_y(iced::Alignment::Center);
+    let content = row![
+        applet_icon(name, 18.0, icon_color),
+        text(label).size(12.0).color(label_color)
+    ]
+    .spacing(6)
+    .align_y(iced::Alignment::Center);
 
     mouse_area(content)
         .on_scroll(Message::VolumeScroll)
@@ -512,6 +513,12 @@ fn view(state: &Bar) -> Element<'_, Message> {
     } else {
         network_applet(&state.network)
     };
+    // Bluetooth: o ícone do estado; vazio = sem controller → esconde.
+    let bluetooth_el: Element<Message> = if state.bluetooth.is_empty() {
+        Space::new().width(Length::Fixed(0.0)).into()
+    } else {
+        bluetooth_applet(&state.bluetooth)
+    };
 
     let content = container(
         row![
@@ -520,6 +527,8 @@ fn view(state: &Bar) -> Element<'_, Message> {
             Space::new().width(Length::Fixed(10.0)),
             windows_row,
             Space::new().width(Length::Fill),
+            bluetooth_el,
+            Space::new().width(Length::Fixed(14.0)),
             network_el,
             Space::new().width(Length::Fixed(14.0)),
             volume_applet(state.volume.0, state.volume.1),
@@ -573,7 +582,22 @@ fn subscription(_state: &Bar) -> iced::Subscription<Message> {
         iced::Subscription::run(battery_subscription),
         iced::Subscription::run(volume_subscription),
         iced::Subscription::run(network_subscription),
+        iced::Subscription::run(bluetooth_subscription),
     ])
+}
+
+fn bluetooth_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::bluetooth_signal_stream().await {
+            Ok(s) => s.map(Message::BluetoothChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-bar: subscription de bluetooth falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 fn network_subscription() -> impl iced::futures::Stream<Item = Message> {

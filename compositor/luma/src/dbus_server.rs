@@ -93,6 +93,8 @@ struct CompositorService {
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     /// Receptor `watch` da rede (luma-bar passo 5): nome do ícone do estado.
     network: tokio::sync::watch::Receiver<String>,
+    /// Receptor `watch` do bluetooth: nome do ícone do estado (on/off/"").
+    bluetooth: tokio::sync::watch::Receiver<String>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -465,6 +467,19 @@ impl CompositorService {
     #[zbus(signal)]
     async fn network_changed(emitter: &SignalEmitter<'_>, icon: &str) -> zbus::Result<()>;
 
+    // ─── Bluetooth / applet ───────────────────────────────────────────
+
+    /// Nome do ícone do estado de bluetooth ("bluetooth-on", "bluetooth-off",
+    /// ou "" se não há controller). A barra mapeia pro SVG. Mesmo molde da
+    /// rede: lê no boot + escuta o sinal.
+    async fn bluetooth(&self) -> String {
+        self.bluetooth.borrow().clone()
+    }
+
+    /// **Sinal de mudança** do bluetooth — emitido quando o `watch` muda.
+    #[zbus(signal)]
+    async fn bluetooth_changed(emitter: &SignalEmitter<'_>, icon: &str) -> zbus::Result<()>;
+
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────
 
     /// Pede o toggle do menu (luma-menu). Emite `menu_toggle`; o luma-menu
@@ -624,11 +639,21 @@ pub fn spawn(
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
+    bluetooth: tokio::sync::watch::Receiver<String>,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
-    if let Err(err) = builder
-        .spawn(move || run(cmd_tx, available, notifications, windows, battery, volume, network))
-    {
+    if let Err(err) = builder.spawn(move || {
+        run(
+            cmd_tx,
+            available,
+            notifications,
+            windows,
+            battery,
+            volume,
+            network,
+            bluetooth,
+        )
+    }) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
     }
 }
@@ -641,6 +666,7 @@ fn run(
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
+    bluetooth: tokio::sync::watch::Receiver<String>,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -653,8 +679,17 @@ fn run(
         }
     };
     rt.block_on(async move {
-        if let Err(err) =
-            serve(cmd_tx, available, notifications, windows, battery, volume, network).await
+        if let Err(err) = serve(
+            cmd_tx,
+            available,
+            notifications,
+            windows,
+            battery,
+            volume,
+            network,
+            bluetooth,
+        )
+        .await
         {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
@@ -669,6 +704,7 @@ async fn serve(
     battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
+    bluetooth: tokio::sync::watch::Receiver<String>,
 ) -> zbus::Result<()> {
     let service = CompositorService {
         available_widgets: available,
@@ -678,6 +714,7 @@ async fn serve(
         battery: battery.clone(),
         volume: volume.clone(),
         network: network.clone(),
+        bluetooth: bluetooth.clone(),
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -693,6 +730,7 @@ async fn serve(
     let mut battery = battery;
     let mut volume = volume;
     let mut network = network;
+    let mut bluetooth = bluetooth;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -714,6 +752,13 @@ async fn serve(
                 let icon = network.borrow().clone();
                 if let Err(err) = emitter.network_changed(&icon).await {
                     error!("D-Bus: falha ao emitir sinal de rede: {err}");
+                }
+            }
+            r = bluetooth.changed() => {
+                if r.is_err() { break; }
+                let icon = bluetooth.borrow().clone();
+                if let Err(err) = emitter.bluetooth_changed(&icon).await {
+                    error!("D-Bus: falha ao emitir sinal de bluetooth: {err}");
                 }
             }
         }

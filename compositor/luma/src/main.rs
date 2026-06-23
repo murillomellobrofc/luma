@@ -148,6 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Receiver do volume (luma-bar passo 4): mesmo esquema da bateria.
     let volume_rx = data.state.volume_tx.subscribe();
     let network_rx = data.state.network_tx.subscribe();
+    let bluetooth_rx = data.state.bluetooth_tx.subscribe();
     dbus_server::spawn(
         dbus_tx,
         available,
@@ -156,6 +157,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         battery_rx,
         volume_rx,
         network_rx,
+        bluetooth_rx,
     );
 
     info!("luma pronto, entrando no loop principal");

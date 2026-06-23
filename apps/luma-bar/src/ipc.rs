@@ -51,6 +51,11 @@ pub trait Compositor {
     async fn network(&self) -> zbus::Result<String>;
     #[zbus(signal)]
     fn network_changed(&self, icon: &str) -> zbus::Result<()>;
+
+    /// Bluetooth: nome do ícone do estado ("bluetooth-on"/"bluetooth-off"/"").
+    async fn bluetooth(&self) -> zbus::Result<String>;
+    #[zbus(signal)]
+    fn bluetooth_changed(&self, icon: &str) -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -243,5 +248,23 @@ pub async fn network_signal_stream() -> zbus::Result<impl iced::futures::Stream<
     let conn = zbus::Connection::session().await?;
     let proxy = CompositorProxy::new(&conn).await?;
     let signals = proxy.receive_network_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| a.icon().to_string()) }))
+}
+
+pub async fn read_bluetooth() -> String {
+    async fn inner() -> zbus::Result<String> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.bluetooth().await
+    }
+    inner().await.unwrap_or_default()
+}
+
+/// Stream do sinal `bluetooth_changed` — o nome do ícone novo.
+pub async fn bluetooth_signal_stream() -> zbus::Result<impl iced::futures::Stream<Item = String>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_bluetooth_changed().await?;
     Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| a.icon().to_string()) }))
 }
