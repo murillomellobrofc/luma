@@ -8,7 +8,7 @@ mod ipc;
 
 use std::time::Duration;
 
-use iced::widget::{button, column, container, row, text, Space};
+use iced::widget::{button, column, container, mouse_area, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Task};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -37,6 +37,9 @@ struct Bar {
     /// Bateria: `Some((capacity, charging))`, ou `None` se não há bateria.
     /// Lida no boot + atualizada pelo sinal (sem poll — passo 3).
     battery: Option<(u8, bool)>,
+    /// Volume: `(level 0–100, muted)`. Lido no boot + sinal; mexido por
+    /// scroll/clique com update otimista (passo 4).
+    volume: (u8, bool),
 }
 
 #[to_layer_message]
@@ -59,6 +62,15 @@ enum Message {
     /// Bateria lida no boot / mudada pelo sinal: `(present, capacity, charging)`.
     BatteryLoaded((bool, u8, bool)),
     BatteryChanged((bool, u8, bool)),
+    /// Volume lido no boot / mudado pelo sinal: `(level, muted)`.
+    VolumeLoaded((u8, bool)),
+    VolumeChanged((u8, bool)),
+    /// Scroll no applet de volume → muda o nível (±5).
+    VolumeScroll(iced::mouse::ScrollDelta),
+    /// Clique no applet de volume → alterna mudo.
+    ToggleMute,
+    /// No-op (descarta o resultado de um set fire-and-forget).
+    Noop,
 }
 
 fn now_hm() -> String {
@@ -72,12 +84,14 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_high_contrast(), Message::HighContrastLoaded),
         Task::perform(ipc::read_windows(), Message::WindowsLoaded),
         Task::perform(ipc::read_battery(), Message::BatteryLoaded),
+        Task::perform(ipc::read_volume(), Message::VolumeLoaded),
     ]);
     (
         Bar {
             clock: now_hm(),
             windows: Vec::new(),
             battery: None,
+            volume: (0, false),
         },
         read,
     )
@@ -119,6 +133,34 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::BatteryLoaded((present, cap, chg)) | Message::BatteryChanged((present, cap, chg)) => {
             state.battery = present.then_some((cap, chg));
         }
+        // Volume (passo 4): boot/sinal aplicam; scroll/clique mexem otimista +
+        // mandam o set/toggle (o sinal confirma).
+        Message::VolumeLoaded((level, muted)) | Message::VolumeChanged((level, muted)) => {
+            state.volume = (level, muted);
+        }
+        Message::VolumeScroll(delta) => {
+            let y = match delta {
+                iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+            };
+            let step: i32 = if y > 0.0 {
+                5
+            } else if y < 0.0 {
+                -5
+            } else {
+                0
+            };
+            if step != 0 {
+                let new = (state.volume.0 as i32 + step).clamp(0, 100) as u8;
+                state.volume.0 = new; // otimista
+                return Task::perform(ipc::set_volume(new), |_| Message::Noop);
+            }
+        }
+        Message::ToggleMute => {
+            state.volume.1 = !state.volume.1; // otimista
+            return Task::perform(ipc::toggle_mute(), |_| Message::Noop);
+        }
+        Message::Noop => {}
         _ => {}
     }
     Task::none()
@@ -202,6 +244,65 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
         .into()
 }
 
+/// Applet de volume: medidor horizontal + "%", **scroll** muda o nível e
+/// **clique** alterna mudo. Mudo = medidor apagado + "mudo". Segue o tema.
+fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
+    let pal = libluma::tokens::Palette::for_contrast(libluma::tokens::high_contrast());
+    let cream = libluma::tokens::to_iced(pal.cream);
+    let track = Color { a: 0.18, ..cream };
+    let fill_color = if muted {
+        Color { a: 0.30, ..cream }
+    } else {
+        cream
+    };
+    let bar_w = 30.0;
+    let bar_h = 5.0;
+    let fill_w = (bar_w * (level as f32 / 100.0)).max(1.0);
+
+    let fill = container(Space::new().width(Length::Fixed(fill_w)).height(Length::Fill)).style(
+        move |_theme| container::Style {
+            background: Some(Background::Color(fill_color)),
+            border: Border {
+                radius: 2.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let meter = container(row![fill, Space::new().width(Length::Fill)])
+        .width(Length::Fixed(bar_w))
+        .height(Length::Fixed(bar_h))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(track)),
+            border: Border {
+                radius: 2.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let label = if muted {
+        "mudo".to_string()
+    } else {
+        format!("{level}%")
+    };
+    let label_color = if muted {
+        Color { a: 0.55, ..cream }
+    } else {
+        cream
+    };
+
+    let content = row![meter, text(label).size(12.0).color(label_color)]
+        .spacing(6)
+        .align_y(iced::Alignment::Center);
+
+    mouse_area(content)
+        .on_scroll(Message::VolumeScroll)
+        .on_press(Message::ToggleMute)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
 fn view(state: &Bar) -> Element<'_, Message> {
     let sem = libluma::tokens::semantic_default();
     let bar_bg = libluma::tokens::to_iced(sem.surface);
@@ -265,6 +366,8 @@ fn view(state: &Bar) -> Element<'_, Message> {
             Space::new().width(Length::Fixed(12.0)),
             windows_row,
             Space::new().width(Length::Fill),
+            volume_applet(state.volume.0, state.volume.1),
+            Space::new().width(Length::Fixed(14.0)),
             battery_el,
             Space::new().width(Length::Fixed(14.0)),
             dot,
@@ -304,7 +407,22 @@ fn subscription(_state: &Bar) -> iced::Subscription<Message> {
         iced::Subscription::run(accent_subscription),
         iced::Subscription::run(high_contrast_subscription),
         iced::Subscription::run(battery_subscription),
+        iced::Subscription::run(volume_subscription),
     ])
+}
+
+fn volume_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::volume_signal_stream().await {
+            Ok(s) => s.map(Message::VolumeChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-bar: subscription de volume falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
 }
 
 fn battery_subscription() -> impl iced::futures::Stream<Item = Message> {

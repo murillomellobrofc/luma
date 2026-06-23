@@ -689,6 +689,7 @@ pub fn init_winit(
                     // H33.taskbar.SVG: refresh dos sensores se >= 3s + load
                     // dos SVGs corretos pra cada estado.
                     let bat_before = data.state.tray.battery_info;
+                    let vol_before = data.state.tray.volume_state;
                     crate::tray::refresh_if_stale(&mut data.state.tray);
                     // Bateria mudou? Manda no watch → o D-Bus emite o sinal
                     // pro applet da luma-bar (passo 3). Só no delta (a bateria
@@ -698,6 +699,12 @@ pub fn init_winit(
                             .state
                             .battery_tx
                             .send(crate::dbus_server::battery_tuple(data.state.tray.battery_info));
+                    }
+                    // Volume mudou por fora (outro app)? Mesmo esquema (passo 4).
+                    // Tecla e set por D-Bus já publicam direto, na hora.
+                    if data.state.tray.volume_state != vol_before {
+                        let vs = data.state.tray.volume_state;
+                        let _ = data.state.volume_tx.send((vs.level, vs.muted));
                     }
                     // H50.icons.7: polling 2s do ~/Desktop. Re-scan e
                     // só atualiza o layer se mudou (path/mtime). Cheap:

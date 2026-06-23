@@ -75,6 +75,11 @@ pub struct LumaState {
     /// (send síncrono, do calloop); a task async do D-Bus emite o sinal no
     /// `changed()`. `watch` = "estado que muda, notifica + carrega o último".
     pub battery_tx: tokio::sync::watch::Sender<(bool, u8, bool)>,
+    /// Canal `watch` do volume pro applet da luma-bar (passo 4): `(level
+    /// 0–100, muted)`. Mesmo padrão da bateria — mão dupla: o compositor
+    /// manda quando muda (tecla, set por D-Bus, ou mudança externa via refresh
+    /// do tray); a task do D-Bus emite o sinal.
+    pub volume_tx: tokio::sync::watch::Sender<(u8, bool)>,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -483,7 +488,39 @@ impl LumaState {
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space.element_under(pos).and_then(|(item, location)| {
+        use smithay::desktop::{layer_map_for_output, WindowSurfaceType};
+        use smithay::wayland::shell::wlr_layer::Layer as WlrLayer;
+
+        // Output sob o cursor (nested = 1 output). Pra hit-test dos layers.
+        let output = self
+            .space
+            .output_under(pos)
+            .next()
+            .or_else(|| self.space.outputs().next())?
+            .clone();
+        let output_loc = self
+            .space
+            .output_geometry(&output)
+            .map(|g| g.loc)
+            .unwrap_or_default();
+        let layers = layer_map_for_output(&output);
+
+        // Hit-test num layer da camada dada, devolvendo (surface, loc global).
+        let layer_hit = |which: WlrLayer| -> Option<(WlSurface, Point<f64, Logical>)> {
+            let layer = layers.layer_under(which, pos)?;
+            let base = (output_loc + layers.layer_geometry(layer)?.loc).to_f64();
+            layer
+                .surface_under(pos - base, WindowSurfaceType::ALL)
+                .map(|(s, p)| (s, base + p.to_f64()))
+        };
+
+        // Camadas ACIMA das janelas (a luma-bar é Top).
+        if let Some(hit) = layer_hit(WlrLayer::Overlay).or_else(|| layer_hit(WlrLayer::Top)) {
+            return Some(hit);
+        }
+
+        // Janelas (com o offset da decoração).
+        if let Some(hit) = self.space.element_under(pos).and_then(|(item, location)| {
             let luma_win = item.as_window()?;
             let offset = Point::<f64, Logical>::from((
                 crate::decoration::BORDER_THICKNESS as f64,
@@ -500,7 +537,12 @@ impl LumaState {
                 .window()
                 .surface_under(in_surface, WindowSurfaceType::ALL)
                 .map(|(s, p)| (s, (p + location).to_f64() + offset))
-        })
+        }) {
+            return Some(hit);
+        }
+
+        // Camadas ABAIXO das janelas (background/bottom).
+        layer_hit(WlrLayer::Bottom).or_else(|| layer_hit(WlrLayer::Background))
     }
 
     /// Aplica snap left/right (Aero-style): a janela ocupa metade do
@@ -757,6 +799,15 @@ impl LumaState {
         }
     }
 
+    /// Relê o volume do default sink e manda no `watch` (luma-bar passo 4) —
+    /// o D-Bus emite o sinal. Chamado após qualquer mudança (tecla, set por
+    /// D-Bus). Relê pra ficar igual ao que o `read_volume` reporta (0–100),
+    /// consistente com o refresh do tray.
+    pub fn publish_volume(&self) {
+        let vs = crate::tray::read_volume();
+        let _ = self.volume_tx.send((vs.level, vs.muted));
+    }
+
     /// Ativa (foca + levanta) a janela com esta id (luma-bar passo 2). Id
     /// desconhecida = no-op. Mesma lógica do clique na barra velha.
     pub fn activate_window_by_id(&mut self, id: u64) {
@@ -796,6 +847,9 @@ impl LumaState {
         // Bateria: inicia o watch já com o estado atual (a barra lê no boot).
         let (battery_tx, _) =
             tokio::sync::watch::channel(crate::dbus_server::battery_tuple(crate::tray::read_battery()));
+        // Volume: idem, do estado atual do default sink.
+        let vol0 = crate::tray::read_volume();
+        let (volume_tx, _) = tokio::sync::watch::channel((vol0.level, vol0.muted));
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -901,6 +955,7 @@ impl LumaState {
             windows,
             next_window_id: 1,
             battery_tx,
+            volume_tx,
             shm_state,
             output_manager_state,
             seat_state,

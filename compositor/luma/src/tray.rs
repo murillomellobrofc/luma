@@ -70,7 +70,7 @@ impl Default for BluetoothState {
 }
 
 /// Estado do volume do sistema.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct VolumeState {
     /// 0..100 (percentual).
     pub level: u8,

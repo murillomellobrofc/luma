@@ -284,10 +284,25 @@ fn volume_step(state: &mut LumaState, delta_pct: i32) {
     crate::audio::set_volume(sink.id, new_pct as u8);
     let new_val = new_pct as f32 / 100.0;
     state.osd = Some(crate::osd::Osd::volume(new_val, sink.muted));
+    // Reflete no applet da luma-bar (passo 4) por sinal.
+    state.publish_volume();
 }
 
-/// Toggle mute do default sink + atualiza OSD com o novo estado.
-fn volume_mute_toggle(state: &mut LumaState) {
+/// Seta o volume do default sink pra um valor absoluto (0–150%) + OSD +
+/// publica pro applet. Usado pelo `SetVolume` do D-Bus (scroll na barra).
+pub(crate) fn set_volume_abs(state: &mut LumaState, pct: u8) {
+    let Some(sink) = default_sink() else {
+        return;
+    };
+    let pct = pct.min(150);
+    crate::audio::set_volume(sink.id, pct);
+    state.osd = Some(crate::osd::Osd::volume(pct as f32 / 100.0, sink.muted));
+    state.publish_volume();
+}
+
+/// Toggle mute do default sink + atualiza OSD com o novo estado. `pub(crate)`
+/// pra o `ToggleMute` do D-Bus (clique na barra) reusar.
+pub(crate) fn volume_mute_toggle(state: &mut LumaState) {
     let Some(sink) = default_sink() else {
         return;
     };
@@ -298,6 +313,7 @@ fn volume_mute_toggle(state: &mut LumaState) {
     } else {
         state.osd = Some(crate::osd::Osd::volume(sink.volume, !sink.muted));
     }
+    state.publish_volume();
 }
 
 /// Step de brilho. No-op (e nada de OSD) se nenhum backend disponível.
