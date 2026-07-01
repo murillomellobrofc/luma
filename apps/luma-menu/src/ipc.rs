@@ -28,6 +28,12 @@ pub trait Compositor {
     /// Avisa o compositor que o context menu do desktop fechou.
     async fn desktop_menu_closed(&self) -> zbus::Result<()>;
 
+    /// Ações do context menu que tocam o compositor.
+    async fn arrange_icons(&self, kind: u8) -> zbus::Result<()>;
+    async fn paste_desktop(&self) -> zbus::Result<()>;
+    async fn create_new(&self, kind: u8) -> zbus::Result<()>;
+    async fn change_wallpaper(&self) -> zbus::Result<()>;
+
     /// Sessão (passo 3): desligar/reiniciar/suspender/bloquear.
     async fn power_off(&self) -> zbus::Result<()>;
     async fn reboot(&self) -> zbus::Result<()>;
@@ -68,6 +74,30 @@ pub async fn lock() {
 pub async fn desktop_menu_closed() {
     if let Ok(p) = session_proxy().await {
         let _ = p.desktop_menu_closed().await;
+    }
+}
+
+pub async fn arrange_icons(kind: u8) {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.arrange_icons(kind).await;
+    }
+}
+
+pub async fn paste_desktop() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.paste_desktop().await;
+    }
+}
+
+pub async fn create_new(kind: u8) {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.create_new(kind).await;
+    }
+}
+
+pub async fn change_wallpaper() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.change_wallpaper().await;
     }
 }
 

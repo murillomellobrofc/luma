@@ -26,14 +26,26 @@ enum Pane {
     All,
 }
 
-/// Ação de item do context menu do desktop (só as diretas no núcleo; as que
-/// tocam o compositor — organizar/colar/wallpaper/criar — vêm no commit 2).
+/// Ação de item do context menu do desktop. Diretas (spawn) + as que tocam o
+/// compositor (via D-Bus) + as dos submenus.
 #[derive(Debug, Clone, Copy)]
 enum CtxAction {
+    // Diretas (cliente spawna).
     Terminal,
     AddWidget,
     Customize,
     Settings,
+    // Compositor (D-Bus).
+    Paste,
+    Wallpaper,
+    // Submenu "Criar novo".
+    CreateFolder,
+    CreateText,
+    CreateMarkdown,
+    // Submenu "Organizar ícones".
+    ArrangeName,
+    ArrangeKind,
+    ArrangeDate,
 }
 
 /// Context menu do desktop aberto: a surface + o ponto do clique + o tamanho
@@ -80,6 +92,8 @@ struct Menu {
     confirm: Option<Confirm>,
     /// Context menu do desktop aberto (surface própria), ou None.
     ctx: Option<CtxMenu>,
+    /// Submenu aberto no context menu: 0=Criar novo, 1=Organizar; None=nenhum.
+    ctx_sub: Option<u8>,
 }
 
 #[to_layer_message(multi)]
@@ -115,6 +129,8 @@ enum Message {
     CloseCtx,
     /// Clique num item do context menu → ação + fecha.
     CtxRun(CtxAction),
+    /// Hover num item do context menu → abre/fecha o submenu daquele item.
+    CtxHover(Option<u8>),
     AccentLoaded(Result<String, String>),
     AccentChanged(String),
     HighContrastLoaded(Result<bool, String>),
@@ -176,6 +192,7 @@ fn boot() -> (Menu, Task<Message>) {
             search: String::new(),
             confirm: None,
             ctx: None,
+            ctx_sub: None,
         },
         read,
     )
@@ -208,6 +225,7 @@ fn close(state: &mut Menu) -> Task<Message> {
 /// Fecha o context menu do desktop se aberto + avisa o compositor. Usado pra
 /// exclusão mútua (abrir o menu iniciar fecha o context menu, e vice-versa).
 fn close_ctx(state: &mut Menu) -> Task<Message> {
+    state.ctx_sub = None;
     if let Some(c) = state.ctx.take() {
         return Task::batch([
             Task::perform(ipc::desktop_menu_closed(), |_| Message::Noop),
@@ -269,6 +287,7 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             } else {
                 Task::none()
             };
+            state.ctx_sub = None;
             let (id, open) = Message::layershell_open(ctx_settings());
             state.ctx = Some(CtxMenu {
                 id,
@@ -288,21 +307,45 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             }
         }
         Message::CtxRun(action) => {
-            match action {
-                CtxAction::Terminal => apps::open_terminal(),
-                CtxAction::AddWidget => {
-                    apps::launch_config_args(&["--tab", "widgets", "--target", "desktop"])
+            // Diretas: o cliente spawna. Compositor: pede por D-Bus.
+            let act = match action {
+                CtxAction::Terminal => {
+                    apps::open_terminal();
+                    Task::none()
                 }
-                CtxAction::Customize => apps::launch_config_args(&["--tab", "widgets"]),
-                CtxAction::Settings => apps::launch_config(),
-            }
-            if let Some(c) = state.ctx.take() {
-                return Task::batch([
+                CtxAction::AddWidget => {
+                    apps::launch_config_args(&["--tab", "widgets", "--target", "desktop"]);
+                    Task::none()
+                }
+                CtxAction::Customize => {
+                    apps::launch_config_args(&["--tab", "widgets"]);
+                    Task::none()
+                }
+                CtxAction::Settings => {
+                    apps::launch_config();
+                    Task::none()
+                }
+                CtxAction::Paste => Task::perform(ipc::paste_desktop(), |_| Message::Noop),
+                CtxAction::Wallpaper => Task::perform(ipc::change_wallpaper(), |_| Message::Noop),
+                CtxAction::CreateFolder => Task::perform(ipc::create_new(0), |_| Message::Noop),
+                CtxAction::CreateText => Task::perform(ipc::create_new(1), |_| Message::Noop),
+                CtxAction::CreateMarkdown => Task::perform(ipc::create_new(2), |_| Message::Noop),
+                CtxAction::ArrangeName => Task::perform(ipc::arrange_icons(0), |_| Message::Noop),
+                CtxAction::ArrangeKind => Task::perform(ipc::arrange_icons(1), |_| Message::Noop),
+                CtxAction::ArrangeDate => Task::perform(ipc::arrange_icons(2), |_| Message::Noop),
+            };
+            state.ctx_sub = None;
+            let close = if let Some(c) = state.ctx.take() {
+                Task::batch([
                     Task::perform(ipc::desktop_menu_closed(), |_| Message::Noop),
                     Task::done(Message::RemoveWindow(c.id)),
-                ]);
-            }
+                ])
+            } else {
+                Task::none()
+            };
+            return Task::batch([act, close]);
         }
+        Message::CtxHover(sub) => state.ctx_sub = sub,
         Message::DoConfirm => {
             let action = match state.confirm.take() {
                 Some(Confirm::PowerOff) => Task::perform(ipc::power_off(), |_| Message::Noop),
@@ -652,19 +695,23 @@ fn icon_button<'a>(name: &str, _color: Color, msg: Message) -> Element<'a, Messa
         .into()
 }
 
-/// Um item do context menu: ícone + label + (atalho/seta). `action` None =
-/// inerte/desabilitado (apagado, sem clique) — os submenus e o que toca o
-/// compositor entram no commit 2.
+/// Um item do context menu: ícone + label + (atalho/seta). `action` Some =
+/// clicável (roda a ação). `hover` Some(idx) = tem submenu (idx do submenu que
+/// abre no hover). Item inerte de verdade = ambos None (apagado, sem clique).
+/// Todo item emite `CtxHover(hover)` ao entrar: parents abrem seu submenu, os
+/// demais mandam None e fecham qualquer submenu aberto.
 fn ctx_item<'a>(
     icon: &str,
     label: &'a str,
     trailing: &'a str,
     action: Option<CtxAction>,
+    hover: Option<u8>,
 ) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
     let secondary =
         libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
-    let color = if action.is_some() { cream } else { secondary };
+    let interactive = action.is_some() || hover.is_some();
+    let color = if interactive { cream } else { secondary };
     let content = row![
         svg_icon(icon, 16.0, color),
         text(label).size(13.0).color(color),
@@ -676,13 +723,34 @@ fn ctx_item<'a>(
     let inner = container(content)
         .width(Length::Fill)
         .padding(Padding::from([6.0, 12.0]));
-    match action {
-        Some(a) => mouse_area(inner)
-            .on_press(Message::CtxRun(a))
-            .interaction(iced::mouse::Interaction::Pointer)
-            .into(),
-        None => inner.into(),
+    let mut ma = mouse_area(inner);
+    // Só item-pai (hover Some) mexe no submenu: abre o seu / troca do outro. Item
+    // comum NÃO manda None — senão cruzar ele a caminho do submenu o fecharia.
+    if hover.is_some() {
+        ma = ma
+            .on_enter(Message::CtxHover(hover))
+            .interaction(iced::mouse::Interaction::Pointer);
     }
+    if let Some(a) = action {
+        ma = ma
+            .on_press(Message::CtxRun(a))
+            .interaction(iced::mouse::Interaction::Pointer);
+    }
+    ma.into()
+}
+
+/// Item de submenu: só label + ação (sem ícone/atalho). Mantém o submenu aberto
+/// no hover (reafirma `sub`) e roda a ação no clique.
+fn ctx_subitem<'a>(label: &'a str, action: CtxAction, sub: u8) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let content = container(text(label).size(13.0).color(cream))
+        .width(Length::Fill)
+        .padding(Padding::from([6.0, 12.0]));
+    mouse_area(content)
+        .on_enter(Message::CtxHover(Some(sub)))
+        .on_press(Message::CtxRun(action))
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
 }
 
 /// Divisória do context menu.
@@ -698,9 +766,62 @@ fn ctx_sep<'a>() -> Element<'a, Message> {
         .into()
 }
 
+/// Card de um submenu do context menu (Criar novo / Organizar). Mesmo visual do
+/// card principal, mais estreito, posicionado ao lado do item pai.
+fn ctx_submenu<'a>(sub: u8) -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let accent = libluma::tokens::accent();
+
+    let accent_line = container(Space::new().width(Length::Fill).height(Length::Fixed(2.0)))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(accent)),
+            ..Default::default()
+        });
+
+    let items = match sub {
+        0 => column![
+            ctx_subitem("Pasta", CtxAction::CreateFolder, 0),
+            ctx_subitem("Arquivo de texto", CtxAction::CreateText, 0),
+            ctx_subitem("Documento (Markdown)", CtxAction::CreateMarkdown, 0),
+        ],
+        _ => column![
+            ctx_subitem("Por nome", CtxAction::ArrangeName, 1),
+            ctx_subitem("Por tipo", CtxAction::ArrangeKind, 1),
+            ctx_subitem("Por data", CtxAction::ArrangeDate, 1),
+        ],
+    }
+    .spacing(1.0);
+
+    mouse_area(
+        container(column![accent_line, items].spacing(6.0))
+            .width(Length::Fixed(CTX_SUB_W as f32))
+            .padding(Padding::from([6.0, 0.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 12.0.into(),
+                    width: 1.0,
+                    color: Color { a: 0.22, ..cream },
+                },
+                ..Default::default()
+            }),
+    )
+    // Reafirma o submenu aberto: entrar no card não fecha.
+    .on_enter(Message::CtxHover(Some(sub)))
+    .on_press(Message::Noop)
+    .into()
+}
+
+/// Largura do card principal e do submenu (px), usadas na proteção de borda.
+const CTX_MENU_W: i32 = 260;
+const CTX_SUB_W: i32 = 210;
+
 /// Context menu do desktop, no ponto do clique, com proteção de borda. Cara
 /// de sempre: card surface + linha de acento no topo + itens + separadores.
-fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
+/// `sub` = submenu aberto no hover (0 Criar novo, 1 Organizar; None nenhum).
+fn ctx_view(c: &CtxMenu, sub: Option<u8>) -> Element<'static, Message> {
     let sem = libluma::tokens::semantic_default();
     let surface = libluma::tokens::to_iced(sem.surface);
     let cream = libluma::tokens::to_iced(sem.text);
@@ -723,24 +844,24 @@ fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
         });
 
     let items = column![
-        ctx_item("ctx-new", "Criar novo", "▸", None),
-        ctx_item("ctx-paste", "Colar", "Ctrl+V", None),
-        ctx_item("ctx-arrange", "Organizar ícones", "▸", None),
+        ctx_item("ctx-new", "Criar novo", "▸", None, Some(0)),
+        ctx_item("ctx-paste", "Colar", "Ctrl+V", Some(CtxAction::Paste), None),
+        ctx_item("ctx-arrange", "Organizar ícones", "▸", None, Some(1)),
         ctx_sep(),
-        ctx_item("ctx-terminal", "Abrir terminal aqui", "", Some(CtxAction::Terminal)),
-        ctx_item("ctx-wallpaper", "Mudar papel de parede", "▸", None),
+        ctx_item("ctx-terminal", "Abrir terminal aqui", "", Some(CtxAction::Terminal), None),
+        ctx_item("ctx-wallpaper", "Mudar papel de parede", "", Some(CtxAction::Wallpaper), None),
         ctx_sep(),
-        ctx_item("ctx-new", "Adicionar widget ao desktop", "", Some(CtxAction::AddWidget)),
-        ctx_item("ctx-settings", "Personalizar desktop", "", Some(CtxAction::Customize)),
+        ctx_item("ctx-new", "Adicionar widget ao desktop", "", Some(CtxAction::AddWidget), None),
+        ctx_item("ctx-settings", "Personalizar desktop", "", Some(CtxAction::Customize), None),
         ctx_sep(),
-        ctx_item("ctx-display", "Configurar tela", "", None),
-        ctx_item("ctx-settings", "Configurações do Luma", "", Some(CtxAction::Settings)),
+        ctx_item("ctx-display", "Configurar tela", "", None, None),
+        ctx_item("ctx-settings", "Configurações do Luma", "", Some(CtxAction::Settings), None),
     ]
     .spacing(1.0);
 
     let card = mouse_area(
         container(column![accent_line, items].spacing(6.0))
-            .width(Length::Fixed(260.0))
+            .width(Length::Fixed(CTX_MENU_W as f32))
             .padding(Padding::from([6.0, 0.0]))
             .style(move |_theme| container::Style {
                 background: Some(Background::Color(surface)),
@@ -755,7 +876,7 @@ fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
     .on_press(Message::Noop);
 
     // Proteção de borda: abre pra cima/esquerda se não couber.
-    let menu_w = 260;
+    let menu_w = CTX_MENU_W;
     let menu_h = 345; // estimativa (9 itens + 3 separadores + acento + pad)
     let px = if c.x + menu_w > c.out_w {
         (c.x - menu_w).max(0)
@@ -768,7 +889,7 @@ fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
         c.y
     };
 
-    stack![
+    let base = stack![
         backdrop,
         container(card)
             .width(Length::Fill)
@@ -781,6 +902,47 @@ fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
                 bottom: 0.0,
                 left: px as f32,
             }),
+    ];
+
+    // Submenu (hover): posicionado ao lado do item pai, com proteção de borda.
+    let Some(s) = sub else {
+        return base.into();
+    };
+    // Layout do card: pad-top 6 + acento 2 + spacing 6 = 14 até o 1º item;
+    // cada item ~26px (texto 13 + pad 12 + spacing 1). Criar novo é a linha 0,
+    // Organizar a linha 2.
+    let items_top = py + 14;
+    let item_h = 26;
+    let parent_row = if s == 0 { 0 } else { 2 };
+    let sub_w = CTX_SUB_W;
+    let sub_h = 3 * item_h + 2 + 12; // 3 itens + acento + pad
+    // Abre à direita; se não couber, à esquerda do card. Sobrepõe 6px na borda
+    // pra não haver vão entre pai e submenu (o ponteiro cruza sem soltar).
+    let sx = if px + menu_w + sub_w > c.out_w {
+        (px - sub_w + 6).max(0)
+    } else {
+        px + menu_w - 6
+    };
+    let sy_raw = items_top + parent_row * item_h;
+    let sy = if sy_raw + sub_h > c.out_h {
+        (c.out_h - sub_h).max(0)
+    } else {
+        sy_raw
+    };
+
+    stack![
+        base,
+        container(ctx_submenu(s))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Left)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(Padding {
+                top: sy as f32,
+                right: 0.0,
+                bottom: 0.0,
+                left: sx as f32,
+            }),
     ]
     .into()
 }
@@ -789,7 +951,7 @@ fn view(state: &Menu, id: iced::window::Id) -> Element<'_, Message> {
     // Context menu do desktop tem surface própria (abre no ponto do clique).
     if let Some(c) = state.ctx {
         if c.id == id {
-            return ctx_view(&c);
+            return ctx_view(&c, state.ctx_sub);
         }
     }
     // Só a surface do menu INICIAR (overlay) desenha o painel/confirmação.

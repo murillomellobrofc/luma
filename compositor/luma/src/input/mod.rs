@@ -1,6 +1,6 @@
 pub mod grabs;
 mod keyboard;
-mod pointer;
+pub(crate) mod pointer;
 pub(crate) mod shortcuts;
 
 use smithay::backend::input::{InputBackend, InputEvent};
