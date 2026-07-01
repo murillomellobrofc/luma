@@ -757,10 +757,29 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         key_state,
         serial,
         time,
-        |_state, modifiers, handle| match match_shortcut(modifiers, handle.modified_sym(), key_state)
-        {
-            Some(action) => FilterResult::Intercept(action),
-            None => FilterResult::Forward,
+        |state_inner, modifiers, handle| {
+            // Super-tap (versão final do gatilho do menu): tocar o Super
+            // sozinho — pressionar e soltar sem nenhuma outra tecla no meio —
+            // abre o luma-menu, tipo Windows. Super+X segue sendo atalho.
+            let sym = handle.modified_sym();
+            let is_super = sym == Keysym::Super_L || sym == Keysym::Super_R;
+            match key_state {
+                // Qualquer PRESSIONAR arma só se for o Super; qualquer outra
+                // tecla desarma (então Super+X não conta como toque).
+                KeyState::Pressed => state_inner.super_tap_armed = is_super,
+                KeyState::Released => {
+                    if is_super && state_inner.super_tap_armed {
+                        state_inner.super_tap_armed = false;
+                        state_inner
+                            .menu_toggle_tx
+                            .send_modify(|c| *c = c.wrapping_add(1));
+                    }
+                }
+            }
+            match match_shortcut(modifiers, sym, key_state) {
+                Some(action) => FilterResult::Intercept(action),
+                None => FilterResult::Forward,
+            }
         },
     );
 
