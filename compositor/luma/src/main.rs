@@ -61,6 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("luma {} iniciando", env!("CARGO_PKG_VERSION"));
     theme::init();
+    // Barra velha aposentada (LUMA_LEGACY_BAR off): não reserva a zona dela
+    // (taskbar_height→0), pra não sobrar faixa fantasma embaixo. O desenho já
+    // é gateado à parte no render.
+    taskbar::set_bar_off(std::env::var("LUMA_LEGACY_BAR").is_err());
 
     let mut event_loop: EventLoop<CalloopData> = EventLoop::try_new()?;
     let mut display: Display<LumaState> = Display::new()?;

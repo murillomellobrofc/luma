@@ -23,7 +23,21 @@ use smithay::{
 static PANEL_HEIGHT: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(48);
 
+/// Barra velha aposentada (flag `LUMA_LEGACY_BAR` off)? Então ela também não
+/// **reserva** a zona dela: `taskbar_height()` vira 0, e as janelas/ícones/
+/// wallpaper ocupam a tela até embaixo (sem faixa fantasma). Setado no boot.
+static BAR_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Liga/desliga a reserva de espaço da barra velha (o desenho já é gateado à
+/// parte). Off = `taskbar_height()` retorna 0.
+pub fn set_bar_off(off: bool) {
+    BAR_OFF.store(off, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn taskbar_height() -> i32 {
+    if BAR_OFF.load(std::sync::atomic::Ordering::Relaxed) {
+        return 0;
+    }
     PANEL_HEIGHT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
