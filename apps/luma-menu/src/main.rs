@@ -26,6 +26,27 @@ enum Pane {
     All,
 }
 
+/// Ação de item do context menu do desktop (só as diretas no núcleo; as que
+/// tocam o compositor — organizar/colar/wallpaper/criar — vêm no commit 2).
+#[derive(Debug, Clone, Copy)]
+enum CtxAction {
+    Terminal,
+    AddWidget,
+    Customize,
+    Settings,
+}
+
+/// Context menu do desktop aberto: a surface + o ponto do clique + o tamanho
+/// do output (pra proteção de borda).
+#[derive(Debug, Clone, Copy)]
+struct CtxMenu {
+    id: IcedId,
+    x: i32,
+    y: i32,
+    out_w: i32,
+    out_h: i32,
+}
+
 /// Ação irreversível esperando confirmação (desligar/reiniciar).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Confirm {
@@ -57,6 +78,8 @@ struct Menu {
     search: String,
     /// Confirmação pendente (desligar/reiniciar), ou None.
     confirm: Option<Confirm>,
+    /// Context menu do desktop aberto (surface própria), ou None.
+    ctx: Option<CtxMenu>,
 }
 
 #[to_layer_message(multi)]
@@ -86,6 +109,12 @@ enum Message {
     /// Confirma / cancela a ação pendente.
     DoConfirm,
     CancelConfirm,
+    /// Sinal do compositor: abre o context menu do desktop no ponto.
+    DesktopMenu(i32, i32, i32, i32),
+    /// Fecha o context menu do desktop.
+    CloseCtx,
+    /// Clique num item do context menu → ação + fecha.
+    CtxRun(CtxAction),
     AccentLoaded(Result<String, String>),
     AccentChanged(String),
     HighContrastLoaded(Result<bool, String>),
@@ -146,9 +175,26 @@ fn boot() -> (Menu, Task<Message>) {
             pane: Pane::Home,
             search: String::new(),
             confirm: None,
+            ctx: None,
         },
         read,
     )
+}
+
+/// Settings da surface do context menu: full-screen overlay (backdrop pra o
+/// clique-fora fechar); o card é posicionado no ponto do clique no view.
+fn ctx_settings() -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        size: None,
+        layer: Layer::Overlay,
+        anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+        exclusive_zone: Some(0),
+        margin: None,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        output_option: OutputOption::LastOutput,
+        events_transparent: false,
+        namespace: Some("luma-ctxmenu".to_string()),
+    }
 }
 
 /// Fecha o menu (remove a surface), se aberto.
@@ -196,6 +242,47 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
         }
         Message::AskConfirm(c) => state.confirm = Some(c),
         Message::CancelConfirm => state.confirm = None,
+        Message::DesktopMenu(x, y, out_w, out_h) => {
+            // Fecha um ctx anterior (se aberto) e abre no novo ponto.
+            let close = if let Some(c) = state.ctx.take() {
+                Task::done(Message::RemoveWindow(c.id))
+            } else {
+                Task::none()
+            };
+            let (id, open) = Message::layershell_open(ctx_settings());
+            state.ctx = Some(CtxMenu {
+                id,
+                x,
+                y,
+                out_w,
+                out_h,
+            });
+            return Task::batch([close, open]);
+        }
+        Message::CloseCtx => {
+            if let Some(c) = state.ctx.take() {
+                return Task::batch([
+                    Task::perform(ipc::desktop_menu_closed(), |_| Message::Noop),
+                    Task::done(Message::RemoveWindow(c.id)),
+                ]);
+            }
+        }
+        Message::CtxRun(action) => {
+            match action {
+                CtxAction::Terminal => apps::open_terminal(),
+                CtxAction::AddWidget => {
+                    apps::launch_config_args(&["--tab", "widgets", "--target", "desktop"])
+                }
+                CtxAction::Customize => apps::launch_config_args(&["--tab", "widgets"]),
+                CtxAction::Settings => apps::launch_config(),
+            }
+            if let Some(c) = state.ctx.take() {
+                return Task::batch([
+                    Task::perform(ipc::desktop_menu_closed(), |_| Message::Noop),
+                    Task::done(Message::RemoveWindow(c.id)),
+                ]);
+            }
+        }
         Message::DoConfirm => {
             let action = match state.confirm.take() {
                 Some(Confirm::PowerOff) => Task::perform(ipc::power_off(), |_| Message::Noop),
@@ -275,6 +362,12 @@ fn icon_handle(name: &str) -> svg::Handle {
             include_bytes!("../../../assets/branding/icons/places-computer.svg")
         }
         "ctx-settings" => include_bytes!("../../../assets/branding/icons/icon-ctx-settings.svg"),
+        "ctx-new" => include_bytes!("../../../assets/branding/icons/icon-ctx-new.svg"),
+        "ctx-paste" => include_bytes!("../../../assets/branding/icons/icon-ctx-paste.svg"),
+        "ctx-arrange" => include_bytes!("../../../assets/branding/icons/icon-ctx-arrange.svg"),
+        "ctx-terminal" => include_bytes!("../../../assets/branding/icons/icon-ctx-terminal.svg"),
+        "ctx-wallpaper" => include_bytes!("../../../assets/branding/icons/icon-ctx-wallpaper.svg"),
+        "ctx-display" => include_bytes!("../../../assets/branding/icons/icon-ctx-display.svg"),
         "desligar" => include_bytes!("../../../assets/branding/icons/icon-desligar.svg"),
         "reiniciar" => include_bytes!("../../../assets/branding/icons/icon-reiniciar.svg"),
         "suspender" => include_bytes!("../../../assets/branding/icons/icon-suspender.svg"),
@@ -539,7 +632,146 @@ fn icon_button<'a>(name: &str, _color: Color, msg: Message) -> Element<'a, Messa
         .into()
 }
 
-fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
+/// Um item do context menu: ícone + label + (atalho/seta). `action` None =
+/// inerte/desabilitado (apagado, sem clique) — os submenus e o que toca o
+/// compositor entram no commit 2.
+fn ctx_item<'a>(
+    icon: &str,
+    label: &'a str,
+    trailing: &'a str,
+    action: Option<CtxAction>,
+) -> Element<'a, Message> {
+    let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    let color = if action.is_some() { cream } else { secondary };
+    let content = row![
+        svg_icon(icon, 16.0, color),
+        text(label).size(13.0).color(color),
+        Space::new().width(Length::Fill),
+        text(trailing).size(11.0).color(secondary),
+    ]
+    .spacing(10.0)
+    .align_y(iced::Alignment::Center);
+    let inner = container(content)
+        .width(Length::Fill)
+        .padding(Padding::from([6.0, 12.0]));
+    match action {
+        Some(a) => mouse_area(inner)
+            .on_press(Message::CtxRun(a))
+            .interaction(iced::mouse::Interaction::Pointer)
+            .into(),
+        None => inner.into(),
+    }
+}
+
+/// Divisória do context menu.
+fn ctx_sep<'a>() -> Element<'a, Message> {
+    let secondary =
+        libluma::tokens::to_iced(libluma::tokens::semantic_default().text_secondary);
+    container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+        .padding(Padding::from([3.0, 10.0]))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(Color { a: 0.18, ..secondary })),
+            ..Default::default()
+        })
+        .into()
+}
+
+/// Context menu do desktop, no ponto do clique, com proteção de borda. Cara
+/// de sempre: card surface + linha de acento no topo + itens + separadores.
+fn ctx_view(c: &CtxMenu) -> Element<'static, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let accent = libluma::tokens::accent();
+
+    let backdrop = mouse_area(
+        container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
+            container::Style {
+                background: None,
+                ..Default::default()
+            }
+        }),
+    )
+    .on_press(Message::CloseCtx);
+
+    let accent_line = container(Space::new().width(Length::Fill).height(Length::Fixed(2.0)))
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(accent)),
+            ..Default::default()
+        });
+
+    let items = column![
+        ctx_item("ctx-new", "Criar novo", "▸", None),
+        ctx_item("ctx-paste", "Colar", "Ctrl+V", None),
+        ctx_item("ctx-arrange", "Organizar ícones", "▸", None),
+        ctx_sep(),
+        ctx_item("ctx-terminal", "Abrir terminal aqui", "", Some(CtxAction::Terminal)),
+        ctx_item("ctx-wallpaper", "Mudar papel de parede", "▸", None),
+        ctx_sep(),
+        ctx_item("ctx-new", "Adicionar widget ao desktop", "", Some(CtxAction::AddWidget)),
+        ctx_item("ctx-settings", "Personalizar desktop", "", Some(CtxAction::Customize)),
+        ctx_sep(),
+        ctx_item("ctx-display", "Configurar tela", "", None),
+        ctx_item("ctx-settings", "Configurações do Luma", "", Some(CtxAction::Settings)),
+    ]
+    .spacing(1.0);
+
+    let card = mouse_area(
+        container(column![accent_line, items].spacing(6.0))
+            .width(Length::Fixed(260.0))
+            .padding(Padding::from([6.0, 0.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(surface)),
+                border: Border {
+                    radius: 12.0.into(),
+                    width: 1.0,
+                    color: Color { a: 0.22, ..cream },
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::Noop);
+
+    // Proteção de borda: abre pra cima/esquerda se não couber.
+    let menu_w = 260;
+    let menu_h = 345; // estimativa (9 itens + 3 separadores + acento + pad)
+    let px = if c.x + menu_w > c.out_w {
+        (c.x - menu_w).max(0)
+    } else {
+        c.x
+    };
+    let py = if c.y + menu_h > c.out_h {
+        (c.y - menu_h).max(0)
+    } else {
+        c.y
+    };
+
+    stack![
+        backdrop,
+        container(card)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Left)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(Padding {
+                top: py as f32,
+                right: 0.0,
+                bottom: 0.0,
+                left: px as f32,
+            }),
+    ]
+    .into()
+}
+
+fn view(state: &Menu, id: iced::window::Id) -> Element<'_, Message> {
+    // Context menu do desktop tem surface própria (abre no ponto do clique).
+    if let Some(c) = state.ctx {
+        if c.id == id {
+            return ctx_view(&c);
+        }
+    }
     // Confirmação pendente (desligar/reiniciar) toma a tela — modal.
     if let Some(confirm) = state.confirm {
         return confirm_view(confirm);
@@ -785,6 +1017,7 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
 fn subscription(_state: &Menu) -> iced::Subscription<Message> {
     iced::Subscription::batch([
         iced::Subscription::run(toggle_subscription),
+        iced::Subscription::run(desktop_menu_subscription),
         iced::Subscription::run(accent_subscription),
         iced::Subscription::run(high_contrast_subscription),
         // Teclado (gotcha #4): quando o overlay tem foco, as teclas chegam.
@@ -815,6 +1048,20 @@ fn toggle_subscription() -> impl iced::futures::Stream<Item = Message> {
             Ok(s) => s.map(|_| Message::Toggle).boxed(),
             Err(e) => {
                 eprintln!("luma-menu: subscription de menu_toggle falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
+}
+
+fn desktop_menu_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::desktop_menu_stream().await {
+            Ok(s) => s.map(|(x, y, w, h)| Message::DesktopMenu(x, y, w, h)).boxed(),
+            Err(e) => {
+                eprintln!("luma-menu: subscription de desktop_menu falhou: {e}");
                 iced::futures::stream::pending().boxed()
             }
         }

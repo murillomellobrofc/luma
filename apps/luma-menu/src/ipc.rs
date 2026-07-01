@@ -13,6 +13,10 @@ pub trait Compositor {
     #[zbus(signal)]
     fn menu_toggle(&self) -> zbus::Result<()>;
 
+    /// Sinal do context menu do desktop: `(x, y, out_w, out_h)` do clique.
+    #[zbus(signal)]
+    fn desktop_menu(&self, x: i32, y: i32, out_w: i32, out_h: i32) -> zbus::Result<()>;
+
     async fn accent(&self) -> zbus::Result<String>;
     #[zbus(signal)]
     fn accent_changed(&self, accent: &str) -> zbus::Result<()>;
@@ -20,6 +24,9 @@ pub trait Compositor {
     async fn high_contrast(&self) -> zbus::Result<bool>;
     #[zbus(signal)]
     fn high_contrast_changed(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Avisa o compositor que o context menu do desktop fechou.
+    async fn desktop_menu_closed(&self) -> zbus::Result<()>;
 
     /// Sessão (passo 3): desligar/reiniciar/suspender/bloquear.
     async fn power_off(&self) -> zbus::Result<()>;
@@ -55,6 +62,27 @@ pub async fn lock() {
     if let Ok(p) = session_proxy().await {
         let _ = p.lock().await;
     }
+}
+
+/// Avisa o compositor que o context menu do desktop fechou.
+pub async fn desktop_menu_closed() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.desktop_menu_closed().await;
+    }
+}
+
+/// Stream do sinal `desktop_menu` — `(x, y, out_w, out_h)` do clique-direito.
+pub async fn desktop_menu_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = (i32, i32, i32, i32)>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_desktop_menu().await?;
+    Ok(signals.filter_map(|sig| async move {
+        sig.args()
+            .ok()
+            .map(|a| (*a.x(), *a.y(), *a.out_w(), *a.out_h()))
+    }))
 }
 
 /// Stream do sinal `menu_toggle` — cada item é um "toggle" (sem dados).

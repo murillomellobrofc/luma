@@ -2331,7 +2331,13 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
             // janela sob o cursor) abre menu de contexto. MAS não quando o
             // cursor está sobre uma layer surface de cliente (popup/menu da
             // barra) — aí o direito tem que chegar no cliente (menu de tray).
-            if button == 0x111 && !state.is_over_client_layer(pointer_pos) {
+            // Reabre no ponto novo mesmo por cima da surface do próprio ctx
+            // menu (DESKTOP_MENU_OPEN), senão is_over_client_layer bloquearia.
+            if button == 0x111
+                && (!state.is_over_client_layer(pointer_pos)
+                    || crate::state::DESKTOP_MENU_OPEN
+                        .load(std::sync::atomic::Ordering::Relaxed))
+            {
                 let output_size = state
                     .space
                     .output_geometry(state.output_under_cursor(pointer_pos))
@@ -2340,18 +2346,21 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                     let bar_top = out.h - crate::taskbar::taskbar_height();
                     let on_taskbar = pointer_pos.y >= bar_top as f64;
                     if !on_taskbar {
-                        let tokens = crate::theme::current().context_menu.clone();
-                        let mut menu = crate::context_menu::ContextMenu::new_at(
-                            smithay::utils::Point::from((
-                                pointer_pos.x.round() as i32,
-                                pointer_pos.y.round() as i32,
-                            )),
-                        );
-                        // H56 parte 3: Colar dinâmico — aceso só se o
-                        // clipboard interno tem conteúdo no momento.
-                        menu.set_paste_enabled(state.luma_clipboard.is_some());
-                        menu.clamp_into(out, &tokens);
-                        state.context_menu = Some(menu);
+                        // Context menu do desktop agora é CLIENTE (luma-menu):
+                        // emite o sinal com a posição do clique + tamanho do
+                        // output (pro cliente ancorar no ponto + proteger a
+                        // borda). O menu velho do compositor segue dormente.
+                        let x = pointer_pos.x.round() as i32;
+                        let y = pointer_pos.y.round() as i32;
+                        state.desktop_menu_tx.send_modify(|v| {
+                            v.0 = v.0.wrapping_add(1);
+                            v.1 = x;
+                            v.2 = y;
+                            v.3 = out.w;
+                            v.4 = out.h;
+                        });
+                        crate::state::DESKTOP_MENU_OPEN
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
                         pointer.frame(state);
                         return;
                     }

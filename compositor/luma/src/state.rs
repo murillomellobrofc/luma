@@ -4,6 +4,14 @@ use std::{
     time::Instant,
 };
 
+/// Context menu do desktop (cliente) aberto agora? O pointer seta `true` ao
+/// emitir `desktop_menu`; o D-Bus `desktop_menu_closed` (cliente fechou) seta
+/// `false`. Enquanto `true`, o clique-direito reabre o menu no ponto novo
+/// mesmo por cima da surface do próprio menu (senão a `is_over_client_layer`
+/// bloquearia). Atomic pra ser lido/escrito cross-thread sem roundtrip.
+pub static DESKTOP_MENU_OPEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 use smithay::{
     backend::{
         allocator::Fourcc,
@@ -111,6 +119,12 @@ pub struct LumaState {
     /// D-Bus emite o `menu_toggle` pro luma-menu — mesmo caminho do ShowMenu
     /// (botão da barra). Um caminho, dois gatilhos.
     pub menu_toggle_tx: tokio::sync::watch::Sender<u64>,
+    /// Gatilho do **context menu do desktop** cliente: `(seq, x, y, out_w,
+    /// out_h)`. O clique-direito no fundo (pointer) incrementa o seq + põe a
+    /// posição do clique e o tamanho do output; a task do D-Bus emite o sinal
+    /// `desktop_menu(x, y, out_w, out_h)`; o luma-menu abre o menu no ponto
+    /// (com proteção de borda). Esquema COSMIC: cliente pede, compositor ancora.
+    pub desktop_menu_tx: tokio::sync::watch::Sender<(u64, i32, i32, i32, i32)>,
     /// Super-tap: `true` enquanto o Super foi pressionado sozinho (sem outra
     /// tecla). Se soltar ainda armado, dispara o menu (toque tipo Windows).
     /// Qualquer outra tecla desarma (Super+X é atalho, não toque).
@@ -997,6 +1011,8 @@ impl LumaState {
         // Gatilho do menu novo (Super → menu_toggle). Contador incremental.
         let (menu_toggle_tx, _) = tokio::sync::watch::channel(0u64);
         let super_tap_armed = false;
+        // Gatilho do context menu do desktop cliente (seq, x, y, out_w, out_h).
+        let (desktop_menu_tx, _) = tokio::sync::watch::channel((0u64, 0i32, 0i32, 0i32, 0i32));
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1111,6 +1127,7 @@ impl LumaState {
             bluetooth_tx,
             menu_toggle_tx,
             super_tap_armed,
+            desktop_menu_tx,
             shm_state,
             output_manager_state,
             seat_state,
