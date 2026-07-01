@@ -568,6 +568,24 @@ pub fn get_menu_layout(service: &str, menu_path: &str) -> Vec<DBusMenuItem> {
     out
 }
 
+/// `com.canonical.dbusmenu.AboutToShow(0)` — avisa o app que o menu vai
+/// abrir, pra ele atualizar labels dinâmicos ("mutar"→"desmutar") antes do
+/// `GetLayout`. Best-effort (ignora o retorno de "precisa atualizar").
+/// **Bloqueia** — chamar antes de `get_menu_layout` na mesma thread.
+pub fn about_to_show(service: &str, menu_path: &str) {
+    let conn = match zbus::blocking::Connection::session() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let _ = conn.call_method(
+        Some(service),
+        menu_path,
+        Some("com.canonical.dbusmenu"),
+        "AboutToShow",
+        &(0i32,),
+    );
+}
+
 /// Manda `Event(id, "clicked", data="", timestamp=0)` pro DBusMenu —
 /// dispara a ação ligada ao item. **Não bloqueia o main loop**:
 /// spawna thread fire-and-forget. Se o app SNI travar, nada

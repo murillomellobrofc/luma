@@ -42,6 +42,7 @@ enum PopupKind {
     Network,
     Notifications,
     TrayOverflow,
+    TrayMenu,
 }
 
 /// Um item da bandeja (SNI).
@@ -52,6 +53,17 @@ struct TrayItem {
     tooltip: String,
     /// Caminho do ícone já resolvido pelo compositor (svg/png), ou "".
     icon_path: String,
+    /// Objeto DBusMenu do item (vazio = sem menu de clique-direito).
+    menu_path: String,
+}
+
+/// Um item do menu de clique-direito (dbusmenu, flat).
+#[derive(Debug, Clone)]
+struct MenuItem {
+    id: i32,
+    label: String,
+    enabled: bool,
+    separator: bool,
 }
 
 /// Uma notificação na central.
@@ -146,6 +158,10 @@ struct Bar {
     notif_list: Vec<Notif>,
     /// Itens da bandeja (SNI), poll ao vivo.
     tray: Vec<TrayItem>,
+    /// Menu de clique-direito aberto: itens + de qual item (service/menu_path).
+    tray_menu_items: Vec<MenuItem>,
+    tray_menu_service: String,
+    tray_menu_path: String,
 }
 
 #[to_layer_message(multi)]
@@ -248,11 +264,17 @@ enum Message {
     ToggleNotifSound,
     ClearNotifs,
     /// Lista da bandeja carregada (poll).
-    TrayLoaded(Vec<(String, String, String, String, String)>),
+    TrayLoaded(Vec<(String, String, String, String, String, String)>),
     /// Clique num ícone da bandeja → ativa o app.
     TrayActivate(String, String),
     /// Clique na setinha → abre/fecha o popup de overflow.
     OpenTrayOverflow,
+    /// Clique-direito num ícone → abre o menu do app `(service, menu_path)`.
+    OpenTrayMenu(String, String),
+    /// Árvore do menu carregada.
+    TrayMenuLoaded(Vec<(i32, String, bool, bool)>),
+    /// Clique num item do menu → o app age + fecha o menu.
+    TrayMenuClick(i32),
 }
 
 fn now_hm() -> String {
@@ -346,6 +368,9 @@ fn boot() -> (Bar, Task<Message>) {
             notif_sound: true,
             notif_list: Vec::new(),
             tray: Vec::new(),
+            tray_menu_items: Vec::new(),
+            tray_menu_service: String::new(),
+            tray_menu_path: String::new(),
         },
         read,
     )
@@ -412,6 +437,8 @@ fn load_popup(kind: PopupKind) -> Task<Message> {
         ]),
         // Overflow lê de state.tray (já no poll); nada a carregar.
         PopupKind::TrayOverflow => Task::none(),
+        // TrayMenu é carregado à parte (no OpenTrayMenu, com service/menu_path).
+        PopupKind::TrayMenu => Task::none(),
     }
 }
 
@@ -685,11 +712,12 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::TrayLoaded(list) => {
             state.tray = list
                 .into_iter()
-                .map(|(service, path, _title, tooltip, icon_path)| TrayItem {
+                .map(|(service, path, _title, tooltip, icon_path, menu_path)| TrayItem {
                     service,
                     path,
                     tooltip,
                     icon_path,
+                    menu_path,
                 })
                 .collect();
             // Bandeja esvaziou com o popup aberto → recolhe (some a setinha).
@@ -705,6 +733,39 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
             return Task::perform(ipc::tray_activate(service, path), |_| Message::Noop);
         }
         Message::OpenTrayOverflow => return open_popup(state, PopupKind::TrayOverflow),
+        Message::OpenTrayMenu(service, menu_path) => {
+            if menu_path.is_empty() {
+                return Task::none();
+            }
+            state.tray_menu_service = service.clone();
+            state.tray_menu_path = menu_path.clone();
+            state.tray_menu_items.clear();
+            let open = open_popup(state, PopupKind::TrayMenu);
+            let fetch = Task::perform(ipc::tray_menu(service, menu_path), Message::TrayMenuLoaded);
+            return Task::batch([open, fetch]);
+        }
+        Message::TrayMenuLoaded(list) => {
+            state.tray_menu_items = list
+                .into_iter()
+                .map(|(id, label, enabled, separator)| MenuItem {
+                    id,
+                    label,
+                    enabled,
+                    separator,
+                })
+                .collect();
+        }
+        Message::TrayMenuClick(id) => {
+            let (service, path) = (state.tray_menu_service.clone(), state.tray_menu_path.clone());
+            let act = Task::perform(ipc::tray_menu_event(service, path, id), |_| Message::Noop);
+            // Fecha o menu após clicar.
+            let close = if let Some((wid, _)) = state.popup.take() {
+                Task::done(Message::RemoveWindow(wid))
+            } else {
+                Task::none()
+            };
+            return Task::batch([act, close]);
+        }
         Message::Noop => {}
         // Rede (passo 5): boot/sinal aplicam o nome do ícone.
         Message::BluetoothLoaded(icon) | Message::BluetoothChanged(icon) => {
@@ -867,6 +928,7 @@ fn tray_icon_button<'a>(it: &TrayItem) -> Element<'a, Message> {
     let surface = libluma::tokens::to_iced(libluma::tokens::semantic_default().background);
     let btn = mouse_area(tray_icon(&it.icon_path))
         .on_press(Message::TrayActivate(it.service.clone(), it.path.clone()))
+        .on_right_press(Message::OpenTrayMenu(it.service.clone(), it.menu_path.clone()))
         .interaction(iced::mouse::Interaction::Pointer);
     let tip = if it.tooltip.trim().is_empty() {
         it.service.clone()
@@ -907,6 +969,53 @@ fn tray_view(items: &[TrayItem], open: bool) -> Element<'_, Message> {
         .on_press(Message::OpenTrayOverflow)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
+}
+
+/// Corpo do menu de clique-direito (dbusmenu flat): linhas clicáveis,
+/// separadores viram divisória, itens desabilitados ficam apagados.
+fn tray_menu_body(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    if state.tray_menu_items.is_empty() {
+        return text("…").size(13.0).color(secondary).into();
+    }
+
+    let mut rows: Vec<Element<Message>> = Vec::new();
+    for it in &state.tray_menu_items {
+        if it.separator {
+            rows.push(
+                container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+                    .padding(Padding::from([3.0, 6.0]))
+                    .style(move |_theme| container::Style {
+                        background: Some(Background::Color(Color { a: 0.18, ..secondary })),
+                        ..Default::default()
+                    })
+                    .into(),
+            );
+            continue;
+        }
+        if it.enabled {
+            rows.push(
+                mouse_area(
+                    container(text(it.label.clone()).size(14.0).color(cream))
+                        .width(Length::Fill)
+                        .padding(Padding::from([7.0, 10.0])),
+                )
+                .on_press(Message::TrayMenuClick(it.id))
+                .interaction(iced::mouse::Interaction::Pointer)
+                .into(),
+            );
+        } else {
+            rows.push(
+                container(text(it.label.clone()).size(14.0).color(secondary))
+                    .padding(Padding::from([7.0, 10.0]))
+                    .into(),
+            );
+        }
+    }
+    column(rows).spacing(2.0).into()
 }
 
 /// Corpo do popup da bandeja: TODOS os ícones (com tooltip + clique-ativa).
@@ -1010,6 +1119,7 @@ fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
                 PopupKind::Network => popup_frame(network_popup_body(state), 130.0),
                 PopupKind::Notifications => popup_frame(notif_popup_body(state), 30.0),
                 PopupKind::TrayOverflow => popup_frame(tray_overflow_body(state), 100.0),
+                PopupKind::TrayMenu => popup_frame(tray_menu_body(state), 80.0),
             };
         }
     }

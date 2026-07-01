@@ -2328,8 +2328,10 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                 }
             }
             // H48.ctx.1: right-click no desktop (área vazia, sem
-            // janela sob o cursor) abre menu de contexto.
-            if button == 0x111 {
+            // janela sob o cursor) abre menu de contexto. MAS não quando o
+            // cursor está sobre uma layer surface de cliente (popup/menu da
+            // barra) — aí o direito tem que chegar no cliente (menu de tray).
+            if button == 0x111 && !state.is_over_client_layer(pointer_pos) {
                 let output_size = state
                     .space
                     .output_geometry(state.output_under_cursor(pointer_pos))
