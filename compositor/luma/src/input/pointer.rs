@@ -2396,7 +2396,22 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
 /// Dispatcha ação clicada num item do context menu. H48.ctx.5-7.
 /// Wallpaper bloqueia até o user fechar o file picker — aceitável
 /// porque o menu é modal de qualquer jeito.
-fn dispatch_context_action(
+/// Roda uma ação do context menu do desktop pedida pelo CLIENTE (D-Bus):
+/// organizar, colar, criar, wallpaper. Sintetiza um `ContextItem` e reusa o
+/// `dispatch_context_action`. Sem `context_menu` do compositor aberto, as
+/// actions per-ícone ficam None (essas são de desktop, ok).
+pub(crate) fn run_desktop_action(state: &mut LumaState, action: crate::context_menu::ContextAction) {
+    let item = crate::context_menu::ContextItem {
+        label: String::new(),
+        icon: None,
+        kind: crate::context_menu::ItemKind::Action(action),
+        enabled: true,
+        shortcut: None,
+    };
+    dispatch_context_action(state, &item);
+}
+
+pub(crate) fn dispatch_context_action(
     state: &mut LumaState,
     item: &crate::context_menu::ContextItem,
 ) {

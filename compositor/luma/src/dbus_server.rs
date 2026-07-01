@@ -44,6 +44,9 @@ pub enum IpcCommand {
     ToggleMute,
     /// Bloqueia a sessão (menu passo 3). Roteia pro lock que já existe.
     Lock,
+    /// Ação do context menu do desktop pedida pelo cliente (organizar/colar/
+    /// criar/wallpaper). Reusa o dispatch do menu velho.
+    CtxAction(crate::context_menu::ContextAction),
 }
 
 /// Uma janela aberta, pra a taskbar (luma-bar passo 2). `id` é estável por
@@ -798,6 +801,44 @@ impl CompositorService {
     /// clique-direito a voltar ao comportamento normal (não reabre por cima).
     async fn desktop_menu_closed(&self) {
         crate::state::DESKTOP_MENU_OPEN.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    // ─── Ações do context menu do desktop (cliente → compositor) ──────
+
+    /// Organiza os ícones do desktop: 0=nome, 1=tipo, 2=data.
+    async fn arrange_icons(&self, kind: u8) {
+        use crate::context_menu::{ArrangeKind, ContextAction};
+        let k = match kind {
+            1 => ArrangeKind::ByKind,
+            2 => ArrangeKind::ByDate,
+            _ => ArrangeKind::ByName,
+        };
+        let _ = self.cmd_tx.send(IpcCommand::CtxAction(ContextAction::ArrangeIcons(k)));
+    }
+
+    /// Cola o clipboard no desktop.
+    async fn paste_desktop(&self) {
+        let _ = self
+            .cmd_tx
+            .send(IpcCommand::CtxAction(crate::context_menu::ContextAction::ClipboardPaste));
+    }
+
+    /// Cria no desktop: 0=pasta, 1=arquivo de texto, 2=documento markdown.
+    async fn create_new(&self, kind: u8) {
+        use crate::context_menu::{ContextAction, NewKind};
+        let k = match kind {
+            1 => NewKind::TextFile,
+            2 => NewKind::Markdown,
+            _ => NewKind::Folder,
+        };
+        let _ = self.cmd_tx.send(IpcCommand::CtxAction(ContextAction::CreateNew(k)));
+    }
+
+    /// Abre o seletor de papel de parede (troca o wallpaper).
+    async fn change_wallpaper(&self) {
+        let _ = self.cmd_tx.send(IpcCommand::CtxAction(
+            crate::context_menu::ContextAction::ChangeWallpaperPick,
+        ));
     }
 
     /// **Sinal** do context menu do desktop: clique-direito no fundo. Passa a
