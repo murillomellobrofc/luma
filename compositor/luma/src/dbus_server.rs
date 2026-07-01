@@ -794,6 +794,24 @@ impl CompositorService {
     #[zbus(signal)]
     async fn menu_toggle(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
 
+    /// O cliente avisa que fechou o context menu do desktop — libera o
+    /// clique-direito a voltar ao comportamento normal (não reabre por cima).
+    async fn desktop_menu_closed(&self) {
+        crate::state::DESKTOP_MENU_OPEN.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// **Sinal** do context menu do desktop: clique-direito no fundo. Passa a
+    /// posição do clique `(x, y)` e o tamanho do output `(out_w, out_h)` pro
+    /// cliente ancorar no ponto + proteger a borda.
+    #[zbus(signal)]
+    async fn desktop_menu(
+        emitter: &SignalEmitter<'_>,
+        x: i32,
+        y: i32,
+        out_w: i32,
+        out_h: i32,
+    ) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -940,6 +958,7 @@ pub fn spawn(
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
     menu_toggle: tokio::sync::watch::Receiver<u64>,
+    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
@@ -954,6 +973,7 @@ pub fn spawn(
             network,
             bluetooth,
             menu_toggle,
+            desktop_menu,
             sni,
         )
     }) {
@@ -971,6 +991,7 @@ fn run(
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
     menu_toggle: tokio::sync::watch::Receiver<u64>,
+    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
@@ -994,6 +1015,7 @@ fn run(
             network,
             bluetooth,
             menu_toggle,
+            desktop_menu,
             sni,
         )
         .await
@@ -1044,6 +1066,7 @@ async fn serve(
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
     menu_toggle: tokio::sync::watch::Receiver<u64>,
+    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
 ) -> zbus::Result<()> {
     // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
@@ -1092,6 +1115,7 @@ async fn serve(
     let mut network = network;
     let mut bluetooth = bluetooth;
     let mut menu_toggle = menu_toggle;
+    let mut desktop_menu = desktop_menu;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -1127,6 +1151,13 @@ async fn serve(
                 // Super pediu o menu → emite o mesmo sinal do ShowMenu.
                 if let Err(err) = emitter.menu_toggle().await {
                     error!("D-Bus: falha ao emitir menu_toggle (Super): {err}");
+                }
+            }
+            r = desktop_menu.changed() => {
+                if r.is_err() { break; }
+                let (_seq, x, y, w, h) = *desktop_menu.borrow();
+                if let Err(err) = emitter.desktop_menu(x, y, w, h).await {
+                    error!("D-Bus: falha ao emitir desktop_menu: {err}");
                 }
             }
         }

@@ -359,13 +359,61 @@ pub fn open_path(path: &str) {
 
 /// Abre o luma-config. Em dev acha o binário irmão (target/debug); senão PATH.
 pub fn launch_config() {
-    let cmd = std::env::current_exe()
+    launch(&config_cmd());
+}
+
+/// Caminho do binário luma-config (irmão em dev, senão PATH).
+fn config_cmd() -> String {
+    std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("luma-config")))
         .filter(|p| p.exists())
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| "luma-config".to_string());
-    launch(&cmd);
+        .unwrap_or_else(|| "luma-config".to_string())
+}
+
+/// Abre o luma-config com argumentos (ex: --tab widgets --target desktop).
+pub fn launch_config_args(args: &[&str]) {
+    let quoted: String = args
+        .iter()
+        .map(|a| format!(" '{}'", a.replace('\'', "")))
+        .collect();
+    launch(&format!("{}{}", config_cmd(), quoted));
+}
+
+/// Abre um terminal em $HOME. Mesma ordem do compositor: $TERMINAL →
+/// x-terminal-emulator → konsole → gnome-terminal → foot → alacritty → kitty.
+pub fn open_terminal() {
+    let candidates = [
+        std::env::var("TERMINAL").ok(),
+        Some("x-terminal-emulator".into()),
+        Some("konsole".into()),
+        Some("gnome-terminal".into()),
+        Some("foot".into()),
+        Some("alacritty".into()),
+        Some("kitty".into()),
+        Some("xterm".into()),
+    ];
+    for cand in candidates.into_iter().flatten() {
+        if cand.is_empty() {
+            continue;
+        }
+        // which: só lança o primeiro que existe no PATH.
+        let bin = cand.split_whitespace().next().unwrap_or(&cand);
+        if which(bin) {
+            launch(&cand);
+            return;
+        }
+    }
+}
+
+/// `true` se o binário está no PATH.
+fn which(bin: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|paths| {
+            std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file())
+        })
+        .unwrap_or(false)
 }
 
 // ─── Lugares (destinos da coluna direita) ──────────────────────────────

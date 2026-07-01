@@ -158,6 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let network_rx = data.state.network_tx.subscribe();
     let bluetooth_rx = data.state.bluetooth_tx.subscribe();
     let menu_toggle_rx = data.state.menu_toggle_tx.subscribe();
+    let desktop_menu_rx = data.state.desktop_menu_tx.subscribe();
     let sni_list = data.state.sni_list.clone();
     dbus_server::spawn(
         dbus_tx,
@@ -169,6 +170,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         network_rx,
         bluetooth_rx,
         menu_toggle_rx,
+        desktop_menu_rx,
         sni_list,
     );
 
