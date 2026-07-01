@@ -15,11 +15,12 @@ use smithay::{
     desktop::{layer_map_for_output, LayerSurface, WindowSurfaceType},
     output::Output,
     reexports::wayland_server::protocol::{wl_output::WlOutput, wl_surface::WlSurface},
+    utils::SERIAL_COUNTER,
     wayland::{
         compositor::with_states,
         shell::wlr_layer::{
-            Layer, LayerSurface as WlrLayerSurface, LayerSurfaceAttributes, WlrLayerShellHandler,
-            WlrLayerShellState,
+            KeyboardInteractivity, Layer, LayerSurface as WlrLayerSurface, LayerSurfaceAttributes,
+            LayerSurfaceCachedState, WlrLayerShellHandler, WlrLayerShellState,
         },
     },
 };
@@ -57,6 +58,16 @@ impl WlrLayerShellHandler for LumaState {
     }
 
     fn layer_destroyed(&mut self, surface: WlrLayerSurface) {
+        // Foco de teclado (gotcha #4): se essa layer segurava o teclado,
+        // devolve o foco pra quem tinha antes (a janela ativa).
+        if self.keyboard_layer.as_ref() == Some(surface.wl_surface()) {
+            self.keyboard_layer = None;
+            let restore = self.pre_layer_focus.take();
+            if let Some(kb) = self.seat.get_keyboard() {
+                let serial = SERIAL_COUNTER.next_serial();
+                kb.set_focus(self, restore, serial);
+            }
+        }
         // Desmapeia do output dono e re-arranja (libera a zona exclusiva).
         let output = self.space.outputs().find(|o| {
             let map = layer_map_for_output(o);
@@ -109,6 +120,29 @@ pub(crate) fn handle_layer_commit(state: &mut LumaState, surface: &WlSurface) ->
     if !initial_configure_sent {
         if let Some(layer) = map.layer_for_surface(surface, WindowSurfaceType::TOPLEVEL) {
             layer.layer_surface().send_configure();
+        }
+    }
+    drop(map);
+
+    // ── Foco de teclado (gotcha #4) ────────────────────────────────────
+    // A layer que pede `keyboard_interactivity != None` (o menu, o popup de
+    // PIN quando existir) pega o teclado. Salva o foco anterior (a janela
+    // ativa) na primeira vez, pra devolver quando a layer fechar.
+    let wants_kb = with_states(surface, |states| {
+        let mut cached = states.cached_state.get::<LayerSurfaceCachedState>();
+        !matches!(
+            cached.current().keyboard_interactivity,
+            KeyboardInteractivity::None
+        )
+    });
+    if wants_kb && state.keyboard_layer.as_ref() != Some(surface) {
+        if let Some(kb) = state.seat.get_keyboard() {
+            if state.keyboard_layer.is_none() {
+                state.pre_layer_focus = kb.current_focus();
+            }
+            state.keyboard_layer = Some(surface.clone());
+            let serial = SERIAL_COUNTER.next_serial();
+            kb.set_focus(state, Some(surface.clone()), serial);
         }
     }
     true

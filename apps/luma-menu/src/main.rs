@@ -37,6 +37,8 @@ struct Menu {
     favorites: Vec<apps::App>,
     /// Painel atual da coluna esquerda.
     pane: Pane,
+    /// Texto digitado na busca. Vazio = mostra Início/Todos; senão filtra.
+    search: String,
 }
 
 #[to_layer_message(multi)]
@@ -56,6 +58,8 @@ enum Message {
     OpenSettings,
     /// Alterna a coluna esquerda entre Início e "Todos os programas".
     SetPane(Pane),
+    /// Tecla pressionada na busca (teclado roteado pra layer surface).
+    Key(iced::keyboard::Key),
     AccentLoaded(Result<String, String>),
     AccentChanged(String),
     HighContrastLoaded(Result<bool, String>),
@@ -88,7 +92,9 @@ fn overlay_settings() -> NewLayerShellSettings {
         margin: None,
         // Teclado fica pro passo 4 (precisa do roteamento de teclado no
         // compositor). Por ora fecha por clique fora (pointer já roteia).
-        keyboard_interactivity: KeyboardInteractivity::None,
+        // Exclusive: o menu pega o foco de teclado ao abrir (busca + Esc);
+        // o compositor devolve pra janela ativa quando fecha. Gotcha #4.
+        keyboard_interactivity: KeyboardInteractivity::Exclusive,
         output_option: OutputOption::LastOutput,
         events_transparent: false,
         namespace: Some("luma-menu".to_string()),
@@ -112,6 +118,7 @@ fn boot() -> (Menu, Task<Message>) {
             apps: all,
             favorites,
             pane: Pane::Home,
+            search: String::new(),
         },
         read,
     )
@@ -133,6 +140,7 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             }
             state.greeting = greeting();
             state.pane = Pane::Home; // sempre reabre no Início
+            state.search.clear(); // busca limpa a cada abertura
             let (id, task) = Message::layershell_open(overlay_settings());
             state.overlay = Some(id);
             return task;
@@ -152,6 +160,29 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             return close(state);
         }
         Message::SetPane(pane) => state.pane = pane,
+        Message::Key(key) => {
+            use iced::keyboard::key::Named;
+            use iced::keyboard::Key;
+            match key {
+                Key::Named(Named::Escape) => return close(state),
+                Key::Named(Named::Backspace) => {
+                    state.search.pop();
+                }
+                Key::Named(Named::Enter) => {
+                    // Enter lança o primeiro resultado da busca.
+                    if !state.search.is_empty() {
+                        if let Some(app) = filtered_apps(state).into_iter().next() {
+                            let exec = app.exec.clone();
+                            apps::launch(&exec);
+                            return close(state);
+                        }
+                    }
+                }
+                Key::Named(Named::Space) => state.search.push(' '),
+                Key::Character(s) => state.search.push_str(s.as_str()),
+                _ => {}
+            }
+        }
         Message::AccentLoaded(Ok(id)) => libluma::tokens::set_accent_id(&id),
         Message::AccentLoaded(Err(e)) => eprintln!("luma-menu: ler acento falhou: {e}"),
         Message::AccentChanged(id) => libluma::tokens::set_accent_id(&id),
@@ -386,9 +417,15 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
     )
     .on_press(Message::Close);
 
-    // ─── Coluna esquerda: programas (placeholder) + busca no rodapé ────
-    // Busca (a marca do W7) vive no rodapé da coluna esquerda. Esqueleto.
-    let search = container(text("Buscar programas e arquivos…").size(13.0).color(secondary))
+    // ─── Coluna esquerda: programas + busca no rodapé ──────────────────
+    // Busca (a marca do W7) no rodapé. Mostra o texto digitado (teclado
+    // roteado, gotcha #4) ou o placeholder.
+    let (search_text, search_color) = if state.search.is_empty() {
+        ("Buscar programas e arquivos…".to_string(), secondary)
+    } else {
+        (state.search.clone(), cream)
+    };
+    let search = container(text(search_text).size(13.0).color(search_color))
         .padding(Padding::from([10.0, 14.0]))
         .width(Length::Fill)
         .style(move |_theme| container::Style {
@@ -402,41 +439,57 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
         });
 
     let mut left_items: Vec<Element<Message>> = Vec::new();
-    match state.pane {
-        Pane::Home => {
-            left_items.push(section_label("Mais usados", secondary));
-            if state.favorites.is_empty() {
-                left_items.push(muted_line("Nenhum app encontrado", secondary));
-            } else {
-                for app in &state.favorites {
-                    left_items.push(app_button(app, cream));
-                }
-            }
-            left_items.push(section_label("Recentes", secondary));
-            left_items.push(muted_line("Nenhum item recente", secondary));
-            left_items.push(Space::new().height(Length::Fill).into());
-            left_items.push(divider(secondary));
-            left_items.push(row_button(
-                "file-folder",
-                "Todos os programas",
-                cream,
-                Message::SetPane(Pane::All),
-            ));
-        }
-        Pane::All => {
-            left_items.push(row_button(
-                "file-folder",
-                "‹ Voltar",
-                cream,
-                Message::SetPane(Pane::Home),
-            ));
-            left_items.push(section_label(
-                format!("Todos os programas ({})", state.apps.len()),
-                secondary,
-            ));
-            let list = iced::widget::column(state.apps.iter().map(|a| app_button(a, cream)))
+    if !state.search.is_empty() {
+        // Busca ativa: resultados filtrados ao vivo.
+        let results = filtered_apps(state);
+        left_items.push(section_label(
+            format!("Resultados ({})", results.len()),
+            secondary,
+        ));
+        if results.is_empty() {
+            left_items.push(muted_line("Nada encontrado", secondary));
+        } else {
+            let list = iced::widget::column(results.into_iter().map(|a| app_button(a, cream)))
                 .spacing(2.0);
             left_items.push(scrollable(list).height(Length::Fill).into());
+        }
+    } else {
+        match state.pane {
+            Pane::Home => {
+                left_items.push(section_label("Mais usados", secondary));
+                if state.favorites.is_empty() {
+                    left_items.push(muted_line("Nenhum app encontrado", secondary));
+                } else {
+                    for app in &state.favorites {
+                        left_items.push(app_button(app, cream));
+                    }
+                }
+                left_items.push(section_label("Recentes", secondary));
+                left_items.push(muted_line("Nenhum item recente", secondary));
+                left_items.push(Space::new().height(Length::Fill).into());
+                left_items.push(divider(secondary));
+                left_items.push(row_button(
+                    "file-folder",
+                    "Todos os programas",
+                    cream,
+                    Message::SetPane(Pane::All),
+                ));
+            }
+            Pane::All => {
+                left_items.push(row_button(
+                    "file-folder",
+                    "‹ Voltar",
+                    cream,
+                    Message::SetPane(Pane::Home),
+                ));
+                left_items.push(section_label(
+                    format!("Todos os programas ({})", state.apps.len()),
+                    secondary,
+                ));
+                let list = iced::widget::column(state.apps.iter().map(|a| app_button(a, cream)))
+                    .spacing(2.0);
+                left_items.push(scrollable(list).height(Length::Fill).into());
+            }
         }
     }
     left_items.push(Space::new().height(Length::Fixed(6.0)).into());
@@ -570,7 +623,25 @@ fn subscription(_state: &Menu) -> iced::Subscription<Message> {
         iced::Subscription::run(toggle_subscription),
         iced::Subscription::run(accent_subscription),
         iced::Subscription::run(high_contrast_subscription),
+        // Teclado (gotcha #4): quando o overlay tem foco, as teclas chegam.
+        iced::event::listen_with(|event, _status, _window| {
+            if let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) = event {
+                Some(Message::Key(key))
+            } else {
+                None
+            }
+        }),
     ])
+}
+
+/// Apps que casam com a busca (case-insensitive no nome).
+fn filtered_apps(state: &Menu) -> Vec<&apps::App> {
+    let q = state.search.to_lowercase();
+    state
+        .apps
+        .iter()
+        .filter(|a| a.name.to_lowercase().contains(&q))
+        .collect()
 }
 
 fn toggle_subscription() -> impl iced::futures::Stream<Item = Message> {
