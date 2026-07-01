@@ -74,6 +74,13 @@ pub struct LumaState {
     /// show-desktop minimizou. Vazio = modo desligado. Restaura EXATAMENTE
     /// essas (não as que o usuário minimizou à mão).
     pub show_desktop_set: Vec<u64>,
+    /// Desenha a **barra velha** do compositor (taskbar/applets/menu/tray/
+    /// popups internos + overview de workspaces, que mora no mesmo trecho)?
+    /// Aposentar etapa 1: default `false` (tela limpa, só a luma-bar cliente).
+    /// `LUMA_LEGACY_BAR=1` religa (reversível). NÃO apaga código — só não
+    /// pinta. Context menu do desktop, sensores, OSD, toasts, lock e cursor
+    /// seguem SEMPRE (ficam fora do trecho gateado).
+    pub legacy_bar: bool,
     /// Layer surface que está com o foco de teclado agora (menu/popup que
     /// pediu `keyboard_interactivity != None`). None = nenhuma.
     pub keyboard_layer: Option<WlSurface>,
@@ -1083,6 +1090,7 @@ impl LumaState {
             windows,
             next_window_id: 1,
             show_desktop_set: Vec::new(),
+            legacy_bar: std::env::var("LUMA_LEGACY_BAR").is_ok(),
             keyboard_layer: None,
             pre_layer_focus: None,
             battery_tx,

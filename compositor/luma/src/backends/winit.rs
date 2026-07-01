@@ -880,6 +880,7 @@ pub fn init_winit(
                         // Fade-in/out via menu_anim.alpha() multiplicado na
                         // cor de cada elemento (SolidColorRenderElement::from_buffer
                         // já aceita alpha como 4º parâmetro).
+                        if data.state.legacy_bar {
                         data.state.menu_anim.tick(data.state.menu_open);
                         if data.state.menu_anim.is_visible() {
                             data.state.menu_fullscreen.resize(output_size_logical);
@@ -5383,6 +5384,7 @@ pub fn init_winit(
                             }
                             } // fecha else (Volume kind)
                         }
+                        } // fim do trecho da barra velha (gate LUMA_LEGACY_BAR)
 
                         // Aposentar barra etapa 1a: o menu de contexto do
                         // DESKTOP foi movido pra cá (era no meio do desenho da
