@@ -125,6 +125,13 @@ pub struct LumaState {
     /// `desktop_menu(x, y, out_w, out_h)`; o luma-menu abre o menu no ponto
     /// (com proteção de borda). Esquema COSMIC: cliente pede, compositor ancora.
     pub desktop_menu_tx: tokio::sync::watch::Sender<(u64, i32, i32, i32, i32)>,
+    /// Snapshot de workspace compartilhado (motor de workspace). Reescrito por
+    /// frame via `update_workspace_slot`; lido pelo `workspace_state` do D-Bus.
+    pub workspace_slot: crate::dbus_server::WorkspaceSlot,
+    /// Gatilho de mudança do motor de workspace: incrementado em cada troca/
+    /// criar/mover/fechar; a task do D-Bus emite `workspace_changed(atual,
+    /// quantas)`. Mesmo esquema do `desktop_menu_tx`.
+    pub workspace_changed_tx: tokio::sync::watch::Sender<u64>,
     /// Super-tap: `true` enquanto o Super foi pressionado sozinho (sem outra
     /// tecla). Se soltar ainda armado, dispara o menu (toque tipo Windows).
     /// Qualquer outra tecla desarma (Super+X é atalho, não toque).
@@ -868,6 +875,8 @@ impl LumaState {
                 }
             }
         }
+        // Motor de workspace: publica o estado novo pro D-Bus (poll + sinal).
+        self.notify_workspace_changed();
     }
 
     /// Próxima posição pra uma janela nova em cascata. Y já é o topo do
@@ -949,6 +958,82 @@ impl LumaState {
         }
     }
 
+    /// Reescreve o snapshot de workspace pro D-Bus (motor de workspace): área
+    /// atual, quantas, e ids das janelas de cada área. Chamado por frame no
+    /// render, junto com `update_windows_slot`. `&self` — só lê o space e o
+    /// manager, escreve no `Arc<Mutex>`.
+    pub fn update_workspace_slot(&self) {
+        // Mapa surface → id (só janelas reais do space).
+        let mut surf_to_id: Vec<(
+            smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+            u64,
+        )> = Vec::new();
+        for item in self.space.elements() {
+            let Some(window) = item.as_window() else {
+                continue;
+            };
+            let Some(id) = window.window().user_data().get::<WindowId>().map(|w| w.0) else {
+                continue;
+            };
+            let Some(toplevel) = window.window().toplevel() else {
+                continue;
+            };
+            surf_to_id.push((toplevel.wl_surface().clone(), id));
+        }
+        let windows: Vec<Vec<u64>> = self
+            .workspaces
+            .workspaces
+            .iter()
+            .map(|ws| {
+                ws.windows
+                    .iter()
+                    .filter_map(|s| {
+                        surf_to_id.iter().find(|(surf, _)| surf == s).map(|(_, id)| *id)
+                    })
+                    .collect()
+            })
+            .collect();
+        let snap = crate::dbus_server::WorkspaceSnapshot {
+            current: self.workspaces.current as u32,
+            count: self.workspaces.count() as u32,
+            windows,
+        };
+        if let Ok(mut g) = self.workspace_slot.lock() {
+            *g = snap;
+        }
+    }
+
+    /// Avisa o D-Bus que o motor de workspace mudou (troca/criar/mover/fechar) —
+    /// incrementa o `watch`, e a task emite `workspace_changed`. Atualiza o
+    /// snapshot na hora pra o sinal já refletir o estado novo.
+    pub fn notify_workspace_changed(&self) {
+        self.update_workspace_slot();
+        self.workspace_changed_tx
+            .send_modify(|c| *c = c.wrapping_add(1));
+    }
+
+    /// Move a janela (pela id) pra área `target` (0-based), criando as
+    /// intermediárias. Id desconhecida = no-op. Motor de workspace (D-Bus).
+    pub fn move_window_to_workspace_by_id(&mut self, id: u64, target: usize) {
+        let surface = self
+            .space
+            .elements()
+            .filter_map(|i| i.as_window())
+            .find(|w| w.window().user_data().get::<WindowId>().map(|x| x.0) == Some(id))
+            .and_then(|w| w.window().toplevel().map(|t| t.wl_surface().clone()));
+        let Some(surface) = surface else {
+            return;
+        };
+        self.workspaces.move_window_to_workspace(&surface, target);
+        self.refresh_workspace_visibility();
+    }
+
+    /// Cria uma área nova vazia e vai pra ela. Motor de workspace (D-Bus).
+    pub fn create_workspace(&mut self) {
+        self.workspaces.create();
+        self.refresh_workspace_visibility();
+    }
+
     /// Relê o volume do default sink e manda no `watch` (luma-bar passo 4) —
     /// o D-Bus emite o sinal. Chamado após qualquer mudança (tecla, set por
     /// D-Bus). Relê pra ficar igual ao que o `read_volume` reporta (0–100),
@@ -1013,6 +1098,15 @@ impl LumaState {
         let super_tap_armed = false;
         // Gatilho do context menu do desktop cliente (seq, x, y, out_w, out_h).
         let (desktop_menu_tx, _) = tokio::sync::watch::channel((0u64, 0i32, 0i32, 0i32, 0i32));
+        let workspace_slot: crate::dbus_server::WorkspaceSlot =
+            std::sync::Arc::new(std::sync::Mutex::new(
+                crate::dbus_server::WorkspaceSnapshot {
+                    current: 0,
+                    count: 1,
+                    windows: vec![vec![]],
+                },
+            ));
+        let (workspace_changed_tx, _) = tokio::sync::watch::channel(0u64);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1121,6 +1215,8 @@ impl LumaState {
             legacy_bar: std::env::var("LUMA_LEGACY_BAR").is_ok(),
             keyboard_layer: None,
             pre_layer_focus: None,
+            workspace_slot,
+            workspace_changed_tx,
             battery_tx,
             volume_tx,
             network_tx,

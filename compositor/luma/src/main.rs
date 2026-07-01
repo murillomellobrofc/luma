@@ -125,6 +125,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     dbus_server::IpcCommand::CtxAction(action) => {
                         crate::input::pointer::run_desktop_action(&mut data.state, action);
                     }
+                    dbus_server::IpcCommand::WorkspaceSwitch(idx) => {
+                        while data.state.workspaces.count() <= idx {
+                            data.state.workspaces.create();
+                        }
+                        data.state.workspaces.switch_to(idx);
+                        data.state.refresh_workspace_visibility();
+                    }
+                    dbus_server::IpcCommand::WorkspaceCreate => {
+                        data.state.create_workspace();
+                    }
+                    dbus_server::IpcCommand::WorkspaceMoveWindow { window_id, target } => {
+                        data.state.move_window_to_workspace_by_id(window_id, target);
+                    }
                 }
             }
         })
@@ -163,6 +176,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let menu_toggle_rx = data.state.menu_toggle_tx.subscribe();
     let desktop_menu_rx = data.state.desktop_menu_tx.subscribe();
     let sni_list = data.state.sni_list.clone();
+    let workspace_slot = data.state.workspace_slot.clone();
+    let workspace_changed_rx = data.state.workspace_changed_tx.subscribe();
     dbus_server::spawn(
         dbus_tx,
         available,
@@ -175,6 +190,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         menu_toggle_rx,
         desktop_menu_rx,
         sni_list,
+        workspace_slot,
+        workspace_changed_rx,
     );
 
     info!("luma pronto, entrando no loop principal");
