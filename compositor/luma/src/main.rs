@@ -115,6 +115,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     dbus_server::IpcCommand::ToggleMute => {
                         crate::input::shortcuts::volume_mute_toggle(&mut data.state);
                     }
+                    dbus_server::IpcCommand::Lock => {
+                        crate::input::shortcuts::lock_session(&mut data.state);
+                    }
                 }
             }
         })
