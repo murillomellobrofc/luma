@@ -1113,13 +1113,15 @@ fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
 fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
     if let Some((pid, kind)) = &state.popup {
         if *pid == id {
+            // Margem direita ~ posição do applet no cluster W11 (tray à
+            // esquerda … relógio na ponta); aproximado, o card é largo.
             return match kind {
-                PopupKind::Volume => popup_frame(volume_popup_body(state), 60.0),
-                PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 200.0),
-                PopupKind::Network => popup_frame(network_popup_body(state), 130.0),
-                PopupKind::Notifications => popup_frame(notif_popup_body(state), 30.0),
-                PopupKind::TrayOverflow => popup_frame(tray_overflow_body(state), 100.0),
-                PopupKind::TrayMenu => popup_frame(tray_menu_body(state), 80.0),
+                PopupKind::Volume => popup_frame(volume_popup_body(state), 180.0),
+                PopupKind::Bluetooth => popup_frame(bluetooth_popup_body(state), 235.0),
+                PopupKind::Network => popup_frame(network_popup_body(state), 260.0),
+                PopupKind::Notifications => popup_frame(notif_popup_body(state), 130.0),
+                PopupKind::TrayOverflow => popup_frame(tray_overflow_body(state), 290.0),
+                PopupKind::TrayMenu => popup_frame(tray_menu_body(state), 290.0),
             };
         }
     }
@@ -1238,29 +1240,34 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
             Space::new().width(Length::Fixed(10.0)),
             windows_row,
             Space::new().width(Length::Fill),
-            bluetooth_el,
-            Space::new().width(Length::Fixed(14.0)),
-            network_el,
-            Space::new().width(Length::Fixed(14.0)),
-            volume_applet(state.volume.0, state.volume.1),
-            Space::new().width(Length::Fixed(14.0)),
-            battery_el,
-            Space::new().width(Length::Fixed(14.0)),
-            dot,
-            // Data (secundária) + hora (acento), lado a lado.
+            // ── Canto direito, estilo W11 ──────────────────────────────
+            // 1. Bandeja (ícones + setinha de overflow).
+            tray_view(
+                &state.tray,
+                matches!(state.popup, Some((_, PopupKind::TrayOverflow))),
+            ),
+            Space::new().width(Length::Fixed(16.0)),
+            // 2. Bloco de status juntinho: bateria, rede, bluetooth, volume.
             row![
+                battery_el,
+                network_el,
+                bluetooth_el,
+                volume_applet(state.volume.0, state.volume.1),
+            ]
+            .spacing(6)
+            .align_y(iced::Alignment::Center),
+            Space::new().width(Length::Fixed(16.0)),
+            // 3. Sino de notificação.
+            notification_applet(&state.notif_icon),
+            Space::new().width(Length::Fixed(16.0)),
+            // 4. Relógio com data, na pontinha.
+            row![
+                dot,
                 text(state.date.clone()).size(12.0).color(secondary),
                 text(state.clock.clone()).size(15.0).color(accent),
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
-            Space::new().width(Length::Fixed(14.0)),
-            tray_view(
-                &state.tray,
-                matches!(state.popup, Some((_, PopupKind::TrayOverflow))),
-            ),
-            Space::new().width(Length::Fixed(14.0)),
-            notification_applet(&state.notif_icon),
             Space::new().width(Length::Fixed(14.0)),
             show_desktop_btn,
             Space::new().width(Length::Fixed(12.0)),
