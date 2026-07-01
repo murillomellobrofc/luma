@@ -497,6 +497,27 @@ impl LumaState {
         }
     }
 
+    /// True se há uma layer surface de cliente (Overlay/Top: os popups da
+    /// barra, a própria barra) sob o cursor. Usado pra NÃO abrir o menu de
+    /// contexto do desktop no clique-direito quando o alvo é um cliente — o
+    /// direito precisa chegar no cliente (ex: menu de tray do dbusmenu).
+    pub fn is_over_client_layer(&self, pos: Point<f64, Logical>) -> bool {
+        use smithay::desktop::layer_map_for_output;
+        use smithay::wayland::shell::wlr_layer::Layer as WlrLayer;
+        let Some(output) = self
+            .space
+            .output_under(pos)
+            .next()
+            .or_else(|| self.space.outputs().next())
+            .cloned()
+        else {
+            return false;
+        };
+        let layers = layer_map_for_output(&output);
+        layers.layer_under(WlrLayer::Overlay, pos).is_some()
+            || layers.layer_under(WlrLayer::Top, pos).is_some()
+    }
+
     pub fn surface_under(
         &self,
         pos: Point<f64, Logical>,

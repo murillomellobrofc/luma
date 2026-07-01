@@ -703,9 +703,10 @@ impl CompositorService {
     // ─── Bandeja (SNI host) ───────────────────────────────────────────
 
     /// Itens da bandeja pra barra: `(service, object_path, título, tooltip,
-    /// caminho_do_ícone)`. O ícone já vem resolvido pra um arquivo (nome
-    /// temático ou pixmap rasterizado); "" = sem ícone (fallback na barra).
-    async fn tray_items(&self) -> Vec<(String, String, String, String, String)> {
+    /// caminho_do_ícone, menu_path)`. O ícone já vem resolvido pra um arquivo
+    /// (nome temático ou pixmap rasterizado); "" = sem ícone. `menu_path` é o
+    /// objeto DBusMenu do item (vazio = sem menu de clique-direito).
+    async fn tray_items(&self) -> Vec<(String, String, String, String, String, String)> {
         match self.sni.lock() {
             Ok(g) => g
                 .iter()
@@ -716,6 +717,7 @@ impl CompositorService {
                         it.title.clone(),
                         it.tooltip.clone(),
                         crate::sni::item_icon_path(it),
+                        it.menu_path.clone(),
                     )
                 })
                 .collect(),
@@ -726,6 +728,28 @@ impl CompositorService {
     /// Clique esquerdo num item da bandeja → manda `Activate` pro app.
     async fn tray_activate(&self, service: String, path: String) {
         crate::sni::activate(&service, &path, 0, 0);
+    }
+
+    /// Árvore (flat) do menu de clique-direito de um item: `(id, label,
+    /// habilitado, separador)`. Chama AboutToShow antes (labels dinâmicos).
+    /// Roda o dbusmenu (zbus blocking) num thread de blocking pra não travar
+    /// a runtime async.
+    async fn tray_menu(&self, service: String, menu_path: String) -> Vec<(i32, String, bool, bool)> {
+        let items = tokio::task::spawn_blocking(move || {
+            crate::sni::about_to_show(&service, &menu_path);
+            crate::sni::get_menu_layout(&service, &menu_path)
+        })
+        .await
+        .unwrap_or_default();
+        items
+            .into_iter()
+            .map(|it| (it.id, it.label, it.enabled, it.separator))
+            .collect()
+    }
+
+    /// Clique num item do menu → manda `Event(clicked)` pro app (o app age).
+    async fn tray_menu_event(&self, service: String, menu_path: String, id: i32) {
+        crate::sni::send_menu_event(&service, &menu_path, id);
     }
 
     // ─── Menu (luma-menu passo 1) ─────────────────────────────────────

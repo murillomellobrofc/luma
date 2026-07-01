@@ -111,10 +111,18 @@ pub trait Compositor {
     /// Limpa a central.
     async fn clear_notifications(&self) -> zbus::Result<()>;
 
-    /// Bandeja: itens `(service, object_path, título, tooltip, caminho_ícone)`.
-    async fn tray_items(&self) -> zbus::Result<Vec<(String, String, String, String, String)>>;
+    /// Bandeja: itens `(service, object_path, título, tooltip, caminho_ícone,
+    /// menu_path)`.
+    async fn tray_items(&self)
+        -> zbus::Result<Vec<(String, String, String, String, String, String)>>;
     /// Clique esquerdo num item da bandeja → ativa o app.
     async fn tray_activate(&self, service: String, path: String) -> zbus::Result<()>;
+    /// Árvore (flat) do menu de clique-direito: `(id, label, habilitado, sep)`.
+    async fn tray_menu(&self, service: String, menu_path: String)
+        -> zbus::Result<Vec<(i32, String, bool, bool)>>;
+    /// Clique num item do menu → o app age.
+    async fn tray_menu_event(&self, service: String, menu_path: String, id: i32)
+        -> zbus::Result<()>;
 }
 
 /// Lê o acento no boot (pra a barra abrir já na cor salva).
@@ -517,7 +525,7 @@ pub async fn clear_notifications() {
 
 // ─── Bandeja (SNI) ────────────────────────────────────────────────────
 
-pub async fn read_tray_items() -> Vec<(String, String, String, String, String)> {
+pub async fn read_tray_items() -> Vec<(String, String, String, String, String, String)> {
     match proxy().await {
         Ok(p) => p.tray_items().await.unwrap_or_default(),
         Err(_) => Vec::new(),
@@ -527,6 +535,19 @@ pub async fn read_tray_items() -> Vec<(String, String, String, String, String)> 
 pub async fn tray_activate(service: String, path: String) {
     if let Ok(p) = proxy().await {
         let _ = p.tray_activate(service, path).await;
+    }
+}
+
+pub async fn tray_menu(service: String, menu_path: String) -> Vec<(i32, String, bool, bool)> {
+    match proxy().await {
+        Ok(p) => p.tray_menu(service, menu_path).await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub async fn tray_menu_event(service: String, menu_path: String, id: i32) {
+    if let Ok(p) = proxy().await {
+        let _ = p.tray_menu_event(service, menu_path, id).await;
     }
 }
 
