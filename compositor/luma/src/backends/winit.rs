@@ -2452,210 +2452,6 @@ pub fn init_winit(
                             }
                         }
 
-                        // H48.ctx: menu de contexto do desktop. Render
-                        // estilo popup — insert(0, ...) pra ficar na
-                        // frente, bg + linha accent + items + (ctx.4)
-                        // submenu.
-                        if let Some(menu) = data.state.context_menu.clone() {
-                            let theme = crate::theme::current();
-                            let t_ctx = theme.context_menu.clone();
-                            let rect = menu.rect(&t_ctx);
-
-                            // Helper: insert(0) com pos lógica.
-                            let render_menu_panel = |
-                                elements: &mut Vec<LumaRenderElement<GlesRenderer>>,
-                                renderer: &mut GlesRenderer,
-                                text_renderer: Option<&crate::text::TextRenderer>,
-                                tray: &mut crate::tray::TrayState,
-                                items: &[crate::context_menu::ContextItem],
-                                rect: smithay::utils::Rectangle<i32, smithay::utils::Logical>,
-                                hovered_idx: Option<usize>,
-                            | {
-                                // (a) bg painel.
-                                let bg = crate::gfx::make_rounded_panel(
-                                    rect.size.w, rect.size.h,
-                                    t_ctx.corner_radius, t_ctx.bg,
-                                );
-                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>
-                                        ::from((rect.loc.x, rect.loc.y))
-                                        .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer, bg_loc.to_f64(), &bg,
-                                    None, None, None, Kind::Unspecified,
-                                ) {
-                                    elements.insert(0, LumaRenderElement::Memory(elem));
-                                }
-                                // (b) accent top.
-                                let accent = crate::gfx::make_rounded_panel(
-                                    rect.size.w - 24, 2, 1, t_ctx.top_accent,
-                                );
-                                let acc_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                    smithay::utils::Point::<i32, smithay::utils::Logical>
-                                        ::from((rect.loc.x + 12, rect.loc.y + 4))
-                                        .to_physical_precise_round(1.0);
-                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                    renderer, acc_loc.to_f64(), &accent,
-                                    None, None, None, Kind::Unspecified,
-                                ) {
-                                    elements.insert(0, LumaRenderElement::Memory(elem));
-                                }
-                                // (c) cada item.
-                                let mut y = rect.loc.y + 4;
-                                for (idx, item) in items.iter().enumerate() {
-                                    let h = crate::context_menu::slot_height(item, &t_ctx);
-                                    match item.kind {
-                                        crate::context_menu::ItemKind::Separator => {
-                                            // Linha horizontal centrada.
-                                            let sep_w = rect.size.w - 2 * t_ctx.item_padding_horizontal;
-                                            let sep = crate::gfx::make_rounded_panel(
-                                                sep_w, t_ctx.separator_height, 0, t_ctx.separator,
-                                            );
-                                            let sep_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                smithay::utils::Point::<i32, smithay::utils::Logical>
-                                                    ::from((
-                                                        rect.loc.x + t_ctx.item_padding_horizontal,
-                                                        y + t_ctx.separator_padding,
-                                                    ))
-                                                    .to_physical_precise_round(1.0);
-                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                renderer, sep_loc.to_f64(), &sep,
-                                                None, None, None, Kind::Unspecified,
-                                            ) {
-                                                elements.insert(0, LumaRenderElement::Memory(elem));
-                                            }
-                                        }
-                                        _ => {
-                                            // Hover bg só pra items interactive.
-                                            if item.interactive() && hovered_idx == Some(idx) {
-                                                let hover = crate::gfx::make_rounded_panel(
-                                                    rect.size.w - 8, h, 6, t_ctx.item_hover_bg,
-                                                );
-                                                let h_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                    smithay::utils::Point::<i32, smithay::utils::Logical>
-                                                        ::from((rect.loc.x + 4, y))
-                                                        .to_physical_precise_round(1.0);
-                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                    renderer, h_loc.to_f64(), &hover,
-                                                    None, None, None, Kind::Unspecified,
-                                                ) {
-                                                    elements.insert(0, LumaRenderElement::Memory(elem));
-                                                }
-                                            }
-                                            // Ícone (se houver).
-                                            let alpha = if item.enabled { 1.0 } else { 0.55 };
-                                            let icon_x = rect.loc.x + t_ctx.item_padding_horizontal;
-                                            let icon_y = y + (h - t_ctx.icon_size) / 2;
-                                            if let Some(name) = item.icon {
-                                                if let Some((buf, _)) =
-                                                    crate::tray::ensure_icon_sized(tray, name, t_ctx.icon_size)
-                                                {
-                                                    let ic_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                        smithay::utils::Point::<i32, smithay::utils::Logical>
-                                                            ::from((icon_x, icon_y))
-                                                            .to_physical_precise_round(1.0);
-                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                        renderer, ic_loc.to_f64(), &buf,
-                                                        Some(alpha), None, None, Kind::Unspecified,
-                                                    ) {
-                                                        elements.insert(0, LumaRenderElement::Memory(elem));
-                                                    }
-                                                }
-                                            }
-                                            // Label.
-                                            if let Some(text_r) = text_renderer {
-                                                let label_color = if item.enabled {
-                                                    t_ctx.item_text
-                                                } else {
-                                                    t_ctx.item_disabled
-                                                };
-                                                let (pixels, w, hh) = text_r.rasterize_colored(
-                                                    &item.label, t_ctx.item_text_size, label_color,
-                                                );
-                                                if w > 0 && hh > 0 {
-                                                    let buf = MemoryRenderBuffer::from_slice(
-                                                        &pixels,
-                                                        smithay::backend::allocator::Fourcc::Argb8888,
-                                                        (w as i32, hh as i32), 1,
-                                                        Transform::Normal, None,
-                                                    );
-                                                    let lx = icon_x + t_ctx.icon_size + t_ctx.icon_text_gap;
-                                                    let ly = y + (h - hh as i32) / 2;
-                                                    let l_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                        smithay::utils::Point::<i32, smithay::utils::Logical>
-                                                            ::from((lx, ly))
-                                                            .to_physical_precise_round(1.0);
-                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                        renderer, l_loc.to_f64(), &buf,
-                                                        None, None, None, Kind::Unspecified,
-                                                    ) {
-                                                        elements.insert(0, LumaRenderElement::Memory(elem));
-                                                    }
-                                                }
-                                                // Shortcut (cinza, à direita) ou
-                                                // setinha de submenu.
-                                                let right_label: Option<String> = match (&item.kind, item.shortcut) {
-                                                    (crate::context_menu::ItemKind::Submenu(_), _) => Some("›".to_string()),
-                                                    (_, Some(s)) => Some(s.to_string()),
-                                                    _ => None,
-                                                };
-                                                if let Some(s) = right_label {
-                                                    let (px2, w2, h2) = text_r.rasterize_colored(
-                                                        &s, t_ctx.item_text_size, t_ctx.shortcut_color,
-                                                    );
-                                                    if w2 > 0 && h2 > 0 {
-                                                        let buf2 = MemoryRenderBuffer::from_slice(
-                                                            &px2,
-                                                            smithay::backend::allocator::Fourcc::Argb8888,
-                                                            (w2 as i32, h2 as i32), 1,
-                                                            Transform::Normal, None,
-                                                        );
-                                                        let rx = rect.loc.x + rect.size.w
-                                                            - t_ctx.item_padding_horizontal - w2 as i32;
-                                                        let ry = y + (h - h2 as i32) / 2;
-                                                        let r_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
-                                                            smithay::utils::Point::<i32, smithay::utils::Logical>
-                                                                ::from((rx, ry))
-                                                                .to_physical_precise_round(1.0);
-                                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
-                                                            renderer, r_loc.to_f64(), &buf2,
-                                                            None, None, None, Kind::Unspecified,
-                                                        ) {
-                                                            elements.insert(0, LumaRenderElement::Memory(elem));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    y += h;
-                                }
-                            };
-
-                            render_menu_panel(
-                                &mut custom_elements, renderer,
-                                data.state.text.as_ref(),
-                                &mut data.state.tray,
-                                &menu.items, rect, menu.hovered,
-                            );
-
-                            // (d) Submenu, se aberto. H48.ctx.4.
-                            if let Some(sub_rect) = menu.submenu_rect(&t_ctx, output_size_logical) {
-                                if let Some(parent) = menu
-                                    .open_submenu
-                                    .and_then(|i| menu.items.get(i))
-                                {
-                                    if let crate::context_menu::ItemKind::Submenu(sub_items) = &parent.kind {
-                                        render_menu_panel(
-                                            &mut custom_elements, renderer,
-                                            data.state.text.as_ref(),
-                                            &mut data.state.tray,
-                                            sub_items, sub_rect, menu.submenu_hovered,
-                                        );
-                                    }
-                                }
-                            }
-                        }
 
                         // H33.taskbar.F.16: botão Show Desktop 44×44 no
                         // canto direito. Bg condicional (hover/active),
@@ -5586,6 +5382,214 @@ pub fn init_winit(
                                 }
                             }
                             } // fecha else (Volume kind)
+                        }
+
+                        // Aposentar barra etapa 1a: o menu de contexto do
+                        // DESKTOP foi movido pra cá (era no meio do desenho da
+                        // barra) pra o desenho da barra virar um trecho gateável.
+                        // H48.ctx: menu de contexto do desktop. Render
+                        // estilo popup — insert(0, ...) pra ficar na
+                        // frente, bg + linha accent + items + (ctx.4)
+                        // submenu.
+                        if let Some(menu) = data.state.context_menu.clone() {
+                            let theme = crate::theme::current();
+                            let t_ctx = theme.context_menu.clone();
+                            let rect = menu.rect(&t_ctx);
+
+                            // Helper: insert(0) com pos lógica.
+                            let render_menu_panel = |
+                                elements: &mut Vec<LumaRenderElement<GlesRenderer>>,
+                                renderer: &mut GlesRenderer,
+                                text_renderer: Option<&crate::text::TextRenderer>,
+                                tray: &mut crate::tray::TrayState,
+                                items: &[crate::context_menu::ContextItem],
+                                rect: smithay::utils::Rectangle<i32, smithay::utils::Logical>,
+                                hovered_idx: Option<usize>,
+                            | {
+                                // (a) bg painel.
+                                let bg = crate::gfx::make_rounded_panel(
+                                    rect.size.w, rect.size.h,
+                                    t_ctx.corner_radius, t_ctx.bg,
+                                );
+                                let bg_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((rect.loc.x, rect.loc.y))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, bg_loc.to_f64(), &bg,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // (b) accent top.
+                                let accent = crate::gfx::make_rounded_panel(
+                                    rect.size.w - 24, 2, 1, t_ctx.top_accent,
+                                );
+                                let acc_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                        ::from((rect.loc.x + 12, rect.loc.y + 4))
+                                        .to_physical_precise_round(1.0);
+                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                    renderer, acc_loc.to_f64(), &accent,
+                                    None, None, None, Kind::Unspecified,
+                                ) {
+                                    elements.insert(0, LumaRenderElement::Memory(elem));
+                                }
+                                // (c) cada item.
+                                let mut y = rect.loc.y + 4;
+                                for (idx, item) in items.iter().enumerate() {
+                                    let h = crate::context_menu::slot_height(item, &t_ctx);
+                                    match item.kind {
+                                        crate::context_menu::ItemKind::Separator => {
+                                            // Linha horizontal centrada.
+                                            let sep_w = rect.size.w - 2 * t_ctx.item_padding_horizontal;
+                                            let sep = crate::gfx::make_rounded_panel(
+                                                sep_w, t_ctx.separator_height, 0, t_ctx.separator,
+                                            );
+                                            let sep_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                    ::from((
+                                                        rect.loc.x + t_ctx.item_padding_horizontal,
+                                                        y + t_ctx.separator_padding,
+                                                    ))
+                                                    .to_physical_precise_round(1.0);
+                                            if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                renderer, sep_loc.to_f64(), &sep,
+                                                None, None, None, Kind::Unspecified,
+                                            ) {
+                                                elements.insert(0, LumaRenderElement::Memory(elem));
+                                            }
+                                        }
+                                        _ => {
+                                            // Hover bg só pra items interactive.
+                                            if item.interactive() && hovered_idx == Some(idx) {
+                                                let hover = crate::gfx::make_rounded_panel(
+                                                    rect.size.w - 8, h, 6, t_ctx.item_hover_bg,
+                                                );
+                                                let h_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                    smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                        ::from((rect.loc.x + 4, y))
+                                                        .to_physical_precise_round(1.0);
+                                                if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                    renderer, h_loc.to_f64(), &hover,
+                                                    None, None, None, Kind::Unspecified,
+                                                ) {
+                                                    elements.insert(0, LumaRenderElement::Memory(elem));
+                                                }
+                                            }
+                                            // Ícone (se houver).
+                                            let alpha = if item.enabled { 1.0 } else { 0.55 };
+                                            let icon_x = rect.loc.x + t_ctx.item_padding_horizontal;
+                                            let icon_y = y + (h - t_ctx.icon_size) / 2;
+                                            if let Some(name) = item.icon {
+                                                if let Some((buf, _)) =
+                                                    crate::tray::ensure_icon_sized(tray, name, t_ctx.icon_size)
+                                                {
+                                                    let ic_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                            ::from((icon_x, icon_y))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, ic_loc.to_f64(), &buf,
+                                                        Some(alpha), None, None, Kind::Unspecified,
+                                                    ) {
+                                                        elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                            }
+                                            // Label.
+                                            if let Some(text_r) = text_renderer {
+                                                let label_color = if item.enabled {
+                                                    t_ctx.item_text
+                                                } else {
+                                                    t_ctx.item_disabled
+                                                };
+                                                let (pixels, w, hh) = text_r.rasterize_colored(
+                                                    &item.label, t_ctx.item_text_size, label_color,
+                                                );
+                                                if w > 0 && hh > 0 {
+                                                    let buf = MemoryRenderBuffer::from_slice(
+                                                        &pixels,
+                                                        smithay::backend::allocator::Fourcc::Argb8888,
+                                                        (w as i32, hh as i32), 1,
+                                                        Transform::Normal, None,
+                                                    );
+                                                    let lx = icon_x + t_ctx.icon_size + t_ctx.icon_text_gap;
+                                                    let ly = y + (h - hh as i32) / 2;
+                                                    let l_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                        smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                            ::from((lx, ly))
+                                                            .to_physical_precise_round(1.0);
+                                                    if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                        renderer, l_loc.to_f64(), &buf,
+                                                        None, None, None, Kind::Unspecified,
+                                                    ) {
+                                                        elements.insert(0, LumaRenderElement::Memory(elem));
+                                                    }
+                                                }
+                                                // Shortcut (cinza, à direita) ou
+                                                // setinha de submenu.
+                                                let right_label: Option<String> = match (&item.kind, item.shortcut) {
+                                                    (crate::context_menu::ItemKind::Submenu(_), _) => Some("›".to_string()),
+                                                    (_, Some(s)) => Some(s.to_string()),
+                                                    _ => None,
+                                                };
+                                                if let Some(s) = right_label {
+                                                    let (px2, w2, h2) = text_r.rasterize_colored(
+                                                        &s, t_ctx.item_text_size, t_ctx.shortcut_color,
+                                                    );
+                                                    if w2 > 0 && h2 > 0 {
+                                                        let buf2 = MemoryRenderBuffer::from_slice(
+                                                            &px2,
+                                                            smithay::backend::allocator::Fourcc::Argb8888,
+                                                            (w2 as i32, h2 as i32), 1,
+                                                            Transform::Normal, None,
+                                                        );
+                                                        let rx = rect.loc.x + rect.size.w
+                                                            - t_ctx.item_padding_horizontal - w2 as i32;
+                                                        let ry = y + (h - h2 as i32) / 2;
+                                                        let r_loc: smithay::utils::Point<i32, smithay::utils::Physical> =
+                                                            smithay::utils::Point::<i32, smithay::utils::Logical>
+                                                                ::from((rx, ry))
+                                                                .to_physical_precise_round(1.0);
+                                                        if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
+                                                            renderer, r_loc.to_f64(), &buf2,
+                                                            None, None, None, Kind::Unspecified,
+                                                        ) {
+                                                            elements.insert(0, LumaRenderElement::Memory(elem));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    y += h;
+                                }
+                            };
+
+                            render_menu_panel(
+                                &mut custom_elements, renderer,
+                                data.state.text.as_ref(),
+                                &mut data.state.tray,
+                                &menu.items, rect, menu.hovered,
+                            );
+
+                            // (d) Submenu, se aberto. H48.ctx.4.
+                            if let Some(sub_rect) = menu.submenu_rect(&t_ctx, output_size_logical) {
+                                if let Some(parent) = menu
+                                    .open_submenu
+                                    .and_then(|i| menu.items.get(i))
+                                {
+                                    if let crate::context_menu::ItemKind::Submenu(sub_items) = &parent.kind {
+                                        render_menu_panel(
+                                            &mut custom_elements, renderer,
+                                            data.state.text.as_ref(),
+                                            &mut data.state.tray,
+                                            sub_items, sub_rect, menu.submenu_hovered,
+                                        );
+                                    }
+                                }
+                            }
                         }
 
                         // H58 fatia 6: OSD (volume/brilho/mídia) vai pra
