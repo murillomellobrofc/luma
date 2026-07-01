@@ -20,6 +20,41 @@ pub trait Compositor {
     async fn high_contrast(&self) -> zbus::Result<bool>;
     #[zbus(signal)]
     fn high_contrast_changed(&self, enabled: bool) -> zbus::Result<()>;
+
+    /// Sessão (passo 3): desligar/reiniciar/suspender/bloquear.
+    async fn power_off(&self) -> zbus::Result<()>;
+    async fn reboot(&self) -> zbus::Result<()>;
+    async fn suspend(&self) -> zbus::Result<()>;
+    async fn lock(&self) -> zbus::Result<()>;
+}
+
+async fn session_proxy() -> zbus::Result<CompositorProxy<'static>> {
+    let conn = zbus::Connection::session().await?;
+    CompositorProxy::new(&conn).await
+}
+
+pub async fn power_off() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.power_off().await;
+    }
+}
+
+pub async fn reboot() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.reboot().await;
+    }
+}
+
+pub async fn suspend() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.suspend().await;
+    }
+}
+
+pub async fn lock() {
+    if let Ok(p) = session_proxy().await {
+        let _ = p.lock().await;
+    }
 }
 
 /// Stream do sinal `menu_toggle` — cada item é um "toggle" (sem dados).

@@ -26,6 +26,22 @@ enum Pane {
     All,
 }
 
+/// Ação irreversível esperando confirmação (desligar/reiniciar).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Confirm {
+    PowerOff,
+    Reboot,
+}
+
+impl Confirm {
+    fn title(self) -> &'static str {
+        match self {
+            Confirm::PowerOff => "Desligar agora?",
+            Confirm::Reboot => "Reiniciar agora?",
+        }
+    }
+}
+
 struct Menu {
     /// Id da surface overlay aberta, ou `None` (menu fechado).
     overlay: Option<IcedId>,
@@ -39,6 +55,8 @@ struct Menu {
     pane: Pane,
     /// Texto digitado na busca. Vazio = mostra Início/Todos; senão filtra.
     search: String,
+    /// Confirmação pendente (desligar/reiniciar), ou None.
+    confirm: Option<Confirm>,
 }
 
 #[to_layer_message(multi)]
@@ -60,6 +78,14 @@ enum Message {
     SetPane(Pane),
     /// Tecla pressionada na busca (teclado roteado pra layer surface).
     Key(iced::keyboard::Key),
+    /// Sessão: suspende / bloqueia (reversíveis, direto).
+    Suspend,
+    Lock,
+    /// Pede confirmação de uma ação irreversível (desligar/reiniciar).
+    AskConfirm(Confirm),
+    /// Confirma / cancela a ação pendente.
+    DoConfirm,
+    CancelConfirm,
     AccentLoaded(Result<String, String>),
     AccentChanged(String),
     HighContrastLoaded(Result<bool, String>),
@@ -119,6 +145,7 @@ fn boot() -> (Menu, Task<Message>) {
             favorites,
             pane: Pane::Home,
             search: String::new(),
+            confirm: None,
         },
         read,
     )
@@ -141,6 +168,7 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             state.greeting = greeting();
             state.pane = Pane::Home; // sempre reabre no Início
             state.search.clear(); // busca limpa a cada abertura
+            state.confirm = None; // sem confirmação pendente
             let (id, task) = Message::layershell_open(overlay_settings());
             state.overlay = Some(id);
             return task;
@@ -160,11 +188,33 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             return close(state);
         }
         Message::SetPane(pane) => state.pane = pane,
+        Message::Suspend => {
+            return Task::batch([Task::perform(ipc::suspend(), |_| Message::Noop), close(state)]);
+        }
+        Message::Lock => {
+            return Task::batch([Task::perform(ipc::lock(), |_| Message::Noop), close(state)]);
+        }
+        Message::AskConfirm(c) => state.confirm = Some(c),
+        Message::CancelConfirm => state.confirm = None,
+        Message::DoConfirm => {
+            let action = match state.confirm.take() {
+                Some(Confirm::PowerOff) => Task::perform(ipc::power_off(), |_| Message::Noop),
+                Some(Confirm::Reboot) => Task::perform(ipc::reboot(), |_| Message::Noop),
+                None => return Task::none(),
+            };
+            return Task::batch([action, close(state)]);
+        }
         Message::Key(key) => {
             use iced::keyboard::key::Named;
             use iced::keyboard::Key;
             match key {
-                Key::Named(Named::Escape) => return close(state),
+                Key::Named(Named::Escape) => {
+                    if state.confirm.is_some() {
+                        state.confirm = None; // Esc cancela a confirmação
+                    } else {
+                        return close(state);
+                    }
+                }
                 Key::Named(Named::Backspace) => {
                     state.search.pop();
                 }
@@ -240,6 +290,16 @@ fn svg_icon<'a>(name: &str, size: f32, color: Color) -> Element<'a, Message> {
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .style(move |_theme, _status| svg::Style { color: Some(color) })
+        .into()
+}
+
+/// Ícone SVG SEM tint (cores originais) — pros tiles coloridos de sessão
+/// (desligar coral, reiniciar âmbar, suspender sage, bloquear mel), que são
+/// desenhados com cor própria e viram um quadrado liso se tingidos.
+fn svg_icon_raw<'a>(name: &str, size: f32) -> Element<'a, Message> {
+    svg(icon_handle(name))
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
         .into()
 }
 
@@ -367,10 +427,96 @@ fn app_button<'a>(app: &apps::App, color: Color) -> Element<'a, Message> {
     clickable_row(content, Message::LaunchApp(app.exec.clone()))
 }
 
-/// Botão só-ícone (sessão secundária / reiniciar, suspender, bloquear).
-fn icon_button<'a>(name: &str, color: Color) -> Element<'a, Message> {
-    button(container(svg_icon(name, 18.0, color)).center_x(Length::Fill).center_y(Length::Fill))
-        .on_press(Message::Noop)
+/// Vista de confirmação (desligar/reiniciar): card central com título +
+/// Confirmar/Cancelar. Backdrop e Esc cancelam. Protege os irreversíveis.
+fn confirm_view<'a>(confirm: Confirm) -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let bg = libluma::tokens::to_iced(sem.background);
+    let accent = libluma::tokens::accent();
+
+    let backdrop = mouse_area(
+        container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_theme| {
+            container::Style {
+                background: None,
+                ..Default::default()
+            }
+        }),
+    )
+    .on_press(Message::CancelConfirm);
+
+    // Botões: Confirmar (no acento) + Cancelar (neutro).
+    let confirm_btn = mouse_area(
+        container(text("Confirmar").size(14.0).color(bg))
+            .padding(Padding::from([9.0, 18.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(accent)),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::DoConfirm)
+    .interaction(iced::mouse::Interaction::Pointer);
+    let cancel_btn = mouse_area(
+        container(text("Cancelar").size(14.0).color(cream))
+            .padding(Padding::from([9.0, 18.0]))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(Color { a: 0.10, ..cream })),
+                border: Border {
+                    radius: 10.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::CancelConfirm)
+    .interaction(iced::mouse::Interaction::Pointer);
+
+    let card = mouse_area(
+        container(
+            column![
+                text(confirm.title())
+                    .size(20.0)
+                    .color(cream)
+                    .font(display_font(iced::font::Weight::Semibold)),
+                row![cancel_btn, confirm_btn].spacing(12.0),
+            ]
+            .spacing(22.0)
+            .align_x(iced::Alignment::Center),
+        )
+        .padding(28)
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(surface)),
+            border: Border {
+                radius: 18.0.into(),
+                width: 1.0,
+                color: Color { a: 0.22, ..cream },
+            },
+            ..Default::default()
+        }),
+    )
+    .on_press(Message::Noop);
+
+    stack![
+        backdrop,
+        container(card)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+    ]
+    .into()
+}
+
+/// Botão só-ícone de sessão (reiniciar/suspender/bloquear): tile colorido SEM
+/// tint. `_color` não é usado (o tile tem cor própria), mantido pra simetria.
+fn icon_button<'a>(name: &str, _color: Color, msg: Message) -> Element<'a, Message> {
+    button(container(svg_icon_raw(name, 22.0)).center_x(Length::Fill).center_y(Length::Fill))
+        .on_press(msg)
         .width(Length::Fixed(34.0))
         .height(Length::Fixed(34.0))
         .padding(0)
@@ -394,6 +540,10 @@ fn icon_button<'a>(name: &str, color: Color) -> Element<'a, Message> {
 }
 
 fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
+    // Confirmação pendente (desligar/reiniciar) toma a tela — modal.
+    if let Some(confirm) = state.confirm {
+        return confirm_view(confirm);
+    }
     let sem = libluma::tokens::semantic_default();
     // As duas colunas ficam no MESMO fundo ESCURO (`background`) — é onde o
     // creme tem o contraste alto que a direita já tinha. A esquerda antes
@@ -532,14 +682,28 @@ fn view(state: &Menu, _id: iced::window::Id) -> Element<'_, Message> {
     .width(Length::Fill);
 
     // Sessão (placeholder; wiring no passo 3): Desligar + reiniciar/suspender/bloquear.
-    let session = row![
-        row_button("desligar", "Desligar", cream, Message::Noop),
-        icon_button("reiniciar", secondary),
-        icon_button("suspender", secondary),
-        icon_button("bloquear", secondary),
+    // Sessão em duas linhas (a coluna é estreita): Desligar em cima (largura
+    // cheia), reiniciar/suspender/bloquear embaixo.
+    let session = column![
+        clickable_row(
+            row![
+                svg_icon_raw("desligar", 22.0),
+                text("Desligar").size(14.0).color(cream)
+            ]
+            .spacing(10.0)
+            .align_y(iced::Alignment::Center)
+            .into(),
+            Message::AskConfirm(Confirm::PowerOff),
+        ),
+        row![
+            icon_button("reiniciar", secondary, Message::AskConfirm(Confirm::Reboot)),
+            icon_button("suspender", secondary, Message::Suspend),
+            icon_button("bloquear", secondary, Message::Lock),
+        ]
+        .spacing(6.0)
+        .align_y(iced::Alignment::Center),
     ]
-    .spacing(4.0)
-    .align_y(iced::Alignment::Center);
+    .spacing(6.0);
 
     let right = container(
         column![

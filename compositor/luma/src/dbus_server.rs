@@ -42,6 +42,8 @@ pub enum IpcCommand {
     SetVolume(u8),
     /// Alterna mudo do default sink. luma-bar passo 4 (clique).
     ToggleMute,
+    /// Bloqueia a sessão (menu passo 3). Roteia pro lock que já existe.
+    Lock,
 }
 
 /// Uma janela aberta, pra a taskbar (luma-bar passo 2). `id` é estável por
@@ -700,6 +702,31 @@ impl CompositorService {
         }
     }
 
+    // ─── Sessão (menu passo 3) ────────────────────────────────────────
+
+    /// Desliga a máquina (via systemctl → logind/polkit). Irreversível — o
+    /// menu confirma antes.
+    async fn power_off(&self) {
+        session_action("poweroff");
+    }
+
+    /// Reinicia a máquina. Irreversível — o menu confirma antes.
+    async fn reboot(&self) {
+        session_action("reboot");
+    }
+
+    /// Suspende a máquina (reversível).
+    async fn suspend(&self) {
+        session_action("suspend");
+    }
+
+    /// Bloqueia a sessão (a tela de lock do Luma). Via calloop (mexe no state).
+    async fn lock(&self) {
+        if self.cmd_tx.send(IpcCommand::Lock).is_err() {
+            error!("D-Bus: calloop fechado ao bloquear");
+        }
+    }
+
     // ─── Bandeja (SNI host) ───────────────────────────────────────────
 
     /// Itens da bandeja pra barra: `(service, object_path, título, tooltip,
@@ -969,6 +996,16 @@ fn run(
         {
             error!("D-Bus: servidor encerrou com erro: {err}");
         }
+    });
+}
+
+/// Dispara uma ação de sessão via `systemctl` (poweroff/reboot/suspend) —
+/// trata polkit/logind. Num thread que reapeia (suspend volta; os outros
+/// derrubam a sessão de qualquer jeito).
+fn session_action(verb: &str) {
+    let verb = verb.to_string();
+    std::thread::spawn(move || {
+        let _ = std::process::Command::new("systemctl").arg(&verb).status();
     });
 }
 

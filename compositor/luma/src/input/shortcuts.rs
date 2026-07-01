@@ -209,7 +209,7 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
 /// H58 fatia 6: trigger interno do lock. Idempotente — segundo trigger
 /// quando já locked é no-op. Não fecha menus/popups (lock cobre tudo
 /// no render).
-fn lock_session(state: &mut LumaState) {
+pub(crate) fn lock_session(state: &mut LumaState) {
     if state.locked {
         return;
     }
