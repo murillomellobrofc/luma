@@ -74,6 +74,12 @@ pub struct LumaState {
     /// show-desktop minimizou. Vazio = modo desligado. Restaura EXATAMENTE
     /// essas (não as que o usuário minimizou à mão).
     pub show_desktop_set: Vec<u64>,
+    /// Layer surface que está com o foco de teclado agora (menu/popup que
+    /// pediu `keyboard_interactivity != None`). None = nenhuma.
+    pub keyboard_layer: Option<WlSurface>,
+    /// Foco de teclado a restaurar quando a layer (acima) fechar — a janela
+    /// que estava ativa antes do menu/popup pegar o teclado.
+    pub pre_layer_focus: Option<WlSurface>,
     /// Canal `watch` da bateria pro applet da luma-bar (passo 3): `(present,
     /// capacity, charging)`. O compositor manda no `refresh` quando muda
     /// (send síncrono, do calloop); a task async do D-Bus emite o sinal no
@@ -1077,6 +1083,8 @@ impl LumaState {
             windows,
             next_window_id: 1,
             show_desktop_set: Vec::new(),
+            keyboard_layer: None,
+            pre_layer_focus: None,
             battery_tx,
             volume_tx,
             network_tx,
