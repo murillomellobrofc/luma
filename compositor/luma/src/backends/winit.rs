@@ -564,15 +564,21 @@ pub fn init_winit(
                     })
                     .collect();
                 let workspace_count = data.state.workspaces.count();
-                let taskbar_solids = crate::taskbar::render_solid_elements(
-                    &mut data.state.taskbar,
-                    output_size_logical,
-                    n_windows,
-                    &window_surfaces,
-                    focused_surface.as_ref(),
-                    &minimized,
-                    workspace_count,
-                );
+                // Barra velha off: não constrói os solids (evita buffers de
+                // altura 0 com taskbar_height()==0). O desenho é gateado abaixo.
+                let taskbar_solids = if data.state.legacy_bar {
+                    crate::taskbar::render_solid_elements(
+                        &mut data.state.taskbar,
+                        output_size_logical,
+                        n_windows,
+                        &window_surfaces,
+                        focused_surface.as_ref(),
+                        &minimized,
+                        workspace_count,
+                    )
+                } else {
+                    Vec::new()
+                };
                 // H33.taskbar.4: pre-gera buffers de fallback (quadrado
                 // colorido por hash do nome) pros apps sem ícone do
                 // `.desktop` resolvido. Cacheia no TaskbarState pra reuso.
