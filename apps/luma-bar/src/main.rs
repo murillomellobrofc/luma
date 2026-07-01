@@ -19,8 +19,8 @@ use iced_layershell::settings::{LayerShellSettings, Settings, StartMode};
 use iced_layershell::to_layer_message;
 
 /// Altura do conteúdo da barra (px).
-const BAR_HEIGHT: u32 = 36;
-/// Espessura da linha de acento na base da barra.
+const BAR_HEIGHT: u32 = 42;
+/// Espessura da linha de acento no topo da barra (a barra fica embaixo).
 const ACCENT_LINE: u32 = 2;
 /// Máximo de chars do título no botão (trunca com reticências).
 const TITLE_MAX: usize = 22;
@@ -376,12 +376,12 @@ fn boot() -> (Bar, Task<Message>) {
     )
 }
 
-/// Settings da surface principal da barra: topo, full-width, zona exclusiva.
+/// Settings da surface principal da barra: base, full-width, zona exclusiva.
 fn bar_settings() -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, BAR_HEIGHT + ACCENT_LINE)),
         layer: Layer::Top,
-        anchor: Anchor::Top | Anchor::Left | Anchor::Right,
+        anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
         exclusive_zone: Some((BAR_HEIGHT + ACCENT_LINE) as i32),
         margin: None,
         keyboard_interactivity: KeyboardInteractivity::None,
@@ -1283,14 +1283,14 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
         ..Default::default()
     });
 
-    // Linha de acento na base (a moldura Golden Hour da barra).
+    // Linha de acento no topo (a moldura Golden Hour da barra, que fica embaixo).
     let accent_line = container(Space::new().width(Length::Fill).height(Length::Fixed(ACCENT_LINE as f32)))
         .style(move |_| container::Style {
             background: Some(Background::Color(accent)),
             ..Default::default()
         });
 
-    column![content, accent_line]
+    column![accent_line, content]
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -1399,11 +1399,11 @@ fn popup_frame<'a>(body: Element<'a, Message>, right_margin: f32) -> Element<'a,
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Right)
-            .align_y(iced::alignment::Vertical::Top)
+            .align_y(iced::alignment::Vertical::Bottom)
             .padding(Padding {
-                top: (BAR_HEIGHT + ACCENT_LINE) as f32 + 6.0,
+                top: 0.0,
                 right: right_margin,
-                bottom: 0.0,
+                bottom: (BAR_HEIGHT + ACCENT_LINE) as f32 + 6.0,
                 left: 0.0,
             }),
     ]
