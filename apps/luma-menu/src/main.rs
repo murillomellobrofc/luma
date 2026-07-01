@@ -205,6 +205,18 @@ fn close(state: &mut Menu) -> Task<Message> {
     Task::none()
 }
 
+/// Fecha o context menu do desktop se aberto + avisa o compositor. Usado pra
+/// exclusão mútua (abrir o menu iniciar fecha o context menu, e vice-versa).
+fn close_ctx(state: &mut Menu) -> Task<Message> {
+    if let Some(c) = state.ctx.take() {
+        return Task::batch([
+            Task::perform(ipc::desktop_menu_closed(), |_| Message::Noop),
+            Task::done(Message::RemoveWindow(c.id)),
+        ]);
+    }
+    Task::none()
+}
+
 fn update(state: &mut Menu, message: Message) -> Task<Message> {
     match message {
         Message::Toggle => {
@@ -215,9 +227,10 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
             state.pane = Pane::Home; // sempre reabre no Início
             state.search.clear(); // busca limpa a cada abertura
             state.confirm = None; // sem confirmação pendente
+            let close_ctx = close_ctx(state); // exclusão mútua com o ctx menu
             let (id, task) = Message::layershell_open(overlay_settings());
             state.overlay = Some(id);
-            return task;
+            return Task::batch([close_ctx, task]);
         }
         Message::Close => return close(state),
         Message::Noop => {}
@@ -243,8 +256,15 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
         Message::AskConfirm(c) => state.confirm = Some(c),
         Message::CancelConfirm => state.confirm = None,
         Message::DesktopMenu(x, y, out_w, out_h) => {
-            // Fecha um ctx anterior (se aberto) e abre no novo ponto.
-            let close = if let Some(c) = state.ctx.take() {
+            // Fecha o menu iniciar (exclusão mútua) + um ctx anterior, e abre
+            // no ponto novo. O ctx anterior NÃO avisa desktop_menu_closed (é
+            // reabrir, o menu segue "aberto" pro compositor).
+            let close_start = if let Some(id) = state.overlay.take() {
+                Task::done(Message::RemoveWindow(id))
+            } else {
+                Task::none()
+            };
+            let close_prev = if let Some(c) = state.ctx.take() {
                 Task::done(Message::RemoveWindow(c.id))
             } else {
                 Task::none()
@@ -257,7 +277,7 @@ fn update(state: &mut Menu, message: Message) -> Task<Message> {
                 out_w,
                 out_h,
             });
-            return Task::batch([close, open]);
+            return Task::batch([close_start, close_prev, open]);
         }
         Message::CloseCtx => {
             if let Some(c) = state.ctx.take() {
@@ -771,6 +791,15 @@ fn view(state: &Menu, id: iced::window::Id) -> Element<'_, Message> {
         if c.id == id {
             return ctx_view(&c);
         }
+    }
+    // Só a surface do menu INICIAR (overlay) desenha o painel/confirmação.
+    // Qualquer outra surface (ex: uma de ctx SAINDO ao reabrir) fica vazia —
+    // senão ela renderiza o painel do iniciar por um frame (o "pisca").
+    if state.overlay != Some(id) {
+        return Space::new()
+            .width(Length::Fixed(0.0))
+            .height(Length::Fixed(0.0))
+            .into();
     }
     // Confirmação pendente (desligar/reiniciar) toma a tela — modal.
     if let Some(confirm) = state.confirm {
