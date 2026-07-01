@@ -22,6 +22,8 @@ use iced_layershell::to_layer_message;
 const BAR_HEIGHT: u32 = 42;
 /// Espessura da linha de acento no topo da barra (a barra fica embaixo).
 const ACCENT_LINE: u32 = 2;
+/// Tamanho dos ícones dos applets na barra (px).
+const APPLET_ICON: f32 = 24.0;
 /// Máximo de chars do título no botão (trunca com reticências).
 const TITLE_MAX: usize = 22;
 
@@ -876,7 +878,7 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
     };
 
     row![
-        applet_icon(name, 18.0, fill_color),
+        applet_icon(name, APPLET_ICON, fill_color),
         text(format!("{cap}%")).size(13.0).color(fill_color)
     ]
     .spacing(6)
@@ -888,7 +890,7 @@ fn battery_applet<'a>(cap: u8, charging: bool) -> Element<'a, Message> {
 /// abre o popup de rede.
 fn network_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    mouse_area(applet_icon(icon, 18.0, cream))
+    mouse_area(applet_icon(icon, APPLET_ICON, cream))
         .on_press(Message::OpenNetworkPopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
@@ -965,7 +967,7 @@ fn tray_view(items: &[TrayItem], open: bool) -> Element<'_, Message> {
     } else {
         "tray-overflow-down"
     };
-    mouse_area(applet_icon(arrow, 16.0, cream))
+    mouse_area(applet_icon(arrow, APPLET_ICON, cream))
         .on_press(Message::OpenTrayOverflow)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
@@ -1046,7 +1048,7 @@ fn notification_applet<'a>(icon: &str) -> Element<'a, Message> {
     let accent = libluma::tokens::accent();
     // Alerta no acento (chama atenção); normal/dnd no creme.
     let color = if icon == "bell-alert" { accent } else { cream };
-    mouse_area(applet_icon(icon, 18.0, color))
+    mouse_area(applet_icon(icon, APPLET_ICON, color))
         .on_press(Message::OpenNotifPopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
@@ -1057,7 +1059,7 @@ fn notification_applet<'a>(icon: &str) -> Element<'a, Message> {
 /// Clique abre o popup do bluetooth.
 fn bluetooth_applet<'a>(icon: &str) -> Element<'a, Message> {
     let cream = libluma::tokens::to_iced(libluma::tokens::semantic_default().text);
-    mouse_area(applet_icon(icon, 18.0, cream))
+    mouse_area(applet_icon(icon, APPLET_ICON, cream))
         .on_press(Message::OpenBluetoothPopup)
         .interaction(iced::mouse::Interaction::Pointer)
         .into()
@@ -1095,7 +1097,7 @@ fn volume_applet<'a>(level: u8, muted: bool) -> Element<'a, Message> {
     };
 
     let content = row![
-        applet_icon(name, 18.0, icon_color),
+        applet_icon(name, APPLET_ICON, icon_color),
         text(label).size(12.0).color(label_color)
     ]
     .spacing(6)
@@ -1195,8 +1197,8 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
         svg(svg::Handle::from_memory(
             include_bytes!("../../../assets/branding/icons/icon-luma-menu.svg").as_slice(),
         ))
-        .width(Length::Fixed(18.0))
-        .height(Length::Fixed(18.0))
+        .width(Length::Fixed(24.0))
+        .height(Length::Fixed(24.0))
         .style(move |_theme, _status| svg::Style { color: Some(accent) }),
     )
     .on_press(Message::OpenMenu)
@@ -1207,8 +1209,8 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
         svg(svg::Handle::from_memory(
             include_bytes!("../../../assets/branding/icons/icon-show-desktop.svg").as_slice(),
         ))
-        .width(Length::Fixed(18.0))
-        .height(Length::Fixed(18.0))
+        .width(Length::Fixed(24.0))
+        .height(Length::Fixed(24.0))
         .style(move |_theme, _status| svg::Style { color: Some(cream) }),
     )
     .on_press(Message::ShowDesktop)
