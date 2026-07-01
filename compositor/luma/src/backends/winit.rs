@@ -378,6 +378,9 @@ pub fn init_winit(
                 // Atualiza o slot de janelas pra a taskbar (luma-bar passo 2):
                 // a luma-bar faz poll de `list_windows` via D-Bus.
                 data.state.update_windows_slot();
+                // Idem pro snapshot de workspace (motor): mantém os ids das
+                // janelas por área frescos pro cliente ler.
+                data.state.update_workspace_slot();
 
                 // Decorações agora vivem dentro do AsRenderElements de cada
                 // LumaWindow, então o space::render_output cuida do z-order

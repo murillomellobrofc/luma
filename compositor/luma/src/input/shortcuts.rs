@@ -22,8 +22,10 @@ pub enum KeyAction {
     /// Move janela focada pro workspace N-1 (Super+Shift+N). Auto-cria.
     /// H36.5.
     WorkspaceMoveWindow(usize),
-    /// Cicla pro próximo workspace (Super+Tab). H36.6.
+    /// Cicla pro próximo workspace (Super+Tab / Ctrl+Alt+→). H36.6.
     WorkspaceCycleNext,
+    /// Cicla pro workspace anterior (Ctrl+Alt+←).
+    WorkspaceCyclePrev,
     /// Toggle do overview screen (Super+Esc). H36.6.
     ToggleOverview,
     /// Toggle "Mostrar área de trabalho" (Super+D). H33.taskbar.F.17.
@@ -154,6 +156,14 @@ pub fn match_shortcut(
         if keysym == Keysym::Tab {
             return Some(KeyAction::WorkspaceCycleNext);
         }
+        // Setas: →/↓ próximo, ←/↑ anterior (cicla). Este é o gesto principal
+        // pra trocar de área — funciona com qualquer seta horizontal/vertical.
+        if keysym == Keysym::Right || keysym == Keysym::Down {
+            return Some(KeyAction::WorkspaceCycleNext);
+        }
+        if keysym == Keysym::Left || keysym == Keysym::Up {
+            return Some(KeyAction::WorkspaceCyclePrev);
+        }
         if keysym == Keysym::Escape {
             return Some(KeyAction::ToggleOverview);
         }
@@ -191,6 +201,7 @@ pub fn apply(state: &mut LumaState, action: KeyAction) {
         KeyAction::WorkspaceSwitch(idx) => workspace_switch(state, idx),
         KeyAction::WorkspaceMoveWindow(idx) => workspace_move_window(state, idx),
         KeyAction::WorkspaceCycleNext => workspace_cycle_next(state),
+        KeyAction::WorkspaceCyclePrev => workspace_cycle_prev(state),
         KeyAction::ToggleOverview => toggle_overview(state),
         KeyAction::ToggleShowDesktop => state.toggle_show_desktop(),
         KeyAction::VolumeRaise => volume_step(state, 5),
@@ -352,11 +363,18 @@ fn workspace_move_window(state: &mut LumaState, target: usize) {
     tracing::info!("Super+Shift+{}: janela movida pra workspace {}", target + 1, target + 1);
 }
 
-/// Super+Tab: cicla pro próximo workspace. H36.6.
+/// Super+Tab / Ctrl+Alt+→: cicla pro próximo workspace. H36.6.
 fn workspace_cycle_next(state: &mut LumaState) {
     state.workspaces.cycle_next();
     state.refresh_workspace_visibility();
-    tracing::info!("Super+Tab: workspace {}", state.workspaces.current + 1);
+    tracing::info!("workspace next: {}", state.workspaces.current + 1);
+}
+
+/// Ctrl+Alt+←: cicla pro workspace anterior.
+fn workspace_cycle_prev(state: &mut LumaState) {
+    state.workspaces.cycle_prev();
+    state.refresh_workspace_visibility();
+    tracing::info!("workspace prev: {}", state.workspaces.current + 1);
 }
 
 /// Super+Esc: toggle overview. Stub por enquanto — visual em Bloco D.

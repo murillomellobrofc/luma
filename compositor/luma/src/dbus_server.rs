@@ -47,7 +47,27 @@ pub enum IpcCommand {
     /// Ação do context menu do desktop pedida pelo cliente (organizar/colar/
     /// criar/wallpaper). Reusa o dispatch do menu velho.
     CtxAction(crate::context_menu::ContextAction),
+    /// Vai pra área de trabalho de índice N (0-based). Auto-cria se não existe.
+    WorkspaceSwitch(usize),
+    /// Cria uma nova área de trabalho vazia e vai pra ela.
+    WorkspaceCreate,
+    /// Move a janela (pela id) pra área de índice `target` (0-based).
+    WorkspaceMoveWindow { window_id: u64, target: usize },
 }
+
+/// Foto do estado de workspace pro D-Bus (motor de workspace). Escrita por
+/// frame pelo compositor (`update_workspace_slot`), lida pelo `workspace_state`.
+/// `windows[i]` = ids das janelas da área de índice `i`.
+#[derive(Clone, Debug, Default)]
+pub struct WorkspaceSnapshot {
+    pub current: u32,
+    pub count: u32,
+    pub windows: Vec<Vec<u64>>,
+}
+
+/// Snapshot de workspace compartilhado (`Arc<Mutex>`), mesmo padrão do
+/// `WindowsSlot`. O cliente (central/pager) vai ler daqui.
+pub type WorkspaceSlot = std::sync::Arc<std::sync::Mutex<WorkspaceSnapshot>>;
 
 /// Uma janela aberta, pra a taskbar (luma-bar passo 2). `id` é estável por
 /// janela (contador do compositor). Estado mínimo: título, app_id, foco.
@@ -107,6 +127,9 @@ struct CompositorService {
     bt_system: Option<zbus::Connection>,
     /// Lista de itens da bandeja (SNI host), compartilhada com o main loop.
     sni: crate::sni::SniList,
+    /// Snapshot de workspace compartilhado (motor de workspace). O compositor
+    /// escreve por frame; `workspace_state` lê direto, sem roundtrip.
+    workspaces: WorkspaceSlot,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -853,6 +876,62 @@ impl CompositorService {
         out_h: i32,
     ) -> zbus::Result<()>;
 
+    // ─── Workspaces / motor (áreas de trabalho) ──────────────────────
+
+    /// Estado do motor de workspace: `(atual, quantas, [ [ids_da_área_0], … ])`.
+    /// 0-based. O compositor mantém o slot atualizado por frame; o cliente
+    /// (central/pager) faz poll + escuta `workspace_changed`.
+    async fn workspace_state(&self) -> (u32, u32, Vec<Vec<u64>>) {
+        match self.workspaces.lock() {
+            Ok(g) => (g.current, g.count, g.windows.clone()),
+            Err(_) => (0, 1, vec![vec![]]),
+        }
+    }
+
+    /// Vai pra área de índice N (0-based). Auto-cria as intermediárias se N
+    /// estiver além do fim. Fire-and-forget; `workspace_changed` reflete.
+    async fn workspace_switch(&self, index: u32) {
+        if self
+            .cmd_tx
+            .send(IpcCommand::WorkspaceSwitch(index as usize))
+            .is_err()
+        {
+            error!("D-Bus: calloop fechado ao trocar de workspace");
+        }
+    }
+
+    /// Cria uma área nova vazia e vai pra ela.
+    async fn workspace_create(&self) {
+        if self.cmd_tx.send(IpcCommand::WorkspaceCreate).is_err() {
+            error!("D-Bus: calloop fechado ao criar workspace");
+        }
+    }
+
+    /// Move a janela (pela id) pra área de índice `target` (0-based). Cria as
+    /// intermediárias se preciso.
+    async fn workspace_move_window(&self, window_id: u64, target: u32) {
+        if self
+            .cmd_tx
+            .send(IpcCommand::WorkspaceMoveWindow {
+                window_id,
+                target: target as usize,
+            })
+            .is_err()
+        {
+            error!("D-Bus: calloop fechado ao mover janela de workspace");
+        }
+    }
+
+    /// **Sinal de mudança** do motor de workspace — emitido quando a área atual
+    /// ou o conjunto muda (troca/criar/mover/fechar janela). Carrega `(atual,
+    /// quantas)`; o cliente relê `workspace_state` pros detalhes.
+    #[zbus(signal)]
+    async fn workspace_changed(
+        emitter: &SignalEmitter<'_>,
+        current: u32,
+        count: u32,
+    ) -> zbus::Result<()>;
+
     // ─── Alvos de toque (parte 2) ─────────────────────────────────────
 
     /// "Alvos de toque maiores": on usa `min_target_size`, off usa baseline.
@@ -1001,6 +1080,8 @@ pub fn spawn(
     menu_toggle: tokio::sync::watch::Receiver<u64>,
     desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
+    workspaces: WorkspaceSlot,
+    workspace_changed: tokio::sync::watch::Receiver<u64>,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
     if let Err(err) = builder.spawn(move || {
@@ -1016,6 +1097,8 @@ pub fn spawn(
             menu_toggle,
             desktop_menu,
             sni,
+            workspaces,
+            workspace_changed,
         )
     }) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
@@ -1034,6 +1117,8 @@ fn run(
     menu_toggle: tokio::sync::watch::Receiver<u64>,
     desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
+    workspaces: WorkspaceSlot,
+    workspace_changed: tokio::sync::watch::Receiver<u64>,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -1058,6 +1143,8 @@ fn run(
             menu_toggle,
             desktop_menu,
             sni,
+            workspaces,
+            workspace_changed,
         )
         .await
         {
@@ -1109,6 +1196,8 @@ async fn serve(
     menu_toggle: tokio::sync::watch::Receiver<u64>,
     desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
+    workspaces: WorkspaceSlot,
+    workspace_changed: tokio::sync::watch::Receiver<u64>,
 ) -> zbus::Result<()> {
     // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
     // e guarda o oneshot da confirmação; o ConfirmPairing (session bus) lê.
@@ -1125,6 +1214,8 @@ async fn serve(
         }
     };
 
+    // Clone do slot pro loop de sinais (o service consome o original).
+    let workspaces_signal = workspaces.clone();
     let service = CompositorService {
         available_widgets: available,
         cmd_tx,
@@ -1137,6 +1228,7 @@ async fn serve(
         pairing: pairing.clone(),
         bt_system: bt_system.clone(),
         sni,
+        workspaces,
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -1157,6 +1249,7 @@ async fn serve(
     let mut bluetooth = bluetooth;
     let mut menu_toggle = menu_toggle;
     let mut desktop_menu = desktop_menu;
+    let mut workspace_changed = workspace_changed;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -1199,6 +1292,18 @@ async fn serve(
                 let (_seq, x, y, w, h) = *desktop_menu.borrow();
                 if let Err(err) = emitter.desktop_menu(x, y, w, h).await {
                     error!("D-Bus: falha ao emitir desktop_menu: {err}");
+                }
+            }
+            r = workspace_changed.changed() => {
+                if r.is_err() { break; }
+                // Motor de workspace mudou (troca/criar/mover/fechar). Lê o
+                // snapshot fresco e emite (atual, quantas).
+                let (current, count) = match workspaces_signal.lock() {
+                    Ok(g) => (g.current, g.count),
+                    Err(_) => (0, 1),
+                };
+                if let Err(err) = emitter.workspace_changed(current, count).await {
+                    error!("D-Bus: falha ao emitir workspace_changed: {err}");
                 }
             }
         }
