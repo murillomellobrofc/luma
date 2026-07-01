@@ -111,6 +111,10 @@ pub struct LumaState {
     /// D-Bus emite o `menu_toggle` pro luma-menu — mesmo caminho do ShowMenu
     /// (botão da barra). Um caminho, dois gatilhos.
     pub menu_toggle_tx: tokio::sync::watch::Sender<u64>,
+    /// Super-tap: `true` enquanto o Super foi pressionado sozinho (sem outra
+    /// tecla). Se soltar ainda armado, dispara o menu (toque tipo Windows).
+    /// Qualquer outra tecla desarma (Super+X é atalho, não toque).
+    pub super_tap_armed: bool,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -992,6 +996,7 @@ impl LumaState {
             tokio::sync::watch::channel(crate::bluetooth::icon_name().to_string());
         // Gatilho do menu novo (Super → menu_toggle). Contador incremental.
         let (menu_toggle_tx, _) = tokio::sync::watch::channel(0u64);
+        let super_tap_armed = false;
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1105,6 +1110,7 @@ impl LumaState {
             network_tx,
             bluetooth_tx,
             menu_toggle_tx,
+            super_tap_armed,
             shm_state,
             output_manager_state,
             seat_state,
