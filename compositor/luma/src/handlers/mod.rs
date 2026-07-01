@@ -95,6 +95,16 @@ impl smithay::wayland::session_lock::SessionLockHandler for LumaState {
     }
 
     fn unlock(&mut self) {
+        // Segurança: um lock interno protegido por PAM NÃO pode ser
+        // destravado pelo protocolo ext-session-lock — senão qualquer
+        // cliente Wayland limparia o lock autenticado do compositor.
+        // Só o sucesso do PAM (backends/winit.rs) limpa esse caso.
+        if self.secure_lock {
+            tracing::warn!(
+                "session lock: unlock ignorado — lock PAM ativo"
+            );
+            return;
+        }
         tracing::info!("session lock: unlock");
         self.locked = false;
         self.lock_surfaces.clear();

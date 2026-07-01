@@ -58,6 +58,7 @@ type PamStart = unsafe extern "C" fn(
     pamh: *mut *mut PamHandle,
 ) -> c_int;
 type PamAuthenticate = unsafe extern "C" fn(pamh: *mut PamHandle, flags: c_int) -> c_int;
+type PamAcctMgmt = unsafe extern "C" fn(pamh: *mut PamHandle, flags: c_int) -> c_int;
 type PamEnd = unsafe extern "C" fn(pamh: *mut PamHandle, status: c_int) -> c_int;
 
 /// Resultado da auth (visto pelo main loop via outbox).
@@ -65,6 +66,29 @@ type PamEnd = unsafe extern "C" fn(pamh: *mut PamHandle, status: c_int) -> c_int
 pub enum AuthResult {
     Success,
     Failure { reason: String },
+}
+
+/// Sobrescreve os bytes com zero via escrita volátil (o compilador não
+/// pode otimizar embora) e esvazia. Best-effort — não alcança cópias
+/// que o PAM faz internamente, mas apaga os buffers que controlamos.
+pub fn wipe_string(s: &mut String) {
+    // SAFETY: escrevemos len bytes válidos dentro da capacidade do
+    // buffer; depois zeramos o len via clear().
+    unsafe {
+        let bytes = s.as_bytes_mut();
+        for b in bytes.iter_mut() {
+            std::ptr::write_volatile(b, 0);
+        }
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    s.clear();
+}
+
+fn wipe_bytes(bytes: &mut [u8]) {
+    for b in bytes.iter_mut() {
+        unsafe { std::ptr::write_volatile(b, 0) };
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Conversation callback fixo. PAM chama esse pra cada prompt; pra
@@ -117,6 +141,7 @@ struct PamLib {
     _lib: Library,
     pam_start: PamStart,
     pam_authenticate: PamAuthenticate,
+    pam_acct_mgmt: PamAcctMgmt,
     pam_end: PamEnd,
 }
 
@@ -131,17 +156,22 @@ impl PamLib {
             unsafe { lib.get(b"pam_start").ok()? };
         let pam_authenticate: Symbol<PamAuthenticate> =
             unsafe { lib.get(b"pam_authenticate").ok()? };
+        let pam_acct_mgmt: Symbol<PamAcctMgmt> =
+            unsafe { lib.get(b"pam_acct_mgmt").ok()? };
         let pam_end: Symbol<PamEnd> = unsafe { lib.get(b"pam_end").ok()? };
         let start = *pam_start;
         let auth = *pam_authenticate;
+        let acct = *pam_acct_mgmt;
         let end = *pam_end;
         drop(pam_start);
         drop(pam_authenticate);
+        drop(pam_acct_mgmt);
         drop(pam_end);
         Some(Self {
             _lib: lib,
             pam_start: start,
             pam_authenticate: auth,
+            pam_acct_mgmt: acct,
             pam_end: end,
         })
     }
@@ -184,19 +214,34 @@ fn authenticate_sync(user: &str, password: &str, service: &str) -> AuthResult {
         )
     };
     if start_rc != PAM_SUCCESS || pamh.is_null() {
-        drop(password_box);
+        let mut pw_bytes = (*password_box).into_bytes();
+        wipe_bytes(&mut pw_bytes);
         return AuthResult::Failure {
             reason: format!("pam_start rc={start_rc}"),
         };
     }
     let auth_rc = unsafe { (lib.pam_authenticate)(pamh, 0) };
-    unsafe { (lib.pam_end)(pamh, auth_rc) };
-    drop(password_box);
-    if auth_rc == PAM_SUCCESS {
+    // Só validamos a conta se a senha conferiu. pam_acct_mgmt barra
+    // contas expiradas/bloqueadas/desabilitadas por política que ainda
+    // tenham hash de senha válido — sem isso, elas destravariam.
+    let acct_rc = if auth_rc == PAM_SUCCESS {
+        unsafe { (lib.pam_acct_mgmt)(pamh, 0) }
+    } else {
+        auth_rc
+    };
+    unsafe { (lib.pam_end)(pamh, acct_rc) };
+    // Apaga a cópia da senha que controlamos (o strdup interno do PAM
+    // já foi liberado por pam_end; esse não conseguimos alcançar).
+    let mut pw_bytes = (*password_box).into_bytes();
+    wipe_bytes(&mut pw_bytes);
+    if auth_rc == PAM_SUCCESS && acct_rc == PAM_SUCCESS {
         AuthResult::Success
     } else {
+        // Reporta a primeira falha: senha errada tem prioridade sobre
+        // problema de conta.
+        let rc = if auth_rc != PAM_SUCCESS { auth_rc } else { acct_rc };
         AuthResult::Failure {
-            reason: pam_error_label(auth_rc).into(),
+            reason: pam_error_label(rc).into(),
         }
     }
 }
@@ -211,6 +256,25 @@ fn pam_error_label(rc: c_int) -> &'static str {
     }
 }
 
+/// Nome do usuário dono da sessão, derivado do UID real via
+/// getpwuid(getuid()). NÃO usa $USER, que é spoofável e pode estar
+/// ausente. None se getpwuid falhar — o chamador deve tratar como
+/// falha de auth, nunca cair num usuário padrão.
+pub fn current_username() -> Option<String> {
+    unsafe {
+        let pw = libc::getpwuid(libc::getuid());
+        if pw.is_null() {
+            return None;
+        }
+        let name_ptr = (*pw).pw_name;
+        if name_ptr.is_null() {
+            return None;
+        }
+        // pw aponta pra storage estático da libc; copiamos na hora.
+        CStr::from_ptr(name_ptr).to_str().ok().map(str::to_owned)
+    }
+}
+
 /// Dispara auth em thread separada. Outcome no slot compartilhado.
 /// H58 fatia 5.
 pub fn authenticate_async(
@@ -221,9 +285,11 @@ pub fn authenticate_async(
     std::thread::Builder::new()
         .name("luma-pam-auth".into())
         .spawn(move || {
+            let mut password = password;
             // Service "login" é universal nas distros. Considerar
             // criar /etc/pam.d/luma futuramente pra service próprio.
             let result = authenticate_sync(&user, &password, "login");
+            wipe_string(&mut password);
             tracing::info!(
                 "pam auth: user={user} result={:?}",
                 std::mem::discriminant(&result),
@@ -233,4 +299,50 @@ pub fn authenticate_async(
             }
         })
         .ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wipe_string_zeroes_and_empties() {
+        let mut s = String::from("senha-secreta-123");
+        let cap = s.capacity();
+        wipe_string(&mut s);
+        assert!(s.is_empty(), "buffer deve ficar vazio");
+        // A capacidade permanece; os bytes subjacentes foram zerados
+        // antes do clear. Reexpõe o buffer e confere que não sobrou
+        // nada do plaintext.
+        unsafe {
+            let v = s.as_mut_vec();
+            v.set_len(cap.min(17));
+            assert!(v.iter().all(|&b| b == 0), "bytes residuais não zerados");
+            v.set_len(0);
+        }
+    }
+
+    #[test]
+    fn wipe_bytes_zeroes_all() {
+        let mut b = *b"topsecret";
+        wipe_bytes(&mut b);
+        assert!(b.iter().all(|&x| x == 0));
+    }
+
+    #[test]
+    fn current_username_is_non_empty_when_present() {
+        // Não deve entrar em pânico; se resolver, é não-vazio e nunca
+        // deve cair silenciosamente em algo como "root" (o antigo bug
+        // era fallback pra $USER/"root").
+        if let Some(u) = current_username() {
+            assert!(!u.is_empty());
+        }
+    }
+
+    #[test]
+    fn pam_error_label_maps_known_codes() {
+        assert_eq!(pam_error_label(7), "senha incorreta");
+        assert_eq!(pam_error_label(13), "usuário desconhecido");
+        assert_eq!(pam_error_label(9999), "falha na autenticação");
+    }
 }

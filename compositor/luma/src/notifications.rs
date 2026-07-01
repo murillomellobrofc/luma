@@ -1180,14 +1180,23 @@ fn decode_image_data(
     let tuple: (i32, i32, i32, bool, i32, i32, Vec<u8>) =
         TryFrom::try_from(val).ok()?;
     let (w, h, rowstride, has_alpha, bps, channels, data) = tuple;
-    if w <= 0 || h <= 0 || bps != 8 {
+    // Dimensões vêm de um hint controlável por qualquer peer do bus.
+    // Sem teto, `w*h*4` estoura o i32 (panic em debug) ou reserva
+    // gigabytes antes do loop (OOM/DoS). Limita a um ícone sensato.
+    const MAX_DIM: i32 = 1024;
+    if w <= 0 || h <= 0 || w > MAX_DIM || h > MAX_DIM || bps != 8 {
+        return None;
+    }
+    if rowstride < 0 {
         return None;
     }
     let bytes_per_px = if has_alpha { 4 } else { 3 };
     if channels != bytes_per_px {
         return None;
     }
-    let mut bgra: Vec<u8> = Vec::with_capacity((w * h * 4) as usize);
+    // w,h ≤ 1024 → w*h*4 ≤ ~4 MiB, longe do overflow de i32.
+    let cap = (w as usize) * (h as usize) * 4;
+    let mut bgra: Vec<u8> = Vec::with_capacity(cap);
     for row in 0..h {
         let off = (row as usize) * (rowstride as usize);
         for col in 0..w {
