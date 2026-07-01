@@ -7373,6 +7373,26 @@ pub fn init_winit(
                             let _ = &data.state.customize; // mantém o campo compilando
                         }
 
+                        // H58 segurança: se a thread PAM travar (módulo
+                        // lento/hang), o outcome nunca chega e in_flight
+                        // ficaria preso — usuário legítimo não consegue
+                        // mais tentar. Reseta após timeout.
+                        const LOCK_AUTH_TIMEOUT: std::time::Duration =
+                            std::time::Duration::from_secs(30);
+                        if data.state.lock_auth_in_flight {
+                            if let Some(started) = data.state.lock_auth_started_at {
+                                if started.elapsed() >= LOCK_AUTH_TIMEOUT {
+                                    tracing::warn!(
+                                        "luma lock: PAM timeout, resetando"
+                                    );
+                                    data.state.lock_auth_in_flight = false;
+                                    data.state.lock_auth_started_at = None;
+                                    data.state.lock_auth_error = Some(
+                                        "tempo esgotado, tente de novo".into(),
+                                    );
+                                }
+                            }
+                        }
                         // H58 fatia 5: observer do outbox PAM. Quando
                         // a thread termina, atualiza state e (em
                         // sucesso) destrava.
@@ -7384,20 +7404,22 @@ pub fn init_winit(
                             .and_then(|mut g| g.take());
                         if let Some(res) = pam_outcome {
                             data.state.lock_auth_in_flight = false;
+                            data.state.lock_auth_started_at = None;
                             match res {
                                 crate::auth::AuthResult::Success => {
                                     tracing::info!("luma unlock: PAM success");
                                     data.state.locked = false;
+                                    data.state.secure_lock = false;
                                     data.state.locked_at = None;
                                     data.state.lock_revealed = false;
-                                    data.state.lock_password.clear();
+                                    crate::auth::wipe_string(&mut data.state.lock_password);
                                     data.state.lock_auth_error = None;
                                     data.state.lock_surfaces.clear();
                                 }
                                 crate::auth::AuthResult::Failure { reason } => {
                                     tracing::info!("luma lock: PAM fail {reason}");
                                     data.state.lock_auth_error = Some(reason);
-                                    data.state.lock_password.clear();
+                                    crate::auth::wipe_string(&mut data.state.lock_password);
                                 }
                             }
                         }

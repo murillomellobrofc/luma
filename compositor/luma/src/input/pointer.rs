@@ -625,7 +625,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
         if state.locked {
             if !state.lock_revealed {
                 state.lock_revealed = true;
-                state.lock_password.clear();
+                crate::auth::wipe_string(&mut state.lock_password);
             }
             pointer.button(state, &ButtonEvent {
                 button, state: button_state, serial, time: event.time_msec(),
@@ -1593,6 +1593,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                             if let Some(action) = state.menu_new.pending_action {
                                 if action == crate::menu::state::SessionButton::Lock {
                                     state.locked = true;
+                                    state.secure_lock = true;
                                     state.locked_at = Some(std::time::Instant::now());
                                     tracing::info!("luma lock: requested via confirm modal");
                                 } else {
@@ -1627,6 +1628,7 @@ pub fn handle_button<I: InputBackend>(state: &mut LumaState, event: I::PointerBu
                         // Luma — NÃO `loginctl lock-session` que pegaria
                         // a sessão host (KDE) quando rodando aninhado.
                         state.locked = true;
+                        state.secure_lock = true;
                         state.locked_at = Some(std::time::Instant::now());
                         state.menu_open = false;
                         state.menu_new.reset();

@@ -334,6 +334,22 @@ pub fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
     icon_index().get(icon).cloned()
 }
 
+/// Abre uma imagem de fonte não confiável (ícone de app/.desktop ou de
+/// tray SNI de qualquer cliente) com tetos de dimensão e alocação, pra
+/// evitar decompression bombs / OOM na thread de render.
+pub fn open_image_limited(path: &std::path::Path) -> Option<image::DynamicImage> {
+    let mut reader = image::ImageReader::open(path)
+        .ok()?
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(1024);
+    limits.max_image_height = Some(1024);
+    limits.max_alloc = Some(32 * 1024 * 1024);
+    reader.limits(limits);
+    reader.decode().ok()
+}
+
 fn is_supported_ext(p: &std::path::Path) -> bool {
     matches!(
         p.extension().and_then(|e| e.to_str()),
@@ -370,7 +386,7 @@ fn decode_icon(path: &std::path::Path) -> Option<AppIcon> {
         )?;
         return Some((buf, Size::from((128, 128))));
     }
-    let img = image::open(path).ok()?;
+    let img = open_image_limited(path)?;
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as i32, rgba.height() as i32);
     let mut pixels = rgba.into_raw();

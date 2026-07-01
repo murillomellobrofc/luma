@@ -368,6 +368,12 @@ pub struct LumaState {
     /// H58: Instant em que o lock foi ativado. Usado pro delay
     /// da dica "tecle pra desbloquear" + animações futuras.
     pub locked_at: Option<std::time::Instant>,
+    /// H58 segurança: true quando o lock ativo é um lock interno
+    /// protegido por PAM (hotkey/menu). Enquanto isso, o protocolo
+    /// ext-session-lock NÃO pode destravar — só o sucesso do PAM
+    /// limpa. Impede que um cliente Wayland satisfaça/limpe o lock
+    /// autenticado do compositor.
+    pub secure_lock: bool,
     /// H58 fatia 4: true quando o user revelou o auth panel
     /// (primeira tecla/click depois de locked). Render alterna
     /// entre capa (false) e painel de autenticação (true).
@@ -382,6 +388,10 @@ pub struct LumaState {
     /// outcome ainda não chegou). UI mostra "Verificando…" e bloqueia
     /// nova submissão.
     pub lock_auth_in_flight: bool,
+    /// H58 segurança: quando o Submit disparou a thread PAM. Se o
+    /// outcome não chegar em LOCK_AUTH_TIMEOUT (módulo PAM travado),
+    /// o observer reseta in_flight pra não travar o usuário legítimo.
+    pub lock_auth_started_at: Option<std::time::Instant>,
     /// H58 fatia 5: mensagem de erro do último Submit que falhou.
     /// Limpada quando user começa a digitar de novo.
     pub lock_auth_error: Option<String>,
@@ -1333,6 +1343,8 @@ impl LumaState {
             session_lock_state: session_lock_state_init,
             locked: false,
             locked_at: None,
+            secure_lock: false,
+            lock_auth_started_at: None,
             lock_revealed: false,
             lock_password: String::new(),
             lock_caps_on: false,

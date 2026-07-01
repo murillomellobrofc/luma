@@ -225,9 +225,10 @@ pub(crate) fn lock_session(state: &mut LumaState) {
         return;
     }
     state.locked = true;
+    state.secure_lock = true;
     state.locked_at = Some(std::time::Instant::now());
     state.lock_revealed = false;
-    state.lock_password.clear();
+    crate::auth::wipe_string(&mut state.lock_password);
     state.lock_auth_error = None;
     state.lock_auth_in_flight = false;
     tracing::info!("luma lock: hotkey/menu");

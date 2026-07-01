@@ -71,10 +71,15 @@ pub struct SoundEngine {
     /// Último Instant em que tocou algo. Usado pro debounce.
     last_played: Mutex<Option<Instant>>,
     debounce: Duration,
+    /// Serializa o uso do `ctx` entre threads. libcanberra NÃO garante
+    /// reentrância no mesmo ca_context, então play/destroy concorrentes
+    /// seriam data race. Segurado durante toda a sequência de play.
+    ctx_lock: Mutex<()>,
 }
 
-// SAFETY: ctx é touched só via FFI thread-safe (libcanberra serializa
-// internamente). last_played é Mutex. Library é Send + Sync já.
+// SAFETY: o único ponteiro não-Sync é `ctx`, e todo acesso a ele
+// (play_full, destroy_ctx) é serializado por `ctx_lock`. last_played é
+// Mutex; os fn pointers são Copy/Send; Library é Send + Sync.
 unsafe impl Send for SoundEngine {}
 unsafe impl Sync for SoundEngine {}
 
@@ -134,6 +139,7 @@ impl SoundEngine {
             destroy_ctx: destroy_ctx_fn,
             last_played: Mutex::new(None),
             debounce: Duration::from_millis(debounce_ms),
+            ctx_lock: Mutex::new(()),
         })
     }
 
@@ -163,6 +169,11 @@ impl SoundEngine {
         };
         let role_c = match CString::new("event") {
             Ok(c) => c,
+            Err(_) => return,
+        };
+        // Serializa o uso do ctx (e do proplist) por toda a sequência.
+        let _ctx_guard = match self.ctx_lock.lock() {
+            Ok(g) => g,
             Err(_) => return,
         };
         // Cria proplist.
@@ -199,6 +210,8 @@ impl SoundEngine {
 
 impl Drop for SoundEngine {
     fn drop(&mut self) {
+        // Espera qualquer play em andamento antes de destruir o ctx.
+        let _ctx_guard = self.ctx_lock.lock();
         if !self.ctx.is_null() {
             unsafe {
                 (self.destroy_ctx)(self.ctx);

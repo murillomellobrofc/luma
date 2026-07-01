@@ -78,11 +78,10 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
     let mut close_applet_popup = false;
     let mut close_tray_overflow = false;
     let mut close_context_menu = false;
-    // H58: lock screen ativo. Esc no placeholder libera (substituído
-    // por PAM nas próximas fatias).
+    // H58: lock screen ativo. Destrave só via PAM (LockKey::Submit);
+    // nenhuma tecla na capa libera a sessão.
     let locked = state.locked;
     let lock_revealed = state.lock_revealed;
-    let mut unlock_request = false;
     enum LockKey { RevealOnly, Char(char), Backspace, Submit, Cancel }
     let mut lock_event: Option<LockKey> = None;
     let mut caps_state: Option<bool> = None;
@@ -134,13 +133,9 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 }
                 if !lock_revealed {
                     // Primeira tecla revela o auth panel. Não entra
-                    // no campo de senha (per spec H58).
-                    if sym == Keysym::Escape {
-                        // Esc na capa: libera (placeholder até PAM).
-                        unlock_request = true;
-                    } else {
-                        lock_event = Some(LockKey::RevealOnly);
-                    }
+                    // no campo de senha (per spec H58). Nenhuma tecla
+                    // — incluindo Esc — destrava sem PAM.
+                    lock_event = Some(LockKey::RevealOnly);
                     return FilterResult::Intercept(());
                 }
                 // Auth panel revelado: edição do campo de senha.
@@ -416,7 +411,7 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
         match ev {
             LockKey::RevealOnly => {
                 state.lock_revealed = true;
-                state.lock_password.clear();
+                crate::auth::wipe_string(&mut state.lock_password);
             }
             LockKey::Char(ch) => {
                 state.lock_password.push(ch);
@@ -430,34 +425,35 @@ pub fn handle_key<I: InputBackend>(state: &mut LumaState, event: I::KeyboardKeyE
                 // H58 fatia 5: dispara PAM real numa thread.
                 // Ignora se já tem auth em andamento ou campo vazio.
                 if !state.lock_password.is_empty() && !state.lock_auth_in_flight {
-                    let user = std::env::var("USER")
-                        .unwrap_or_else(|_| "root".to_string());
-                    let pw = state.lock_password.clone();
-                    state.lock_auth_in_flight = true;
-                    state.lock_auth_error = None;
-                    crate::auth::authenticate_async(
-                        state.lock_auth_outbox.clone(),
-                        user, pw,
-                    );
+                    match crate::auth::current_username() {
+                        Some(user) => {
+                            let pw = state.lock_password.clone();
+                            state.lock_auth_in_flight = true;
+                            state.lock_auth_started_at =
+                                Some(std::time::Instant::now());
+                            state.lock_auth_error = None;
+                            crate::auth::authenticate_async(
+                                state.lock_auth_outbox.clone(),
+                                user, pw,
+                            );
+                        }
+                        None => {
+                            state.lock_auth_error = Some(
+                                "não foi possível identificar o usuário".into(),
+                            );
+                        }
+                    }
                 }
             }
             LockKey::Cancel => {
                 state.lock_revealed = false;
-                state.lock_password.clear();
+                state.lock_auth_in_flight = false;
+                state.lock_auth_started_at = None;
+                crate::auth::wipe_string(&mut state.lock_password);
             }
         }
         return;
     }
-    if unlock_request {
-        state.locked = false;
-        state.locked_at = None;
-        state.lock_revealed = false;
-        state.lock_password.clear();
-        state.lock_surfaces.clear();
-        tracing::info!("luma unlock via Esc (placeholder até PAM)");
-        return;
-    }
-
     if close_notif_panel {
         if let Ok(mut g) = state.notifications.lock() {
             crate::notifications::close_panel(&mut g);

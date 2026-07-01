@@ -104,15 +104,40 @@ fn write_pixmap_png(service: &str, px: &SniPixmap) -> Option<String> {
         rgba.extend_from_slice(&[chunk[1], chunk[2], chunk[3], chunk[0]]);
     }
     let img = image::RgbaImage::from_raw(w, h, rgba)?;
-    let dir = std::path::PathBuf::from("/tmp/luma-tray");
+    let dir = tray_tmp_dir();
     std::fs::create_dir_all(&dir).ok()?;
+    // 0700: impede outros usuários de plantar symlinks no diretório.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(
+            &dir,
+            std::fs::Permissions::from_mode(0o700),
+        );
+    }
     let safe: String = service
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '_' })
         .collect();
     let path = dir.join(format!("{safe}.png"));
+    // Remove qualquer entrada pré-existente (inclui symlink) pra que o
+    // save crie um arquivo novo em vez de seguir um link plantado.
+    let _ = std::fs::remove_file(&path);
     img.save(&path).ok()?;
     Some(path.to_string_lossy().to_string())
+}
+
+/// Diretório dos PNGs de tray. Prefere $XDG_RUNTIME_DIR (por-usuário,
+/// 0700) a /tmp, que é compartilhado e propenso a symlink attack. No
+/// fallback, inclui o uid pra reduzir colisão/hijack entre usuários.
+fn tray_tmp_dir() -> std::path::PathBuf {
+    if let Ok(rt) = std::env::var("XDG_RUNTIME_DIR") {
+        if !rt.is_empty() {
+            return std::path::PathBuf::from(rt).join("luma-tray");
+        }
+    }
+    let uid = unsafe { libc::getuid() };
+    std::path::PathBuf::from(format!("/tmp/luma-tray-{uid}"))
 }
 
 /// Inicia a thread D-Bus em background. Retorna a lista compartilhada
@@ -707,7 +732,7 @@ pub fn load_icon(item: &SniItem, size: i32) -> Option<MemoryRenderBuffer> {
                     return Some(buf);
                 }
             }
-            if let Ok(img) = image::open(&path) {
+            if let Some(img) = crate::apps::open_image_limited(&path) {
                 return Some(image_to_buffer(img, size));
             }
         }
