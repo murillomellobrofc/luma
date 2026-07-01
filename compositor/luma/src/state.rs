@@ -106,6 +106,11 @@ pub struct LumaState {
     /// (`bluetooth::icon_name`: "bluetooth-on", "bluetooth-off", ou "" se não
     /// há controller). Inicia no estado do boot (mesmo molde de rede/bateria).
     pub bluetooth_tx: tokio::sync::watch::Sender<String>,
+    /// Contador `watch` que dispara o sinal D-Bus `menu_toggle` do compositor
+    /// (calloop → thread do D-Bus). O Super (shortcuts) incrementa; a task do
+    /// D-Bus emite o `menu_toggle` pro luma-menu — mesmo caminho do ShowMenu
+    /// (botão da barra). Um caminho, dois gatilhos.
+    pub menu_toggle_tx: tokio::sync::watch::Sender<u64>,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<LumaState>,
@@ -985,6 +990,8 @@ impl LumaState {
         // Bluetooth: o nome do ícone do estado atual (on/off, ou "" sem hw).
         let (bluetooth_tx, _) =
             tokio::sync::watch::channel(crate::bluetooth::icon_name().to_string());
+        // Gatilho do menu novo (Super → menu_toggle). Contador incremental.
+        let (menu_toggle_tx, _) = tokio::sync::watch::channel(0u64);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1097,6 +1104,7 @@ impl LumaState {
             volume_tx,
             network_tx,
             bluetooth_tx,
+            menu_toggle_tx,
             shm_state,
             output_manager_state,
             seat_state,

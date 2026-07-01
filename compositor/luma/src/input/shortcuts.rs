@@ -370,11 +370,11 @@ fn toggle_overview(state: &mut LumaState) {
 /// receber input). O menu já consome qualquer tecla pra search bar
 /// enquanto aberto, então abrir = "foco na search".
 fn open_menu_to_search(state: &mut LumaState) {
-    if !state.menu_open {
-        state.menu_open = true;
-        state.menu_new.reset();
-        tracing::info!("Super+K: menu aberto pra search");
-    }
+    // Super agora dispara o luma-menu NOVO (mesmo caminho do botão da barra):
+    // incrementa o watch, a task do D-Bus emite `menu_toggle`. O menu velho
+    // não é mais aberto pelo teclado.
+    state.menu_toggle_tx.send_modify(|c| *c = c.wrapping_add(1));
+    tracing::info!("Super: dispara o luma-menu (menu_toggle)");
 }
 
 fn close_focused(state: &mut LumaState) {

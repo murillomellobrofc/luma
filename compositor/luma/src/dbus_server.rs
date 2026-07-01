@@ -939,6 +939,7 @@ pub fn spawn(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    menu_toggle: tokio::sync::watch::Receiver<u64>,
     sni: crate::sni::SniList,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
@@ -952,6 +953,7 @@ pub fn spawn(
             volume,
             network,
             bluetooth,
+            menu_toggle,
             sni,
         )
     }) {
@@ -968,6 +970,7 @@ fn run(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    menu_toggle: tokio::sync::watch::Receiver<u64>,
     sni: crate::sni::SniList,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
@@ -990,6 +993,7 @@ fn run(
             volume,
             network,
             bluetooth,
+            menu_toggle,
             sni,
         )
         .await
@@ -1039,6 +1043,7 @@ async fn serve(
     volume: tokio::sync::watch::Receiver<(u8, bool)>,
     network: tokio::sync::watch::Receiver<String>,
     bluetooth: tokio::sync::watch::Receiver<String>,
+    menu_toggle: tokio::sync::watch::Receiver<u64>,
     sni: crate::sni::SniList,
 ) -> zbus::Result<()> {
     // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
@@ -1086,6 +1091,7 @@ async fn serve(
     let mut volume = volume;
     let mut network = network;
     let mut bluetooth = bluetooth;
+    let mut menu_toggle = menu_toggle;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -1114,6 +1120,13 @@ async fn serve(
                 let icon = bluetooth.borrow().clone();
                 if let Err(err) = emitter.bluetooth_changed(&icon).await {
                     error!("D-Bus: falha ao emitir sinal de bluetooth: {err}");
+                }
+            }
+            r = menu_toggle.changed() => {
+                if r.is_err() { break; }
+                // Super pediu o menu → emite o mesmo sinal do ShowMenu.
+                if let Err(err) = emitter.menu_toggle().await {
+                    error!("D-Bus: falha ao emitir menu_toggle (Super): {err}");
                 }
             }
         }
