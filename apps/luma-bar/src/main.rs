@@ -45,6 +45,8 @@ enum PopupKind {
     Notifications,
     TrayOverflow,
     TrayMenu,
+    /// Central de áreas de trabalho (fullscreen: thumbs + "+").
+    Workspaces,
 }
 
 /// Um item da bandeja (SNI).
@@ -164,6 +166,12 @@ struct Bar {
     tray_menu_items: Vec<MenuItem>,
     tray_menu_service: String,
     tray_menu_path: String,
+    /// Motor de workspace: área atual (0-based), quantas áreas, e ids das
+    /// janelas de cada área. Boot + sinal `workspace_changed`. O pager mostra
+    /// a atual; a central desenha os thumbs.
+    ws_current: u32,
+    ws_count: u32,
+    ws_windows: Vec<Vec<u64>>,
 }
 
 #[to_layer_message(multi)]
@@ -277,6 +285,19 @@ enum Message {
     TrayMenuLoaded(Vec<(i32, String, bool, bool)>),
     /// Clique num item do menu → o app age + fecha o menu.
     TrayMenuClick(i32),
+    /// Estado do motor de workspace lido/recarregado: `(atual, quantas, ids)`.
+    WorkspaceStateLoaded((u32, u32, Vec<Vec<u64>>)),
+    /// Sinal `workspace_changed` `(atual, quantas)` — reflete no pager na hora
+    /// e relê o estado completo (pra a central aberta atualizar os thumbs).
+    WorkspaceChanged((u32, u32)),
+    /// Clique no pager → abre/fecha a central de áreas.
+    OpenWorkspaces,
+    /// Clique num thumb (ou pager scroll) → vai pra área N.
+    WsSwitch(u32),
+    /// Botão "+" da central → cria área nova.
+    WsCreate,
+    /// Scroll no pager → área anterior/próxima (cicla).
+    WsScroll(iced::mouse::ScrollDelta),
 }
 
 fn now_hm() -> String {
@@ -343,6 +364,7 @@ fn boot() -> (Bar, Task<Message>) {
         Task::perform(ipc::read_network(), Message::NetworkLoaded),
         Task::perform(ipc::read_bluetooth(), Message::BluetoothLoaded),
         Task::perform(ipc::read_tray_items(), Message::TrayLoaded),
+        Task::perform(ipc::read_workspace_state(), Message::WorkspaceStateLoaded),
     ]);
     (
         Bar {
@@ -373,6 +395,9 @@ fn boot() -> (Bar, Task<Message>) {
             tray_menu_items: Vec::new(),
             tray_menu_service: String::new(),
             tray_menu_path: String::new(),
+            ws_current: 0,
+            ws_count: 1,
+            ws_windows: vec![vec![]],
         },
         read,
     )
@@ -441,6 +466,10 @@ fn load_popup(kind: PopupKind) -> Task<Message> {
         PopupKind::TrayOverflow => Task::none(),
         // TrayMenu é carregado à parte (no OpenTrayMenu, com service/menu_path).
         PopupKind::TrayMenu => Task::none(),
+        // Central: relê o estado fresco pros thumbs.
+        PopupKind::Workspaces => {
+            Task::perform(ipc::read_workspace_state(), Message::WorkspaceStateLoaded)
+        }
     }
 }
 
@@ -539,6 +568,45 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::ToggleMute => {
             state.volume.1 = !state.volume.1; // otimista
             return Task::perform(ipc::toggle_mute(), |_| Message::Noop);
+        }
+        // ── Workspaces: pager + central ───────────────────────────────
+        Message::WorkspaceStateLoaded((current, count, windows)) => {
+            state.ws_current = current;
+            state.ws_count = count;
+            state.ws_windows = windows;
+        }
+        Message::WorkspaceChanged((current, count)) => {
+            // Reflete já no pager; relê o estado completo pros thumbs da
+            // central (o sinal só traz atual/quantas).
+            state.ws_current = current;
+            state.ws_count = count;
+            return Task::perform(ipc::read_workspace_state(), Message::WorkspaceStateLoaded);
+        }
+        Message::OpenWorkspaces => return open_popup(state, PopupKind::Workspaces),
+        Message::WsSwitch(idx) => {
+            state.ws_current = idx; // otimista (o sinal confirma)
+            return Task::perform(ipc::workspace_switch(idx), |_| Message::Noop);
+        }
+        Message::WsCreate => {
+            return Task::perform(ipc::workspace_create(), |_| Message::Noop);
+        }
+        Message::WsScroll(delta) => {
+            let y = match delta {
+                iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+            };
+            if y != 0.0 && state.ws_count > 0 {
+                let n = state.ws_count;
+                let cur = state.ws_current;
+                // Scroll pra cima = área anterior; pra baixo = próxima (cicla).
+                let next = if y > 0.0 {
+                    (cur + n - 1) % n
+                } else {
+                    (cur + 1) % n
+                };
+                state.ws_current = next; // otimista
+                return Task::perform(ipc::workspace_switch(next), |_| Message::Noop);
+            }
         }
         // Popups: abre/fecha (um de cada vez) + carrega o conteúdo.
         Message::OpenVolumePopup => return open_popup(state, PopupKind::Volume),
@@ -1124,6 +1192,7 @@ fn view(state: &Bar, id: iced::window::Id) -> Element<'_, Message> {
                 PopupKind::Notifications => popup_frame(notif_popup_body(state), 130.0),
                 PopupKind::TrayOverflow => popup_frame(tray_overflow_body(state), 290.0),
                 PopupKind::TrayMenu => popup_frame(tray_menu_body(state), 290.0),
+                PopupKind::Workspaces => workspace_central_view(state),
             };
         }
     }
@@ -1240,6 +1309,8 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
             Space::new().width(Length::Fixed(12.0)),
             menu_btn,
             Space::new().width(Length::Fixed(10.0)),
+            workspace_pager(state.ws_current, state.ws_count),
+            Space::new().width(Length::Fixed(10.0)),
             windows_row,
             Space::new().width(Length::Fill),
             // ── Canto direito, estilo W11 ──────────────────────────────
@@ -1296,6 +1367,182 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+/// Pager da barra: pill âmbar com o número da área ATUAL (+ "/M" sutil quando
+/// há mais de uma). Scroll troca de área (cicla); clique abre a central.
+/// Golden Hour: pill acento + número na cor do fundo (coffee).
+fn workspace_pager<'a>(current: u32, count: u32) -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let accent = libluma::tokens::accent();
+    let coffee = libluma::tokens::to_iced(sem.background);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    let pill = container(text(format!("{}", current + 1)).size(14.0).color(coffee))
+        .padding(Padding::from([2.0, 10.0]))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(accent)),
+            border: Border {
+                radius: 9.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let content: Element<Message> = if count > 1 {
+        row![
+            pill,
+            text(format!("/{count}")).size(11.0).color(secondary),
+        ]
+        .spacing(4.0)
+        .align_y(iced::Alignment::Center)
+        .into()
+    } else {
+        pill.into()
+    };
+
+    mouse_area(content)
+        .on_scroll(Message::WsScroll)
+        .on_press(Message::OpenWorkspaces)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Um thumb da central: card da área com nome + contagem de janelas. O ativo
+/// ganha borda âmbar; clique vai pra área.
+fn workspace_thumb<'a>(idx: u32, active: bool, win_count: usize) -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let surface = libluma::tokens::to_iced(sem.surface);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+    let accent = libluma::tokens::accent();
+
+    let sub = match win_count {
+        0 => "vazia".to_string(),
+        1 => "1 janela".to_string(),
+        n => format!("{n} janelas"),
+    };
+    let body = column![
+        text(format!("Área {}", idx + 1)).size(16.0).color(cream),
+        text(sub).size(11.0).color(secondary),
+    ]
+    .spacing(6.0)
+    .align_x(iced::Alignment::Center);
+
+    let card = container(
+        container(body)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center),
+    )
+    .width(Length::Fixed(190.0))
+    .height(Length::Fixed(120.0))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(Color { a: 0.55, ..surface })),
+        border: Border {
+            radius: 12.0.into(),
+            width: if active { 2.0 } else { 1.0 },
+            color: if active {
+                accent
+            } else {
+                Color { a: 0.18, ..cream }
+            },
+        },
+        ..Default::default()
+    });
+
+    mouse_area(card)
+        .on_press(Message::WsSwitch(idx))
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Card "+" da central: cria uma área nova.
+fn workspace_plus<'a>() -> Element<'a, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    let card = container(
+        container(text("+").size(34.0).color(secondary))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center),
+    )
+    .width(Length::Fixed(190.0))
+    .height(Length::Fixed(120.0))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(Color { a: 0.12, ..cream })),
+        border: Border {
+            radius: 12.0.into(),
+            width: 1.0,
+            color: Color { a: 0.14, ..cream },
+        },
+        ..Default::default()
+    });
+
+    mouse_area(card)
+        .on_press(Message::WsCreate)
+        .interaction(iced::mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Central de áreas de trabalho: fullscreen escurecido + título "Workspaces" +
+/// fila de thumbs (a ativa no acento) + botão "+". Lê o `WorkspaceState`; clicar
+/// num thumb troca de verdade (motor real), "+" cria.
+fn workspace_central_view(state: &Bar) -> Element<'_, Message> {
+    let sem = libluma::tokens::semantic_default();
+    let coffee = libluma::tokens::to_iced(sem.background);
+    let cream = libluma::tokens::to_iced(sem.text);
+    let secondary = libluma::tokens::to_iced(sem.text_secondary);
+
+    // Backdrop: coffee bem escuro semi-transparente. Clique fecha.
+    let backdrop = mouse_area(
+        container(Space::new().width(Length::Fill).height(Length::Fill)).style(move |_| {
+            container::Style {
+                background: Some(Background::Color(Color { a: 0.9, ..coffee })),
+                ..Default::default()
+            }
+        }),
+    )
+    .on_press(Message::ClosePopup);
+
+    // Thumbs: um por área (contagem de janelas do snapshot), + o "+".
+    let mut thumbs: Vec<Element<Message>> = (0..state.ws_count)
+        .map(|i| {
+            let wins = state
+                .ws_windows
+                .get(i as usize)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            workspace_thumb(i, i == state.ws_current, wins)
+        })
+        .collect();
+    thumbs.push(workspace_plus());
+    let thumb_row = row(thumbs).spacing(16.0).align_y(iced::Alignment::Center);
+
+    let panel = column![
+        text("Workspaces").size(24.0).color(cream),
+        text("Clique pra alternar · role no pager · + cria nova")
+            .size(12.0)
+            .color(secondary),
+        thumb_row,
+    ]
+    .spacing(22.0)
+    .align_x(iced::Alignment::Center);
+
+    // Painel centralizado num container SIMPLES (sem mouse_area): os thumbs e o
+    // "+" capturam o próprio clique; clicar no vazio atravessa pro backdrop e
+    // fecha. Nada de wrapper Noop (fecharia a tela toda pro clique-fora).
+    let centered = container(panel)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center);
+
+    stack![backdrop, centered].into()
 }
 
 /// Uma linha do mixer: nome (+ default) + botão de mudo + slider de volume.
@@ -1842,6 +2089,7 @@ fn subscription(state: &Bar) -> iced::Subscription<Message> {
         iced::Subscription::run(volume_subscription),
         iced::Subscription::run(network_subscription),
         iced::Subscription::run(bluetooth_subscription),
+        iced::Subscription::run(workspace_subscription),
     ];
     // Modo adicionar: poll dos descobertos + fase do pareamento a cada 2s.
     if state.bt_adding {
@@ -1906,6 +2154,20 @@ fn battery_subscription() -> impl iced::futures::Stream<Item = Message> {
             Ok(s) => s.map(Message::BatteryChanged).boxed(),
             Err(e) => {
                 eprintln!("luma-bar: subscription de bateria falhou: {e}");
+                iced::futures::stream::pending().boxed()
+            }
+        }
+    })
+    .flatten()
+}
+
+fn workspace_subscription() -> impl iced::futures::Stream<Item = Message> {
+    use iced::futures::StreamExt;
+    iced::futures::stream::once(async {
+        match ipc::workspace_changed_signal_stream().await {
+            Ok(s) => s.map(Message::WorkspaceChanged).boxed(),
+            Err(e) => {
+                eprintln!("luma-bar: subscription de workspace falhou: {e}");
                 iced::futures::stream::pending().boxed()
             }
         }

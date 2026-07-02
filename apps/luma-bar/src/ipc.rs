@@ -35,6 +35,16 @@ pub trait Compositor {
     /// Abre/fecha o luma-menu (botão da barra / Super). Emite `menu_toggle`.
     async fn show_menu(&self) -> zbus::Result<()>;
 
+    /// Motor de workspace: `(atual, quantas, [ids_por_área])`. 0-based.
+    async fn workspace_state(&self) -> zbus::Result<(u32, u32, Vec<Vec<u64>>)>;
+    /// Vai pra área de índice N (0-based). Auto-cria intermediárias.
+    async fn workspace_switch(&self, index: u32) -> zbus::Result<()>;
+    /// Cria uma área nova vazia e vai pra ela.
+    async fn workspace_create(&self) -> zbus::Result<()>;
+    /// **Sinal** de mudança do motor de workspace: `(atual, quantas)`.
+    #[zbus(signal)]
+    fn workspace_changed(&self, current: u32, count: u32) -> zbus::Result<()>;
+
     /// Estado da bateria (passo 3): `(present, capacity 0–100, charging)`.
     async fn battery(&self) -> zbus::Result<(bool, u8, bool)>;
     #[zbus(signal)]
@@ -225,6 +235,54 @@ pub async fn show_menu() {
         CompositorProxy::new(&conn?).await?.show_menu().await
     })
     .await;
+}
+
+// ─── Workspaces / pager + central ─────────────────────────────────────
+
+/// Lê o estado do motor de workspace: `(atual, quantas, [ids_por_área])`.
+/// Erro = 1 área vazia (fallback seguro).
+pub async fn read_workspace_state() -> (u32, u32, Vec<Vec<u64>>) {
+    async fn inner() -> zbus::Result<(u32, u32, Vec<Vec<u64>>)> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.workspace_state().await
+    }
+    inner().await.unwrap_or((0, 1, vec![vec![]]))
+}
+
+/// Vai pra área N (clique num thumb / scroll no pager). Erro só loga.
+pub async fn workspace_switch(index: u32) {
+    async fn inner(index: u32) -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.workspace_switch(index).await
+    }
+    if let Err(e) = inner(index).await {
+        eprintln!("luma-bar: workspace_switch({index}) falhou: {e}");
+    }
+}
+
+/// Cria uma área nova (botão "+" da central). Erro só loga.
+pub async fn workspace_create() {
+    async fn inner() -> zbus::Result<()> {
+        let conn = zbus::Connection::session().await?;
+        let proxy = CompositorProxy::new(&conn).await?;
+        proxy.workspace_create().await
+    }
+    if let Err(e) = inner().await {
+        eprintln!("luma-bar: workspace_create falhou: {e}");
+    }
+}
+
+/// Stream do sinal `workspace_changed` — `(atual, quantas)`. O pager e a
+/// central reagem na hora (a central relê o estado completo).
+pub async fn workspace_changed_signal_stream(
+) -> zbus::Result<impl iced::futures::Stream<Item = (u32, u32)>> {
+    use iced::futures::StreamExt;
+    let conn = zbus::Connection::session().await?;
+    let proxy = CompositorProxy::new(&conn).await?;
+    let signals = proxy.receive_workspace_changed().await?;
+    Ok(signals.filter_map(|sig| async move { sig.args().ok().map(|a| (*a.current(), *a.count())) }))
 }
 
 // ─── Bateria (passo 3) ────────────────────────────────────────────────
