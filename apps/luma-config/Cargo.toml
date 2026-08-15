@@ -1,9 +1,10 @@
 [package]
 name = "luma-config"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "App nativo de configuração do Luma (cliente Wayland, iced)"
-license = "GPL-3.0-or-later"
+license.workspace = true
 
 [[bin]]
 name = "luma-config"
