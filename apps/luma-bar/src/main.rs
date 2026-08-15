@@ -26,6 +26,14 @@ const ACCENT_LINE: u32 = 2;
 const APPLET_ICON: f32 = 24.0;
 /// Máximo de chars do título no botão (trunca com reticências).
 const TITLE_MAX: usize = 22;
+/// Lado do botão do launcher (zona A da H33). O `HIT_TARGET_MIN` do libluma
+/// é 44 — o baseline PCD do projeto —, então o botão não desce daqui.
+const LAUNCHER_SIZE: f32 = 44.0;
+/// Raio dos cantos do botão do launcher (`taskbar.launcher.corner_radius`).
+const LAUNCHER_RADIUS: f32 = 9.0;
+/// Alpha do realce de hover do launcher, sobre o acento do preset ativo.
+/// Baixo de propósito: o spec pede "leve destaque", não botão preenchido.
+const LAUNCHER_HOVER_ALPHA: f32 = 0.18;
 
 /// Uma janela na taskbar (passo 2): id pra ativar, label resolvido, foco.
 #[derive(Debug, Clone)]
@@ -172,6 +180,10 @@ struct Bar {
     ws_current: u32,
     ws_count: u32,
     ws_windows: Vec<Vec<u64>>,
+    /// Cursor está sobre o botão do launcher (zona A) — pinta o realce de
+    /// hover. O `mouse_area` do iced 0.14 avisa entrada/saída; não há estado
+    /// de hover implícito num `container`.
+    launcher_hover: bool,
 }
 
 #[to_layer_message(multi)]
@@ -199,6 +211,8 @@ enum Message {
     ShowDesktop,
     /// Botão de menu (canto esquerdo) → abre/fecha o luma-menu.
     OpenMenu,
+    /// Cursor entrou (`true`) ou saiu (`false`) do botão do launcher.
+    LauncherHover(bool),
     /// Bateria lida no boot / mudada pelo sinal: `(present, capacity, charging)`.
     BatteryLoaded((bool, u8, bool)),
     BatteryChanged((bool, u8, bool)),
@@ -398,6 +412,7 @@ fn boot() -> (Bar, Task<Message>) {
             ws_current: 0,
             ws_count: 1,
             ws_windows: vec![vec![]],
+            launcher_hover: false,
         },
         read,
     )
@@ -534,8 +549,14 @@ fn update(state: &mut Bar, message: Message) -> Task<Message> {
         Message::ShowDesktop => {
             return Task::perform(ipc::show_desktop(), |_| Message::PollWindows);
         }
+        // O `show_menu` emite `menu_toggle`, e o luma-menu já trata como
+        // toggle de verdade (fecha se a overlay está aberta). O botão não
+        // precisa saber se o menu está aberto — quem tem essa verdade é o menu.
         Message::OpenMenu => {
             return Task::perform(ipc::show_menu(), |_| Message::Noop);
+        }
+        Message::LauncherHover(over) => {
+            state.launcher_hover = over;
         }
         // Bateria (passo 3): boot e sinal aplicam igual. `present=false` =
         // sem bateria (esconde o applet).
@@ -1260,18 +1281,7 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
         .spacing(6)
         .align_y(iced::Alignment::Center);
 
-    // Botão de menu (canto esquerdo): a marca do Luma, tingida no acento.
-    // Clique chama o ShowMenu do compositor (mesmo caminho do Super).
-    let menu_btn = mouse_area(
-        svg(svg::Handle::from_memory(
-            include_bytes!("../../../assets/branding/icons/icon-luma-menu.svg").as_slice(),
-        ))
-        .width(Length::Fixed(24.0))
-        .height(Length::Fixed(24.0))
-        .style(move |_theme, _status| svg::Style { color: Some(accent) }),
-    )
-    .on_press(Message::OpenMenu)
-    .interaction(iced::mouse::Interaction::Pointer);
+    let menu_btn = launcher_button(state.launcher_hover);
 
     // Botão "mostrar área de trabalho" (canto direito, como a barra velha).
     let show_desktop_btn = mouse_area(
@@ -1366,6 +1376,62 @@ fn bar_view(state: &Bar) -> Element<'_, Message> {
     column![accent_line, content]
         .width(Length::Fill)
         .height(Length::Fill)
+        .into()
+}
+
+/// **Zona A da H33** — botão do launcher, na ponta esquerda da barra.
+///
+/// Quadrado de `LAUNCHER_SIZE` com a marca da Luma tingida no acento do preset
+/// ativo. Fundo transparente parado; no hover, o próprio acento com alpha
+/// baixo. Sem borda e sem sombra, como o spec pede.
+///
+/// A **altura é `Fill`, não fixa**: a barra tem 42px de conteúdo + 2px da
+/// linha de acento (44 no total). Um quadrado de 44 fixo dentro de 42
+/// estouraria a área e o iced cortaria os cantos arredondados, que é o tipo
+/// de coisa que parece bug. `Fill` ocupa a altura toda disponível, então o
+/// botão encosta nas duas bordas — que é o efeito que o spec descreve. A
+/// largura fica em 44 pra manter o alvo de toque do baseline PCD.
+///
+/// Clique → `show_menu` no compositor → sinal `menu_toggle` → o luma-menu
+/// abre **ou fecha** (o toggle mora lá, em `luma-menu/src/main.rs`). Mesmo
+/// caminho da tecla Super, então botão e tecla nunca divergem.
+fn launcher_button<'a>(hovered: bool) -> Element<'a, Message> {
+    let accent = libluma::tokens::accent();
+    let hover_bg = Color {
+        a: LAUNCHER_HOVER_ALPHA,
+        ..accent
+    };
+
+    let icon = svg(svg::Handle::from_memory(
+        include_bytes!("../../../assets/branding/icons/icon-luma-menu.svg").as_slice(),
+    ))
+    .width(Length::Fixed(APPLET_ICON))
+    .height(Length::Fixed(APPLET_ICON))
+    .style(move |_theme, _status| svg::Style { color: Some(accent) });
+
+    let button = container(icon)
+        .width(Length::Fixed(LAUNCHER_SIZE))
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(if hovered {
+                hover_bg
+            } else {
+                Color::TRANSPARENT
+            })),
+            border: Border {
+                radius: LAUNCHER_RADIUS.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    mouse_area(button)
+        .on_press(Message::OpenMenu)
+        .on_enter(Message::LauncherHover(true))
+        .on_exit(Message::LauncherHover(false))
+        .interaction(iced::mouse::Interaction::Pointer)
         .into()
 }
 
