@@ -10,6 +10,8 @@
 //!   tipografia e alvo de toque PCD.
 //! - O theme `iced::Theme` Golden Hour pronto pro `.theme(...)` do app.
 //! - Helpers de cor (struct `GoldenHour`) com a paleta em `iced::Color`.
+//! - [`icons`] — resolução de ícone freedesktop (`Icon=` → arquivo, e
+//!   `app_id` Wayland → ícone do app). Compartilhado pelo menu e pela barra.
 //! - [`category_tile`] e (futuro) demais componentes visuais.
 //!
 //! O compositor Smithay NÃO consome libluma — ele lê o `luma-tokens`
@@ -18,10 +20,12 @@
 mod color;
 pub mod components;
 pub mod focusable;
+pub mod icons;
 mod theme;
 pub mod tokens;
 
 pub use color::GoldenHour;
+pub use icons::{IconKind, classify_icon, icon_for_app_id, resolve_icon_path};
 pub use components::{
     GridItem, GridSection, accent_picker, accent_swatch, category_grid, category_grid_filtered,
     category_tile, coming_soon_row, columns_for, nav_row, page_header, scrollbar_style,
