@@ -1184,22 +1184,35 @@ fn view(state: &Menu, id: iced::window::Id) -> Element<'_, Message> {
     )
     .on_press(Message::Noop);
 
-    // Ancora no canto SUPERIOR-esquerdo, descendo colado embaixo da luma-bar
-    // (que mora no topo). A surface já nasce abaixo da zona exclusiva da
-    // barra, então a margem de topo é só um respiro. Assim a sessão (no fim
-    // do painel) cabe inteira, sem bater nas barras velhas de baixo.
+    // Ancora no canto INFERIOR-esquerdo, subindo a partir da luma-bar — que
+    // mora no rodapé desde o commit `3b0ddd1`. (Este bloco ficou preso na
+    // premissa antiga de barra no topo, e era por isso que o menu abria no
+    // canto de cima.) O painel tem altura fixa, então alinhado embaixo ele
+    // cresce pra cima.
+    //
+    // **Sem margem do tamanho da barra de propósito.** A surface é
+    // `exclusive_zone: Some(0)` = `ExclusiveZone::Neutral`, e o
+    // `LayerMap::arrange` do Smithay entrega a essas surfaces a zona já
+    // descontada das exclusivas (`layer.rs:311`, e as exclusivas são
+    // processadas primeiro em `:284`). Ou seja: a surface JÁ termina onde a
+    // barra começa. Somar 42/44px aqui contaria a barra duas vezes e abriria
+    // um vão. Os 8px de baixo são só respiro, espelhando o que era o topo.
+    //
+    // `left: 20` alinha com a borda esquerda do launcher, não com a da tela:
+    // na `bar_view` a fileira começa com um Space de 12 e tem `.spacing(8)`,
+    // então o botão do launcher começa em x=20.
     stack![
         backdrop,
         container(panel)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Left)
-            .align_y(iced::alignment::Vertical::Top)
+            .align_y(iced::alignment::Vertical::Bottom)
             .padding(Padding {
-                top: 8.0,
+                top: 0.0,
                 right: 0.0,
-                bottom: 0.0,
-                left: 12.0,
+                bottom: 8.0,
+                left: 20.0,
             }),
     ]
     .into()
