@@ -166,32 +166,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notifications_slot = data.state.notifications.clone();
     // Slot de janelas (luma-bar passo 2): o servidor D-Bus lê via list_windows.
     let windows_slot = data.state.windows.clone();
-    // Receiver da bateria (luma-bar passo 3): o servidor emite o sinal no
-    // `changed()`; o compositor manda no refresh quando muda.
-    let battery_rx = data.state.battery_tx.subscribe();
-    // Receiver do volume (luma-bar passo 4): mesmo esquema da bateria.
-    let volume_rx = data.state.volume_tx.subscribe();
-    let network_rx = data.state.network_tx.subscribe();
-    let bluetooth_rx = data.state.bluetooth_tx.subscribe();
-    let menu_toggle_rx = data.state.menu_toggle_tx.subscribe();
-    let desktop_menu_rx = data.state.desktop_menu_tx.subscribe();
     let sni_list = data.state.sni_list.clone();
     let workspace_slot = data.state.workspace_slot.clone();
-    let workspace_changed_rx = data.state.workspace_changed_tx.subscribe();
+    // Fontes dos sinais que a thread do D-Bus escuta: cada `watch` carrega o
+    // último valor e acorda o loop de sinais no `changed()`. Nomeadas porque
+    // três delas são `Receiver<u64>` — em lista posicional, trocar duas de
+    // lugar compila e o bug só aparece em runtime.
+    let signals = dbus_server::SignalSources {
+        battery: data.state.battery_tx.subscribe(),
+        volume: data.state.volume_tx.subscribe(),
+        network: data.state.network_tx.subscribe(),
+        bluetooth: data.state.bluetooth_tx.subscribe(),
+        menu_toggle: data.state.menu_toggle_tx.subscribe(),
+        desktop_menu: data.state.desktop_menu_tx.subscribe(),
+        workspace_changed: data.state.workspace_changed_tx.subscribe(),
+        windows_changed: data.state.windows_changed_tx.subscribe(),
+        desktop_visible: data.state.desktop_visible_tx.subscribe(),
+    };
     dbus_server::spawn(
         dbus_tx,
         available,
         notifications_slot,
         windows_slot,
-        battery_rx,
-        volume_rx,
-        network_rx,
-        bluetooth_rx,
-        menu_toggle_rx,
-        desktop_menu_rx,
         sni_list,
         workspace_slot,
-        workspace_changed_rx,
+        signals,
     );
 
     info!("luma pronto, entrando no loop principal");

@@ -132,6 +132,20 @@ pub struct LumaState {
     /// criar/mover/fechar; a task do D-Bus emite `workspace_changed(atual,
     /// quantas)`. Mesmo esquema do `desktop_menu_tx`.
     pub workspace_changed_tx: tokio::sync::watch::Sender<u64>,
+    /// Gatilho de mudança da lista de janelas: a task do D-Bus emite
+    /// `windows_changed` e a barra relê `list_windows`. Antes a barra fazia
+    /// poll de 500ms, o que atrasava o indicador âmbar da zona C em até meio
+    /// segundo no Alt+Tab. Disparado por `update_windows_slot` só quando o
+    /// fingerprint muda de verdade (ver `windows_fingerprint`).
+    pub windows_changed_tx: tokio::sync::watch::Sender<u64>,
+    /// Hash do conteúdo do último `windows` publicado — `update_windows_slot`
+    /// roda por frame, então sem isso o sinal viraria 60 Hz de ruído. Atômico
+    /// porque `update_windows_slot` recebe `&self`.
+    pub windows_fingerprint: std::sync::atomic::AtomicU64,
+    /// Estado do "mostrar área de trabalho" pro botão da zona F da barra
+    /// (acende em âmbar quando ligado). Espelha `desktop_visible`, que já
+    /// existia mas só era lido pela barra velha, dentro do compositor.
+    pub desktop_visible_tx: tokio::sync::watch::Sender<bool>,
     /// Super-tap: `true` enquanto o Super foi pressionado sozinho (sem outra
     /// tecla). Se soltar ainda armado, dispara o menu (toque tipo Windows).
     /// Qualquer outra tecla desarma (Super+X é atalho, não toque).
@@ -695,6 +709,10 @@ impl LumaState {
         // `desktop_visible` (lido pelo botão da barra velha): modo ligado =
         // set não-vazio.
         self.desktop_visible = !self.show_desktop_set.is_empty();
+        // Avisa a barra (zona F acende em âmbar). O `watch` também guarda o
+        // último valor, então o `DesktopVisible` do D-Bus lê daqui sem
+        // roundtrip pelo calloop.
+        self.desktop_visible_tx.send_replace(self.desktop_visible);
         tracing::info!("show-desktop toggle: desktop_visible={}", self.desktop_visible);
     }
 
@@ -963,8 +981,32 @@ impl LumaState {
                 minimized,
             });
         }
+        // Sinal edge-triggered: esta função roda por frame, então emitir sempre
+        // seria 60 Hz de `windows_changed` no barramento. Hasheia o conteúdo
+        // que a barra realmente enxerga e só avisa quando muda de verdade —
+        // pega foco, minimizar, abrir/fechar e troca de título de uma vez.
+        let fingerprint = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            for e in &list {
+                e.id.hash(&mut h);
+                e.title.hash(&mut h);
+                e.app_id.hash(&mut h);
+                e.focused.hash(&mut h);
+                e.minimized.hash(&mut h);
+            }
+            h.finish()
+        };
         if let Ok(mut g) = self.windows.lock() {
             *g = list;
+        }
+        // Publica o slot ANTES de avisar, senão a barra pode ler a lista velha.
+        let previous = self
+            .windows_fingerprint
+            .swap(fingerprint, std::sync::atomic::Ordering::Relaxed);
+        if previous != fingerprint {
+            self.windows_changed_tx
+                .send_modify(|c| *c = c.wrapping_add(1));
         }
     }
 
@@ -1117,6 +1159,11 @@ impl LumaState {
                 },
             ));
         let (workspace_changed_tx, _) = tokio::sync::watch::channel(0u64);
+        // Gatilho da lista de janelas (zona C da barra) e estado do
+        // show-desktop (zona F). Mesmo molde do workspace_changed.
+        let (windows_changed_tx, _) = tokio::sync::watch::channel(0u64);
+        let windows_fingerprint = std::sync::atomic::AtomicU64::new(0);
+        let (desktop_visible_tx, _) = tokio::sync::watch::channel(false);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<LumaState>(&dh);
         let data_device_state = DataDeviceState::new::<LumaState>(&dh);
 
@@ -1227,6 +1274,9 @@ impl LumaState {
             pre_layer_focus: None,
             workspace_slot,
             workspace_changed_tx,
+            windows_changed_tx,
+            windows_fingerprint,
+            desktop_visible_tx,
             battery_tx,
             volume_tx,
             network_tx,
