@@ -1,9 +1,10 @@
 [package]
 name = "luma-bar"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Barra do Luma — cliente layer-shell (iced) que segue o acento/HC"
-license = "GPL-3.0-or-later"
+license.workspace = true
 
 [[bin]]
 name = "luma-bar"

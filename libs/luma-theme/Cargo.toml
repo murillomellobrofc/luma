@@ -1,9 +1,10 @@
 [package]
 name = "luma-theme"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Tema Golden Hour do Luma — Color tokens, defaults, carregamento de luma.toml"
-license = "GPL-3.0-or-later"
+license.workspace = true
 
 [dependencies]
 # Fonte única dos valores da paleta Golden Hour (compositor-free). O

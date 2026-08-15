@@ -2393,7 +2393,7 @@ dependencies = [
 
 [[package]]
 name = "libluma"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "iced",
  "luma-tokens",
@@ -2518,7 +2518,7 @@ checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
 
 [[package]]
 name = "luma"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags 2.11.1",
  "chrono",
@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "luma-bar"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "iced",
@@ -2562,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "luma-config"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "iced",
@@ -2573,7 +2573,7 @@ dependencies = [
 
 [[package]]
 name = "luma-customize"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "luma-theme",
  "tracing",
@@ -2581,7 +2581,7 @@ dependencies = [
 
 [[package]]
 name = "luma-ipc"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "zvariant",
@@ -2589,7 +2589,7 @@ dependencies = [
 
 [[package]]
 name = "luma-menu"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "iced",
@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "luma-theme"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "luma-tokens",
  "serde",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "luma-tokens"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "toml",
@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "luma-widget"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "luma-theme",
  "smithay",

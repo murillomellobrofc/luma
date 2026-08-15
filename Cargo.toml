@@ -13,6 +13,18 @@ members = [
     "apps/luma-menu",
 ]
 
+# Versão/edition/licença ÚNICAS do projeto — cada crate herda com
+# `version.workspace = true`. Antes cada Cargo.toml tinha a sua linha e a
+# versão derivou (compositor em 0.3.0, os outros 9 em 0.1.0); a versão sai
+# em runtime no `Ping` do D-Bus e no `GetServerInformation` do servidor de
+# notificações, então tem que ser uma só.
+# `rust-version` é o piso da edition 2024 — não é uma MSRV testada.
+[workspace.package]
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+
 [profile.dev]
 opt-level = 1
 
