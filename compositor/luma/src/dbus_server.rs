@@ -85,6 +85,26 @@ pub struct WindowEntry {
 /// do `NotificationsSlot`.
 pub type WindowsSlot = std::sync::Arc<std::sync::Mutex<Vec<WindowEntry>>>;
 
+/// Todos os `watch::Receiver` que a thread do D-Bus escuta pra emitir sinal.
+///
+/// Vieram como parâmetros soltos de `spawn`/`run`/`serve` até virarem oito —
+/// e três deles são `Receiver<u64>` (`menu_toggle`, `workspace_changed`,
+/// `windows_changed`). Em lista posicional, trocar dois de lugar compila
+/// limpo e o bug só aparece em runtime, como sinal errado. Nomeado, não.
+pub struct SignalSources {
+    pub battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
+    pub volume: tokio::sync::watch::Receiver<(u8, bool)>,
+    pub network: tokio::sync::watch::Receiver<String>,
+    pub bluetooth: tokio::sync::watch::Receiver<String>,
+    pub menu_toggle: tokio::sync::watch::Receiver<u64>,
+    pub desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
+    pub workspace_changed: tokio::sync::watch::Receiver<u64>,
+    /// Lista de janelas mudou (zona C da barra) — a barra relê `list_windows`.
+    pub windows_changed: tokio::sync::watch::Receiver<u64>,
+    /// Show-desktop ligado/desligado (zona F da barra).
+    pub desktop_visible: tokio::sync::watch::Receiver<bool>,
+}
+
 /// Converte o `BatteryInfo` interno na tupla do D-Bus `(present, capacity,
 /// charging)` (luma-bar passo 3). `None` (sem bateria) = `(false, 0, false)`.
 pub fn battery_tuple(info: Option<crate::tray::BatteryInfo>) -> (bool, u8, bool) {
@@ -130,6 +150,9 @@ struct CompositorService {
     /// Snapshot de workspace compartilhado (motor de workspace). O compositor
     /// escreve por frame; `workspace_state` lê direto, sem roundtrip.
     workspaces: WorkspaceSlot,
+    /// Receptor `watch` do show-desktop (zona F da barra). O `watch` guarda o
+    /// último valor, então o método lê com `borrow()` — sem roundtrip.
+    desktop_visible: tokio::sync::watch::Receiver<bool>,
 }
 
 #[interface(name = "dev.luma.Compositor")]
@@ -388,9 +411,16 @@ impl CompositorService {
 
     // ─── Janelas / taskbar (luma-bar passo 2) ─────────────────────────
 
+    /// **Sinal de mudança** da lista de janelas — abrir, fechar, focar,
+    /// minimizar ou trocar de título. Sem args: a barra relê `list_windows`
+    /// (mesmo contrato do `workspace_changed`). Emitido só na borda, via
+    /// fingerprint do lado do compositor — não por frame.
+    #[zbus(signal)]
+    async fn windows_changed(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
+
     /// Lista as janelas abertas pra a taskbar: `(id, título, app_id, focada)`.
     /// O compositor mantém isso atualizado por frame no slot compartilhado; a
-    /// luma-bar faz poll. `activate_window` foca pela id.
+    /// luma-bar relê no `windows_changed`. `activate_window` foca pela id.
     async fn list_windows(&self) -> Vec<(u64, String, String, bool, bool)> {
         match self.windows.lock() {
             Ok(g) => g
@@ -437,6 +467,21 @@ impl CompositorService {
             error!("D-Bus: calloop fechado ao mostrar área de trabalho");
         }
     }
+
+    /// O modo "mostrar área de trabalho" está ligado? A zona F da barra usa
+    /// pra acender o botão em âmbar e trocar pro ícone `-active`. Lê o último
+    /// valor do `watch` (o estado vive em `LumaState::desktop_visible`).
+    async fn desktop_visible(&self) -> bool {
+        *self.desktop_visible.borrow()
+    }
+
+    /// **Sinal**: o show-desktop foi ligado ou desligado — pelo botão da barra,
+    /// pelo Super+D, ou pelo Ctrl+Alt+D. Todos passam por `toggle_show_desktop`.
+    #[zbus(signal)]
+    async fn desktop_visible_changed(
+        emitter: &SignalEmitter<'_>,
+        visible: bool,
+    ) -> zbus::Result<()>;
 
     // ─── Bateria / applet (luma-bar passo 3) ──────────────────────────
 
@@ -1073,15 +1118,9 @@ pub fn spawn(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
-    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
-    volume: tokio::sync::watch::Receiver<(u8, bool)>,
-    network: tokio::sync::watch::Receiver<String>,
-    bluetooth: tokio::sync::watch::Receiver<String>,
-    menu_toggle: tokio::sync::watch::Receiver<u64>,
-    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
     workspaces: WorkspaceSlot,
-    workspace_changed: tokio::sync::watch::Receiver<u64>,
+    signals: SignalSources,
 ) {
     let builder = thread::Builder::new().name("luma-dbus".into());
     if let Err(err) = builder.spawn(move || {
@@ -1090,15 +1129,9 @@ pub fn spawn(
             available,
             notifications,
             windows,
-            battery,
-            volume,
-            network,
-            bluetooth,
-            menu_toggle,
-            desktop_menu,
             sni,
             workspaces,
-            workspace_changed,
+            signals,
         )
     }) {
         error!("D-Bus: não foi possível criar thread do servidor: {err}");
@@ -1110,15 +1143,9 @@ fn run(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
-    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
-    volume: tokio::sync::watch::Receiver<(u8, bool)>,
-    network: tokio::sync::watch::Receiver<String>,
-    bluetooth: tokio::sync::watch::Receiver<String>,
-    menu_toggle: tokio::sync::watch::Receiver<u64>,
-    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
     workspaces: WorkspaceSlot,
-    workspace_changed: tokio::sync::watch::Receiver<u64>,
+    signals: SignalSources,
 ) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -1136,15 +1163,9 @@ fn run(
             available,
             notifications,
             windows,
-            battery,
-            volume,
-            network,
-            bluetooth,
-            menu_toggle,
-            desktop_menu,
             sni,
             workspaces,
-            workspace_changed,
+            signals,
         )
         .await
         {
@@ -1189,16 +1210,21 @@ async fn serve(
     available: Vec<WidgetInfo>,
     notifications: NotificationsSlot,
     windows: WindowsSlot,
-    battery: tokio::sync::watch::Receiver<(bool, u8, bool)>,
-    volume: tokio::sync::watch::Receiver<(u8, bool)>,
-    network: tokio::sync::watch::Receiver<String>,
-    bluetooth: tokio::sync::watch::Receiver<String>,
-    menu_toggle: tokio::sync::watch::Receiver<u64>,
-    desktop_menu: tokio::sync::watch::Receiver<(u64, i32, i32, i32, i32)>,
     sni: crate::sni::SniList,
     workspaces: WorkspaceSlot,
-    workspace_changed: tokio::sync::watch::Receiver<u64>,
+    signals: SignalSources,
 ) -> zbus::Result<()> {
+    let SignalSources {
+        battery,
+        volume,
+        network,
+        bluetooth,
+        menu_toggle,
+        desktop_menu,
+        workspace_changed,
+        windows_changed,
+        desktop_visible,
+    } = signals;
     // Estado de pareamento compartilhado: o agent (system bus) escreve a fase
     // e guarda o oneshot da confirmação; o ConfirmPairing (session bus) lê.
     let pairing: crate::bt_agent::PairingSlot = Default::default();
@@ -1229,6 +1255,7 @@ async fn serve(
         bt_system: bt_system.clone(),
         sni,
         workspaces,
+        desktop_visible: desktop_visible.clone(),
     };
     let conn = zbus::connection::Builder::session()?
         .name(BUS_NAME)?
@@ -1250,6 +1277,8 @@ async fn serve(
     let mut menu_toggle = menu_toggle;
     let mut desktop_menu = desktop_menu;
     let mut workspace_changed = workspace_changed;
+    let mut windows_changed = windows_changed;
+    let mut desktop_visible = desktop_visible;
     loop {
         tokio::select! {
             r = battery.changed() => {
@@ -1304,6 +1333,21 @@ async fn serve(
                 };
                 if let Err(err) = emitter.workspace_changed(current, count).await {
                     error!("D-Bus: falha ao emitir workspace_changed: {err}");
+                }
+            }
+            r = windows_changed.changed() => {
+                if r.is_err() { break; }
+                // Lista de janelas mudou (abrir/fechar/focar/minimizar/título).
+                // Sem args — a barra relê `list_windows` do slot.
+                if let Err(err) = emitter.windows_changed().await {
+                    error!("D-Bus: falha ao emitir windows_changed: {err}");
+                }
+            }
+            r = desktop_visible.changed() => {
+                if r.is_err() { break; }
+                let visible = *desktop_visible.borrow();
+                if let Err(err) = emitter.desktop_visible_changed(visible).await {
+                    error!("D-Bus: falha ao emitir desktop_visible_changed: {err}");
                 }
             }
         }
