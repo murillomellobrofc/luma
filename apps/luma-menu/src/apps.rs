@@ -4,14 +4,12 @@
 //! Varre as pastas XDG, lê Name (prefere pt-BR)/Icon/Exec, pula
 //! NoDisplay/Hidden, tira os field codes do Exec.
 
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
-/// Tipo de ícone resolvido, pro view escolher o widget (svg vs imagem).
-#[derive(Debug, Clone)]
-pub enum IconKind {
-    Svg(PathBuf),
-    Raster(PathBuf),
-}
+// A resolução de ícone mora no `libluma` — era cópia quase idêntica da do
+// compositor, e a taskbar (zona C) ia virar a terceira. Reexportado pra o
+// resto do menu seguir falando `apps::IconKind` / `apps::resolve_icon_path`.
+pub use libluma::icons::{IconKind, classify_icon, resolve_icon_path};
 
 /// App descoberto de um `.desktop`.
 #[derive(Debug, Clone)]
@@ -229,113 +227,6 @@ fn strip_field_codes(exec: &str) -> String {
     out.trim().to_string()
 }
 
-fn classify_icon(path: PathBuf) -> IconKind {
-    if path.extension().and_then(|e| e.to_str()) == Some("svg") {
-        IconKind::Svg(path)
-    } else {
-        IconKind::Raster(path)
-    }
-}
-
-// ─── Resolução de ícone (índice global, scan único lazy) ───────────────
-
-struct IconIndex {
-    entries: HashMap<String, PathBuf>,
-}
-
-static ICON_INDEX: std::sync::OnceLock<IconIndex> = std::sync::OnceLock::new();
-
-/// Resolve o `Icon=` consultando o índice (path absoluto vence; senão lookup
-/// O(1) por stem). best-effort: `None` se não achar.
-pub fn resolve_icon_path(icon: &str) -> Option<PathBuf> {
-    let p = PathBuf::from(icon);
-    if p.is_absolute() && p.exists() && is_supported_ext(&p) {
-        return Some(p);
-    }
-    ICON_INDEX
-        .get_or_init(IconIndex::build)
-        .entries
-        .get(icon)
-        .cloned()
-}
-
-fn is_supported_ext(p: &std::path::Path) -> bool {
-    matches!(
-        p.extension().and_then(|e| e.to_str()),
-        Some("png") | Some("jpg") | Some("jpeg") | Some("svg")
-    )
-}
-
-impl IconIndex {
-    fn build() -> IconIndex {
-        let mut entries: HashMap<String, PathBuf> = HashMap::new();
-        for base in theme_base_dirs() {
-            for theme in THEME_PRIORITY {
-                let theme_dir = base.join(theme);
-                if !theme_dir.is_dir() {
-                    continue;
-                }
-                index_two_levels(&theme_dir, &mut entries);
-            }
-        }
-        // pixmaps (último fallback).
-        if let Ok(it) = fs::read_dir("/usr/share/pixmaps") {
-            for entry in it.flatten() {
-                let p = entry.path();
-                if is_supported_ext(&p) {
-                    if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
-                        entries.entry(stem.to_string()).or_insert(p.clone());
-                    }
-                }
-            }
-        }
-        IconIndex { entries }
-    }
-}
-
-/// Indexa arquivos a 2 níveis de profundidade (layout theme/<l1>/<l2>/file).
-fn index_two_levels(theme_dir: &std::path::Path, entries: &mut HashMap<String, PathBuf>) {
-    let Ok(level1) = fs::read_dir(theme_dir) else {
-        return;
-    };
-    for l1 in level1.flatten() {
-        let l1p = l1.path();
-        if !l1p.is_dir() {
-            continue;
-        }
-        let Ok(level2) = fs::read_dir(&l1p) else {
-            continue;
-        };
-        for l2 in level2.flatten() {
-            let l2p = l2.path();
-            if !l2p.is_dir() {
-                continue;
-            }
-            let Ok(files) = fs::read_dir(&l2p) else {
-                continue;
-            };
-            for f in files.flatten() {
-                let p = f.path();
-                if is_supported_ext(&p) {
-                    if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
-                        entries.entry(stem.to_string()).or_insert(p.clone());
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn theme_base_dirs() -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    if let Some(home) = std::env::var_os("HOME") {
-        out.push(PathBuf::from(home).join(".local/share/icons"));
-    }
-    out.push(PathBuf::from("/usr/share/icons"));
-    out
-}
-
-const THEME_PRIORITY: &[&str] = &["breeze", "breeze-dark", "Adwaita", "AdwaitaLegacy", "hicolor"];
 
 // ─── Lançamento (desanexado) ───────────────────────────────────────────
 
